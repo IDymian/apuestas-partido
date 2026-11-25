@@ -9,7 +9,9 @@ se reparte en proporción entre los que acertaron.
 - **Backend:** Supabase (Postgres + RLS, Auth para el admin, Storage, Realtime).
 - **Hosting:** Vercel o Netlify (ya configurados).
 
-> Estado: fase 2 de 5 (lógica de reparto, base de datos y seed listos; pantallas en camino).
+> Estado: fase 3 de 5 (reparto, base de datos, flujo del apostador y pantalla en vivo listos; panel admin en camino).
+>
+> **Modo demo:** si el `.env` no tiene claves de Supabase, la app usa datos de prueba en memoria. Prueba `/p/DEMO26` (abierto), `/p/ENVIVO` (en juego) y `/p/FINAL` (finalizado).
 
 ---
 

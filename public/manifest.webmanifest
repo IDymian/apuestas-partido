@@ -1,6 +1,6 @@
 {
-  "name": "polla-partido",
-  "short_name": "polla-partido",
+  "name": "La Polla del Partido",
+  "short_name": "La Polla",
   "display": "standalone",
   "scope": "./",
   "start_url": "./",
@@ -53,5 +53,8 @@
       "type": "image/png",
       "purpose": "maskable any"
     }
-  ]
+  ],
+  "theme_color": "#047857",
+  "background_color": "#f1f5f9",
+  "lang": "es-PE"
 }
