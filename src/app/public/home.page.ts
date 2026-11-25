@@ -1,6 +1,7 @@
 import { Component, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { PublicApi } from '../core/public-api';
+import { lastMatch } from '../core/last-match';
 
 @Component({
   selector: 'app-home-page',
@@ -11,7 +12,18 @@ import { PublicApi } from '../core/public-api';
       <h1 class="mt-3 text-center text-3xl font-extrabold text-slate-900">La Polla del Partido</h1>
       <p class="mt-1 text-center text-slate-600">Apuesta con tus amigos al primer gol, al último y a la primera amarilla.</p>
 
-      <form class="card mt-8" (submit)="$event.preventDefault(); go()">
+      @if (last; as l) {
+        <a [routerLink]="['/p', l.code]" class="card mt-8 flex items-center gap-3 active:bg-slate-50">
+          <span class="text-2xl">🏟️</span>
+          <span class="min-w-0 flex-1">
+            <span class="block text-xs text-slate-500">Volver a</span>
+            <span class="block truncate font-bold text-slate-900">{{ l.title }}</span>
+          </span>
+          <span class="text-emerald-700">→</span>
+        </a>
+      }
+
+      <form class="card" [class.mt-8]="!last" [class.mt-3]="!!last" (submit)="$event.preventDefault(); go()">
         <label for="code" class="text-sm font-semibold text-slate-700">Código del partido</label>
         <input
           id="code"
@@ -42,6 +54,7 @@ export class HomePage {
   private router = inject(Router);
   protected readonly isDemo = inject(PublicApi).isDemo;
   protected readonly code = signal('');
+  protected readonly last = lastMatch();
 
   go() {
     const c = this.code().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');

@@ -4,6 +4,7 @@ import { BetFlowComponent } from './bet-flow.component';
 import { LiveBoardComponent } from './live-board.component';
 import { PublicMatchData, STATUS_LABEL } from '../core/models';
 import { friendlyError, PublicApi } from '../core/public-api';
+import { rememberMatch } from '../core/last-match';
 
 type Tab = 'bet' | 'live';
 
@@ -124,6 +125,7 @@ export class PublicMatchPage implements OnDestroy {
       if (d && this.firstLoad) {
         this.tab.set(d.match.status === 'open' ? 'bet' : 'live');
         document.title = `${d.match.home_team} vs ${d.match.away_team} · La Polla`;
+        rememberMatch(d.match.access_code, `${d.match.home_team} vs ${d.match.away_team}`);
       }
       this.firstLoad = false;
     } catch (e) {

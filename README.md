@@ -9,7 +9,7 @@ se reparte en proporción entre los que acertaron.
 - **Backend:** Supabase (Postgres + RLS, Auth para el admin, Storage, Realtime).
 - **Hosting:** Vercel o Netlify (ya configurados).
 
-> Estado: fase 4 de 5 (reparto, base de datos, apostador, pantalla en vivo y panel del organizador listos; falta desplegar y la revisión final).
+> Estado: las 5 fases están completas y probadas en modo demo. Falta conectarla a un proyecto real de Supabase y desplegarla.
 >
 > **Modo demo:** si el `.env` no tiene claves de Supabase, la app usa datos de prueba en memoria. Prueba `/p/DEMO26` (abierto), `/p/ENVIVO` (en juego) y `/p/FINAL` (finalizado). En `/admin` entras con cualquier correo y contraseña; los cambios se pierden al recargar.
 
@@ -119,6 +119,17 @@ npm run test:db             # migración + seguridad en un Postgres embebido (PG
 3. *Deploy*. `netlify.toml` ya define el build y las rutas.
 
 Después del deploy, comparte el link `https://tu-app.vercel.app/p/CODIGO` del partido.
+
+> **Deploy de prueba:** si despliegas sin las variables de entorno, la app sale en **modo demo**
+> (datos falsos en memoria, admin con cualquier correo). Sirve para mostrarla a tus amigos antes
+> del partido real. Cuando agregues las variables, vuelve a desplegar (*Redeploy*).
+
+### Instalar en el celular (PWA)
+
+- **Android (Chrome):** abre el link → menú ⋮ → *Agregar a la pantalla principal*.
+- **iPhone (Safari):** abre el link → botón compartir → *Agregar a inicio*.
+
+La app instalada abre en la pantalla de inicio, que ofrece volver al último partido visto.
 
 ---
 
