@@ -37,3 +37,25 @@
     @apply bg-slate-100 text-emerald-800;
   }
 }
+
+@layer components {
+  .input {
+    @apply h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100;
+  }
+  .btn-secondary {
+    @apply inline-flex h-10 items-center justify-center rounded-xl bg-slate-100 px-3 text-sm font-semibold text-slate-700 transition active:scale-[0.98] disabled:opacity-50;
+  }
+  .btn-danger {
+    @apply inline-flex h-10 items-center justify-center rounded-xl bg-red-50 px-3 text-sm font-semibold text-red-700 transition active:scale-[0.98] disabled:opacity-50;
+  }
+  .label {
+    @apply text-xs font-semibold text-slate-600;
+  }
+}
+
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}

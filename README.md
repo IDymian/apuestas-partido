@@ -9,9 +9,9 @@ se reparte en proporción entre los que acertaron.
 - **Backend:** Supabase (Postgres + RLS, Auth para el admin, Storage, Realtime).
 - **Hosting:** Vercel o Netlify (ya configurados).
 
-> Estado: fase 3 de 5 (reparto, base de datos, flujo del apostador y pantalla en vivo listos; panel admin en camino).
+> Estado: fase 4 de 5 (reparto, base de datos, apostador, pantalla en vivo y panel del organizador listos; falta desplegar y la revisión final).
 >
-> **Modo demo:** si el `.env` no tiene claves de Supabase, la app usa datos de prueba en memoria. Prueba `/p/DEMO26` (abierto), `/p/ENVIVO` (en juego) y `/p/FINAL` (finalizado).
+> **Modo demo:** si el `.env` no tiene claves de Supabase, la app usa datos de prueba en memoria. Prueba `/p/DEMO26` (abierto), `/p/ENVIVO` (en juego) y `/p/FINAL` (finalizado). En `/admin` entras con cualquier correo y contraseña; los cambios se pierden al recargar.
 
 ---
 
@@ -121,6 +121,19 @@ npm run test:db             # migración + seguridad en un Postgres embebido (PG
 Después del deploy, comparte el link `https://tu-app.vercel.app/p/CODIGO` del partido.
 
 ---
+
+## Panel del organizador (`/admin`)
+
+| Pestaña | Para qué |
+|---|---|
+| Tickets | Ver la captura en grande, aprobar o rechazar (con motivo). Filtros por estado. |
+| Eventos | Registrar gol o amarilla con dos toques: elige tipo y toca al jugador (el minuto queda arriba). Editar o borrar. |
+| Liquidación | Ganador por mercado, reparto por persona, acumulado, check de "pagado" y botón para copiar el resumen para WhatsApp. Se recalcula solo. |
+| Jugadores | Pegar la lista de cada equipo (uno por línea). "Autogol" se crea solo. |
+| Mercados | Activar, ordenar, renombrar, tipo, a dónde va el arrastre y pozo inicial. |
+| Datos | Equipos, fecha, código, Yape y QR. |
+
+Arriba están los botones de estado: **Cerrar apuestas** (al empezar el partido) → **Finalizar partido**.
 
 ## Seguridad (resumen)
 
