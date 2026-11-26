@@ -10,7 +10,8 @@
     "prestart": "node scripts/gen-env.mjs",
     "prebuild": "node scripts/gen-env.mjs",
     "pretest": "node scripts/gen-env.mjs",
-    "test:db": "node supabase/tests/db-check.mjs"
+    "test:db": "node supabase/tests/db-check.mjs",
+    "check:live": "node scripts/check-live.mjs"
   },
   "private": true,
   "packageManager": "npm@10.9.3",
