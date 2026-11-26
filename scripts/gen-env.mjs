@@ -17,7 +17,7 @@ const env = {
 };
 
 if (!env.supabaseUrl || !env.supabaseAnonKey) {
-  console.warn('[gen-env] Falta SUPABASE_URL o SUPABASE_ANON_KEY (.env). La app no podrá conectarse.');
+  console.warn('[gen-env] Falta SUPABASE_URL o SUPABASE_ANON_KEY (.env). La app arrancará en MODO DEMO (datos de prueba).');
 }
 
 writeFileSync(
