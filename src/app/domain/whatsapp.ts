@@ -1,8 +1,9 @@
-import { formatSoles, SettlementResult } from './settlement';
+import { formatSoles, MarketResult, SettlementResult } from './settlement';
 
 export interface SummaryContext {
   title: string;
-  playerName: (id: string | null) => string;
+  /** Nombre legible de lo que ganó: jugador, equipo o "racha de 4". */
+  selectionLabel: (market: MarketResult, selection: string | null) => string;
   marketName: (id: string) => string;
   paidKeys: Set<string>;
 }
@@ -13,15 +14,16 @@ export function whatsappSummary(r: SettlementResult, ctx: SummaryContext): strin
 
   for (const m of r.markets) {
     const head = `*${m.name}* · bote ${formatSoles(m.totalPotCents)}`;
+    const won = ctx.selectionLabel(m, m.winnerSelection);
     switch (m.outcome) {
       case 'winners':
-        lines.push(`${head}\nGanó ${ctx.playerName(m.winnerPlayerId)}`);
+        lines.push(`${head}\nGanó: ${won}`);
         for (const p of m.payouts) lines.push(`  • ${p.bettorName}: ${formatSoles(p.amountCents)}`);
         break;
       case 'no_winner':
         lines.push(
-          `${head}\nGanó ${ctx.playerName(m.winnerPlayerId)}, nadie le apostó → ` +
-            (m.rolledToMarketId ? `pasa a ${ctx.marketName(m.rolledToMarketId)}` : 'queda acumulado'),
+          `${head}\nGanó: ${won}, nadie le apostó → ` +
+            (m.rolledToMarketId ? `pasa a ${ctx.marketName(m.rolledToMarketId)}` : 'se lo queda el organizador'),
         );
         break;
       case 'refund':
@@ -40,10 +42,10 @@ export function whatsappSummary(r: SettlementResult, ctx: SummaryContext): strin
       lines.push(`• ${p.bettorName}: ${formatSoles(p.totalCents)}${ctx.paidKeys.has(p.personKey) ? ' ✅' : ''}`);
     }
   } else {
-    lines.push('Nadie cobra en este partido.');
+    lines.push('Nadie cobra en esta jornada.');
   }
-  if (r.accumulatedCents > 0) {
-    lines.push('', `🏦 Acumulado para el próximo partido: ${formatSoles(r.accumulatedCents)}`);
+  if (r.houseCents > 0) {
+    lines.push('', `🏦 Para el organizador (nadie acertó): ${formatSoles(r.houseCents)}`);
   }
   return lines.join('\n');
 }

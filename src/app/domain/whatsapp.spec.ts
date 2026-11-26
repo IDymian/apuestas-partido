@@ -1,32 +1,36 @@
 import { describe, expect, it } from 'vitest';
-import { settle } from './settlement';
+import { settle, SettleMarket } from './settlement';
 import { whatsappSummary } from './whatsapp';
 
+const m = (id: string, type: string, sortOrder: number, extra: Partial<SettleMarket> = {}): SettleMarket => ({
+  id, name: id, type, sortOrder, isActive: true, rolloverToMarketId: null, initialPot: 0, param: null, ...extra,
+});
+
 describe('whatsappSummary()', () => {
-  it('lista ganadores, arrastre, pagados y acumulado', () => {
+  it('muestra ganadores (jugador o número), devoluciones, pagados y lo del organizador', () => {
     const r = settle({
-      markets: [
-        { id: 'fg', name: 'Primer gol', type: 'first_goal', sortOrder: 1, isActive: true, rolloverToMarketId: 'lg', initialPot: 0 },
-        { id: 'lg', name: 'Último gol', type: 'last_goal', sortOrder: 2, isActive: true, rolloverToMarketId: null, initialPot: 0 },
-        { id: 'fy', name: 'Primera amarilla', type: 'first_yellow', sortOrder: 3, isActive: true, rolloverToMarketId: null, initialPot: 0 },
-      ],
-      events: [{ id: 'e1', type: 'goal', playerId: 'ful', minute: 30, stoppage: 0, seq: 1 }],
+      markets: [m('Primer gol', 'first_goal', 1), m('Racha más larga', 'longest_streak', 2), m('Primera amarilla', 'first_yellow', 3)],
+      teamIds: ['a', 'b', 'c'],
+      startingTeamIds: ['a', 'b'],
+      ownGoalOptionId: 'og',
+      events: [{ id: 'e1', type: 'goal', playerId: 'ful', teamId: 'a', isOwnGoal: false, teamOutId: null, minute: 5, seq: 1 }],
       bets: [
-        { ticketId: 't1', ticketStatus: 'approved', bettorName: 'Ana', marketId: 'fg', playerId: 'pep', amount: 4 },
-        { ticketId: 't2', ticketStatus: 'approved', bettorName: 'Rosa', marketId: 'lg', playerId: 'ful', amount: 3 },
-        { ticketId: 't3', ticketStatus: 'approved', bettorName: 'Beto', marketId: 'fy', playerId: 'x', amount: 2 },
+        { ticketId: 't1', ticketStatus: 'approved', bettorName: 'Ana', marketId: 'Primer gol', selection: 'pep', amount: 4 },
+        { ticketId: 't2', ticketStatus: 'approved', bettorName: 'Rosa', marketId: 'Racha más larga', selection: '1', amount: 3 },
+        { ticketId: 't3', ticketStatus: 'approved', bettorName: 'Beto', marketId: 'Primera amarilla', selection: 'x', amount: 2 },
       ],
     });
     const text = whatsappSummary(r, {
-      title: 'A vs B',
-      playerName: (id) => ({ ful: 'Fulanito', pep: 'Pepito' })[id ?? ''] ?? '¿?',
-      marketName: (id) => ({ lg: 'Último gol' })[id] ?? id,
+      title: 'Álvaro Fest',
+      selectionLabel: (mk, s) => (mk.type === 'longest_streak' ? `racha de ${s}` : ({ ful: 'Fulanito' } as Record<string, string>)[s ?? ''] ?? '¿?'),
+      marketName: (id) => id,
       paidKeys: new Set(['rosa']),
     });
-    expect(text).toContain('*A vs B*');
-    expect(text).toContain('nadie le apostó → pasa a Último gol');
-    expect(text).toContain('• Rosa: S/ 7.00 ✅');
-    expect(text).toContain('No hubo tarjetas amarillas: se devuelve lo apostado');
-    expect(text).toContain('• Beto: S/ 2.00');
+    expect(text).toContain('*Álvaro Fest*');
+    expect(text).toContain('Ganó: Fulanito, nadie le apostó → se lo queda el organizador');
+    expect(text).toContain('Ganó: racha de 1');
+    expect(text).toContain('• Rosa: S/ 3.00 ✅');
+    expect(text).toContain('No hubo amarillas: se devuelve lo apostado');
+    expect(text).toContain('Para el organizador (nadie acertó): S/ 4.00');
   });
 });

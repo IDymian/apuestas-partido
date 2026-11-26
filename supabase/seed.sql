@@ -1,68 +1,105 @@
 -- =============================================================================
--- Datos de prueba: un partido de ejemplo con código DEMO26
+-- Datos de prueba: una jornada de triangulares EN VIVO con código DEMO26.
 -- Link para apostar en local: http://localhost:4200/p/DEMO26
--- Se puede correr varias veces: borra el partido demo y lo vuelve a crear.
+-- Se puede correr varias veces: borra la jornada demo y la vuelve a crear.
+-- El número de pago es de mentira: cámbialo en el admin (pestaña Datos).
 -- =============================================================================
 
 delete from public.matches where access_code = 'DEMO26';
 
+-- Helpers temporales (solo existen durante esta sesión)
+create or replace function pg_temp.pid(m uuid, n text) returns uuid language sql as
+$$ select id from public.players where match_id = m and name = n $$;
+create or replace function pg_temp.tid(m uuid, n text) returns uuid language sql as
+$$ select id from public.teams where match_id = m and name = n $$;
+create or replace function pg_temp.mid(m uuid, n text) returns uuid language sql as
+$$ select id from public.markets where match_id = m and name = n $$;
+
 do $$
 declare
-  v_match uuid;
-  v_fg uuid; v_lg uuid; v_fy uuid;
-  v_t uuid;
-  p record;
-  i int := 0;
+  m uuid;
+  t uuid;
+  a uuid; b uuid; c uuid;
+  names text[] := array[
+    'Victor Manuel Espino', 'Oscar Fernando Vara', 'Mate Italo Loechle', 'Angel Jose Pariona',
+    'Alexis Encalada', 'Adrian Ruiz', 'Iker Gabriel Barturen', 'Braden García',
+    'Victor Nicolas Ortiz', 'Diego Guevara', 'Nestor Rojas', 'Paul Espinoza',
+    'Fabian Jesus Sandoval', 'Manuel Tumi', 'Bryan Eduardo Barba', 'David Málaga',
+    'Lorenzo Balicco', 'Andreow Jomark Santiago', 'David Ignacio Vivar', 'Alvaro Fabrizzio Salazar'
+  ];
 begin
-  insert into public.matches (home_team, away_team, starts_at, access_code, status, yape_number, yape_holder)
-  values ('Los Tigres', 'Las Águilas', now() + interval '2 hours', 'DEMO26', 'open', '999 888 777', 'Organizador Demo')
-  returning id into v_match;
+  insert into public.matches (title, starts_at, access_code, status, pay_method, pay_number, pay_holder)
+  values ('Pichanga de prueba', now() - interval '2 hours', 'DEMO26', 'open', 'Plin', '999 888 777', 'Organizador Demo')
+  returning id into m;
 
-  -- Jugadores (el "Autogol" lo crea el trigger)
-  for p in
-    select * from (values
-      ('home', 'Pepito Ramírez'), ('home', 'Juanito Torres'), ('home', 'Fulanito Díaz'),
-      ('home', 'Carlos Medina'),  ('home', 'Raúl Paredes'),   ('home', 'Mario Quispe'),
-      ('away', 'Diego Salas'),    ('away', 'Andrés Rojas'),   ('away', 'Hugo Vargas'),
-      ('away', 'Kevin Flores'),   ('away', 'Óscar Huamán'),   ('away', 'Bruno Chávez')
-    ) as t(team, name)
-  loop
-    i := i + 1;
-    insert into public.players (match_id, name, team, sort_order) values (v_match, p.name, p.team, i);
+  for i in 1 .. array_length(names, 1) loop
+    insert into public.players (match_id, name, sort_order) values (m, names[i], i);
   end loop;
 
-  select id into v_fg from public.markets where match_id = v_match and type = 'first_goal';
-  select id into v_lg from public.markets where match_id = v_match and type = 'last_goal';
-  select id into v_fy from public.markets where match_id = v_match and type = 'first_yellow';
+  a := pg_temp.tid(m, 'Equipo A');
+  b := pg_temp.tid(m, 'Equipo B');
+  c := pg_temp.tid(m, 'Equipo C');
 
-  -- Tickets aprobados
-  insert into public.tickets (match_id, bettor_name, total, status) values (v_match, 'Ana', 6, 'approved') returning id into v_t;
-  insert into public.bets (ticket_id, market_id, player_id, amount)
-  select v_t, v_fg, id, 4 from public.players where match_id = v_match and name = 'Pepito Ramírez'
-  union all
-  select v_t, v_fy, id, 2 from public.players where match_id = v_match and name = 'Hugo Vargas';
+  -- ---------------- Apuestas (antes de cerrar) ----------------
+  -- Ana
+  insert into public.tickets (match_id, bettor_name, total, status, created_at)
+  values (m, 'Ana', 0, 'approved', now() - interval '3 hours') returning id into t;
+  insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
+    (t, pg_temp.mid(m, 'Primer gol de la noche'), pg_temp.pid(m, 'Victor Manuel Espino'), null, null, 4),
+    (t, pg_temp.mid(m, 'Rey de la cancha'), null, a, null, 3),
+    (t, pg_temp.mid(m, 'Primera amarilla'), pg_temp.pid(m, 'Diego Guevara'), null, null, 2),
+    (t, pg_temp.mid(m, 'Racha más larga'), null, null, 3, 2);
+  -- Luis
+  insert into public.tickets (match_id, bettor_name, total, status, created_at)
+  values (m, 'Luis', 0, 'approved', now() - interval '170 minutes') returning id into t;
+  insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
+    (t, pg_temp.mid(m, 'Primer gol de la noche'), pg_temp.pid(m, 'Adrian Ruiz'), null, null, 2),
+    (t, pg_temp.mid(m, 'Pichichi de la noche'), pg_temp.pid(m, 'Victor Manuel Espino'), null, null, 5),
+    (t, pg_temp.mid(m, 'Equipo que más sale'), null, c, null, 3),
+    (t, pg_temp.mid(m, 'Primer autogol'), pg_temp.pid(m, 'Nestor Rojas'), null, null, 1);
+  -- Rosa
+  insert into public.tickets (match_id, bettor_name, total, status, created_at)
+  values (m, 'Rosa', 0, 'approved', now() - interval '160 minutes') returning id into t;
+  insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
+    (t, pg_temp.mid(m, 'Último gol de la noche'), pg_temp.pid(m, 'David Málaga'), null, null, 3),
+    (t, pg_temp.mid(m, 'Primer cuartete'), pg_temp.pid(m, 'Victor Manuel Espino'), null, null, 2),
+    (t, pg_temp.mid(m, 'Gol número 15'), pg_temp.pid(m, 'Autogol'), null, null, 1),
+    (t, pg_temp.mid(m, 'Primera huacha'), pg_temp.pid(m, 'Paul Espinoza'), null, null, 4);
+  -- Beto
+  insert into public.tickets (match_id, bettor_name, total, status, created_at)
+  values (m, 'Beto', 0, 'approved', now() - interval '150 minutes') returning id into t;
+  insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
+    (t, pg_temp.mid(m, 'Rey de la cancha'), null, b, null, 5),
+    (t, pg_temp.mid(m, 'Racha más larga'), null, null, 2, 3),
+    (t, pg_temp.mid(m, 'El más amonestado'), pg_temp.pid(m, 'Diego Guevara'), null, null, 2),
+    (t, pg_temp.mid(m, 'Última amarilla'), pg_temp.pid(m, 'Manuel Tumi'), null, null, 1),
+    (t, pg_temp.mid(m, 'Primer sextete'), pg_temp.pid(m, 'Adrian Ruiz'), null, null, 1),
+    (t, pg_temp.mid(m, 'Gol número 28'), pg_temp.pid(m, 'David Málaga'), null, null, 1);
+  -- Carla (pendiente: no cuenta)
+  insert into public.tickets (match_id, bettor_name, total, status, created_at)
+  values (m, 'Carla', 0, 'pending', now() - interval '140 minutes') returning id into t;
+  insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
+    (t, pg_temp.mid(m, 'Primer gol de la noche'), pg_temp.pid(m, 'Paul Espinoza'), null, null, 5);
+  -- Dani (rechazado: no cuenta)
+  insert into public.tickets (match_id, bettor_name, total, status, reject_reason, created_at)
+  values (m, 'Dani', 0, 'rejected', 'No llegó el Plin', now() - interval '135 minutes') returning id into t;
+  insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
+    (t, pg_temp.mid(m, 'Rey de la cancha'), null, c, null, 5);
 
-  insert into public.tickets (match_id, bettor_name, total, status) values (v_match, 'Luis', 2, 'approved') returning id into v_t;
-  insert into public.bets (ticket_id, market_id, player_id, amount)
-  select v_t, v_fg, id, 2 from public.players where match_id = v_match and name = 'Juanito Torres';
+  update public.tickets tk set total = (select sum(amount) from public.bets where ticket_id = tk.id) where match_id = m;
 
-  insert into public.tickets (match_id, bettor_name, total, status) values (v_match, 'Rosa', 3, 'approved') returning id into v_t;
-  insert into public.bets (ticket_id, market_id, player_id, amount)
-  select v_t, v_lg, id, 3 from public.players where match_id = v_match and name = 'Fulanito Díaz';
+  -- ---------------- Se cierra y arranca la jornada (A vs B, C espera) ----------------
+  update public.matches set status = 'closed', closed_at = now() - interval '90 minutes', starting_team_ids = array[a, b] where id = m;
 
-  insert into public.tickets (match_id, bettor_name, total, status) values (v_match, 'Beto', 4, 'approved') returning id into v_t;
-  insert into public.bets (ticket_id, market_id, player_id, amount)
-  select v_t, v_lg, id, 1 from public.players where match_id = v_match and name = 'Fulanito Díaz'
-  union all
-  select v_t, v_fy, id, 3 from public.players where match_id = v_match and name = 'Diego Salas';
-
-  -- Un ticket pendiente y uno rechazado (no cuentan para el bote)
-  insert into public.tickets (match_id, bettor_name, total, status) values (v_match, 'Carla', 5, 'pending') returning id into v_t;
-  insert into public.bets (ticket_id, market_id, player_id, amount)
-  select v_t, v_lg, id, 5 from public.players where match_id = v_match and name = 'Diego Salas';
-
-  insert into public.tickets (match_id, bettor_name, total, status, reject_reason)
-  values (v_match, 'Dani', 5, 'rejected', 'No llegó el Yape') returning id into v_t;
-  insert into public.bets (ticket_id, market_id, player_id, amount)
-  select v_t, v_fg, id, 5 from public.players where match_id = v_match and name = 'Kevin Flores';
+  insert into public.events (match_id, type, player_id, team_id, is_own_goal, team_out_id, minute) values
+    (m, 'goal',     pg_temp.pid(m, 'Victor Manuel Espino'), a, false, null, 5),   -- A gana, sale B, entra C
+    (m, 'yellow',   pg_temp.pid(m, 'Diego Guevara'),        null, false, null, 8),
+    (m, 'goal',     pg_temp.pid(m, 'Adrian Ruiz'),          a, false, null, 12),  -- A gana, sale C, entra B
+    (m, 'nutmeg',   pg_temp.pid(m, 'Paul Espinoza'),        null, false, null, 15),
+    (m, 'goal',     pg_temp.pid(m, 'Nestor Rojas'),         b, true,  null, 20),  -- autogol: gol para B, sale A, entra C
+    (m, 'goal',     pg_temp.pid(m, 'Victor Manuel Espino'), b, false, null, 26),  -- B gana, sale C, entra A
+    (m, 'yellow',   pg_temp.pid(m, 'Diego Guevara'),        null, false, null, 30),
+    (m, 'rotation', null,                                   null, false, b,    35),  -- rotación: sale B, entra C
+    (m, 'goal',     pg_temp.pid(m, 'David Málaga'),         c, false, null, 41),  -- C gana, sale A, entra B
+    (m, 'yellow',   pg_temp.pid(m, 'Manuel Tumi'),          null, false, null, 44);
 end $$;

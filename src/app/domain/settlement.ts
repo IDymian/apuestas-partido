@@ -1,34 +1,29 @@
 /**
- * Lógica pura de liquidación de las apuestas.
+ * Lógica pura de liquidación de las apuestas de una jornada.
  *
  * Todo el dinero se maneja en CÉNTIMOS (enteros) para no perder ni ganar
  * dinero por errores de coma flotante. La UI formatea con `formatSoles`.
+ *
+ * Una apuesta elige una "selección": el id de un jugador, el id de un equipo
+ * o un número (como texto), según el `target` del tipo de mercado.
  */
+import { courtTimeline, CourtTimeline, leaderFirstToReach, sortEvents, TimelineEvent } from './timeline';
 
 export type TicketStatus = 'pending' | 'approved' | 'rejected';
-export type EventType = 'goal' | 'yellow';
+export type MarketTarget = 'player' | 'team' | 'number';
+export type { TimelineEvent } from './timeline';
 
 export interface SettleMarket {
   id: string;
   name: string;
-  /** first_goal | last_goal | first_yellow | (tipos futuros) */
   type: string;
   sortOrder: number;
   isActive: boolean;
   rolloverToMarketId: string | null;
   /** Pozo inicial en soles (puede tener céntimos). */
   initialPot: number;
-}
-
-export interface SettleEvent {
-  id: string;
-  type: EventType;
-  playerId: string;
-  minute: number;
-  /** Minutos de tiempo añadido (45+2 → minute 45, stoppage 2). */
-  stoppage: number;
-  /** Orden de registro; desempata eventos del mismo minuto. */
-  seq: number;
+  /** 4 / 6 para "primero en llegar a N goles", 15 / 28 para "gol número N". */
+  param: number | null;
 }
 
 export interface SettleBet {
@@ -36,32 +31,46 @@ export interface SettleBet {
   ticketStatus: TicketStatus;
   bettorName: string;
   marketId: string;
-  playerId: string;
+  /** id de jugador, id de equipo o número como texto. */
+  selection: string;
   /** Soles enteros, 1..5. */
   amount: number;
 }
 
 export interface SettleInput {
   markets: SettleMarket[];
-  events: SettleEvent[];
+  events: TimelineEvent[];
+  teamIds: string[];
+  startingTeamIds: string[];
+  /** Id del jugador especial "Autogol" (opción de apuesta), si existe. */
+  ownGoalOptionId: string | null;
   /** Deben venir en orden de creación del ticket: el último ganador absorbe el redondeo. */
   bets: SettleBet[];
 }
 
+export interface ResolveContext {
+  /** Ordenados por minuto y orden de registro. */
+  events: TimelineEvent[];
+  timeline: CourtTimeline;
+  param: number | null;
+  ownGoalOptionId: string | null;
+}
+
 /** Lo que decide un resolver a partir de los eventos. */
 export type Resolution =
-  | { kind: 'winner'; playerId: string }
+  | { kind: 'winner'; selection: string }
   | { kind: 'refund'; reason: string }
   | { kind: 'unresolved'; reason: string };
 
-export type Resolver = (events: SettleEvent[]) => Resolution;
+export type Resolver = (ctx: ResolveContext) => Resolution;
 
+/** winners: hubo aciertos · refund: no ocurrió · no_winner: nadie acertó · unresolved: tipo desconocido */
 export type MarketOutcome = 'winners' | 'refund' | 'no_winner' | 'unresolved';
 
 export interface PersonAmount {
   personKey: string;
   bettorName: string;
-  /** Lo que apostó esta persona en el mercado (al ganador, si es un reparto). */
+  /** Lo que apostó esta persona en el mercado (a la selección ganadora, si es un reparto). */
   stakeCents: number;
   amountCents: number;
 }
@@ -72,18 +81,16 @@ export interface MarketResult {
   type: string;
   outcome: MarketOutcome;
   reason: string | null;
-  winnerPlayerId: string | null;
-  /** Suma de apuestas aprobadas en este mercado. */
+  /** Jugador, equipo o número ganador. */
+  winnerSelection: string | null;
   betsPotCents: number;
   initialPotCents: number;
-  /** Bote que llegó por arrastre desde otros mercados. */
   rolledInCents: number;
   rolledInFrom: string[];
   totalPotCents: number;
-  /** Mercado al que se arrastró el bote (si no hubo aciertos). */
   rolledToMarketId: string | null;
-  /** Lo que queda acumulado para el próximo partido desde este mercado. */
-  accumulatedCents: number;
+  /** Lo que se queda el organizador desde este mercado (nadie acertó, pozos no repartidos). */
+  houseCents: number;
   payouts: PersonAmount[];
   refunds: PersonAmount[];
 }
@@ -101,7 +108,9 @@ export interface PersonResult {
 export interface SettlementResult {
   markets: MarketResult[];
   people: PersonResult[];
-  accumulatedCents: number;
+  /** Total que se queda el organizador. */
+  houseCents: number;
+  timeline: CourtTimeline;
 }
 
 // ---------------------------------------------------------------------------
@@ -128,31 +137,71 @@ export function personKey(name: string): string {
     .toLowerCase();
 }
 
-export function compareEvents(a: SettleEvent, b: SettleEvent): number {
-  return a.minute - b.minute || a.stoppage - b.stoppage || a.seq - b.seq;
-}
+/** Número máximo que se puede elegir en "Racha más larga" (10 = "10 o más"). */
+export const STREAK_MAX_OPTION = 10;
 
-const firstOf = (events: SettleEvent[], type: EventType) =>
-  events.filter((e) => e.type === type).sort(compareEvents)[0];
-const lastOf = (events: SettleEvent[], type: EventType) =>
-  events.filter((e) => e.type === type).sort(compareEvents).at(-1);
+const goals = (c: ResolveContext) => c.events.filter((e) => e.type === 'goal');
+const realGoals = (c: ResolveContext) => goals(c).filter((e) => !e.isOwnGoal && e.playerId);
+const ofType = (c: ResolveContext, t: TimelineEvent['type']) => c.events.filter((e) => e.type === t && e.playerId);
+/** En Primer/Último gol y Gol N, un autogol hace ganar a la opción "Autogol". */
+const goalSelection = (c: ResolveContext, e: TimelineEvent): Resolution =>
+  e.isOwnGoal
+    ? c.ownGoalOptionId
+      ? { kind: 'winner', selection: c.ownGoalOptionId }
+      : { kind: 'unresolved', reason: 'Falta la opción "Autogol"' }
+    : { kind: 'winner', selection: e.playerId! };
+const winner = (selection: string | null | undefined, refundReason: string): Resolution =>
+  selection ? { kind: 'winner', selection } : { kind: 'refund', reason: refundReason };
+
+const NO_GOALS = 'No hubo goles';
+const NO_YELLOWS = 'No hubo amarillas';
 
 /** Registro de tipos de mercado. Para un tipo nuevo, agrega aquí su resolver. */
 export const RESOLVERS: Record<string, Resolver> = {
-  first_goal: (events) => {
-    const e = firstOf(events, 'goal');
-    return e ? { kind: 'winner', playerId: e.playerId } : { kind: 'refund', reason: 'Sin goles (0-0)' };
+  // ⚽ Goles (a jugador)
+  first_goal: (c) => {
+    const e = goals(c)[0];
+    return e ? goalSelection(c, e) : { kind: 'refund', reason: NO_GOALS };
   },
-  last_goal: (events) => {
-    const e = lastOf(events, 'goal');
-    return e ? { kind: 'winner', playerId: e.playerId } : { kind: 'refund', reason: 'Sin goles (0-0)' };
+  last_goal: (c) => {
+    const e = goals(c).at(-1);
+    return e ? goalSelection(c, e) : { kind: 'refund', reason: NO_GOALS };
   },
-  first_yellow: (events) => {
-    const e = firstOf(events, 'yellow');
-    return e
-      ? { kind: 'winner', playerId: e.playerId }
-      : { kind: 'refund', reason: 'No hubo tarjetas amarillas' };
+  top_scorer: (c) => winner(leaderFirstToReach(realGoals(c).map((e) => e.playerId!)), NO_GOALS),
+  first_to_n_goals: (c) => {
+    const n = c.param ?? 0;
+    if (n < 1) return { kind: 'unresolved', reason: 'Falta la cantidad de goles' };
+    const count = new Map<string, number>();
+    for (const e of realGoals(c)) {
+      const k = (count.get(e.playerId!) ?? 0) + 1;
+      count.set(e.playerId!, k);
+      if (k === n) return { kind: 'winner', selection: e.playerId! };
+    }
+    return { kind: 'refund', reason: `Nadie llegó a ${n} goles` };
   },
+  nth_goal: (c) => {
+    const n = c.param ?? 0;
+    if (n < 1) return { kind: 'unresolved', reason: 'Falta el número de gol' };
+    const e = goals(c)[n - 1];
+    return e ? goalSelection(c, e) : { kind: 'refund', reason: `No hubo ${n} goles` };
+  },
+
+  // 🛡️ Equipos (a equipo o número)
+  most_wins: (c) => winner(c.timeline.mostWinsTeamId, NO_GOALS),
+  longest_streak: (c) =>
+    c.timeline.maxStreak > 0
+      ? { kind: 'winner', selection: String(Math.min(c.timeline.maxStreak, STREAK_MAX_OPTION)) }
+      : { kind: 'refund', reason: NO_GOALS },
+  most_exits: (c) => winner(c.timeline.mostExitsTeamId, NO_GOALS),
+
+  // 🟨 Amarillas (a jugador)
+  first_yellow: (c) => winner(ofType(c, 'yellow')[0]?.playerId, NO_YELLOWS),
+  last_yellow: (c) => winner(ofType(c, 'yellow').at(-1)?.playerId, NO_YELLOWS),
+  most_yellows: (c) => winner(leaderFirstToReach(ofType(c, 'yellow').map((e) => e.playerId!)), NO_YELLOWS),
+
+  // 🤡 Pichanga (a jugador)
+  first_own_goal: (c) => winner(goals(c).find((e) => e.isOwnGoal && e.playerId)?.playerId, 'No hubo autogoles'),
+  first_nutmeg_victim: (c) => winner(ofType(c, 'nutmeg')[0]?.playerId, 'No hubo huachas'),
 };
 
 /**
@@ -167,8 +216,7 @@ export function splitProportional<T extends { stakeCents: number }>(
   if (total === 0) return [];
   let given = 0;
   return stakes.map((x, i) => {
-    const amountCents =
-      i === stakes.length - 1 ? potCents - given : Math.floor((potCents * x.stakeCents) / total);
+    const amountCents = i === stakes.length - 1 ? potCents - given : Math.floor((potCents * x.stakeCents) / total);
     given += amountCents;
     return { ...x, amountCents };
   });
@@ -194,7 +242,7 @@ function groupByPerson(bets: SettleBet[]): PersonAmount[] {
 /**
  * Orden de proceso: un mercado se liquida después de todos los que le
  * arrastran bote. Los arrastres que forman ciclos o apuntan a mercados
- * inactivos/inexistentes se anulan (el bote queda acumulado).
+ * inactivos/inexistentes se anulan (el bote queda para el organizador).
  */
 function processingOrder(markets: SettleMarket[]): { order: SettleMarket[]; target: Map<string, string | null> } {
   const byId = new Map(markets.map((m) => [m.id, m]));
@@ -203,7 +251,6 @@ function processingOrder(markets: SettleMarket[]): { order: SettleMarket[]; targ
     const t = m.rolloverToMarketId;
     target.set(m.id, t && t !== m.id && byId.has(t) ? t : null);
   }
-
   const sorted = [...markets].sort((a, b) => a.sortOrder - b.sortOrder);
   const indeg = new Map<string, number>(markets.map((m) => [m.id, 0]));
   for (const t of target.values()) if (t) indeg.set(t, (indeg.get(t) ?? 0) + 1);
@@ -222,7 +269,6 @@ function processingOrder(markets: SettleMarket[]): { order: SettleMarket[]; targ
       if (t) indeg.set(t, (indeg.get(t) ?? 0) - 1);
     }
   }
-  // Lo que queda está en un ciclo: se anula su arrastre.
   for (const m of sorted) {
     if (!done.has(m.id)) {
       target.set(m.id, null);
@@ -237,6 +283,8 @@ function processingOrder(markets: SettleMarket[]): { order: SettleMarket[]; targ
 // ---------------------------------------------------------------------------
 
 export function settle(input: SettleInput, resolvers: Record<string, Resolver> = RESOLVERS): SettlementResult {
+  const events = sortEvents(input.events);
+  const timeline = courtTimeline(events, input.teamIds, input.startingTeamIds);
   const active = input.markets.filter((m) => m.isActive);
   const approved = input.bets.filter((b) => b.ticketStatus === 'approved');
   const { order, target } = processingOrder(active);
@@ -257,58 +305,57 @@ export function settle(input: SettleInput, resolvers: Record<string, Resolver> =
       type: m.type,
       outcome: 'unresolved',
       reason: null,
-      winnerPlayerId: null,
+      winnerSelection: null,
       betsPotCents,
       initialPotCents,
       rolledInCents: inc.cents,
       rolledInFrom: inc.from,
       totalPotCents,
       rolledToMarketId: null,
-      accumulatedCents: 0,
+      houseCents: 0,
       payouts: [],
       refunds: [],
     };
 
     const resolver = resolvers[m.type];
     const res: Resolution = resolver
-      ? resolver(input.events)
+      ? resolver({ events, timeline, param: m.param, ownGoalOptionId: input.ownGoalOptionId })
       : { kind: 'unresolved', reason: `Tipo de mercado desconocido: ${m.type}` };
 
     if (res.kind === 'unresolved') {
       r.reason = res.reason;
     } else if (res.kind === 'refund') {
-      // Se devuelve lo apostado; pozo inicial y arrastre quedan acumulados.
+      // Se devuelve lo apostado; pozo inicial y arrastre quedan para el organizador.
       r.outcome = 'refund';
       r.reason = res.reason;
       r.refunds = groupByPerson(bets).map((p) => ({ ...p, amountCents: p.stakeCents }));
-      r.accumulatedCents = initialPotCents + inc.cents;
+      r.houseCents = initialPotCents + inc.cents;
     } else {
-      r.winnerPlayerId = res.playerId;
-      const winners = groupByPerson(bets.filter((b) => b.playerId === res.playerId));
+      r.winnerSelection = res.selection;
+      const winners = groupByPerson(bets.filter((b) => b.selection === res.selection));
       if (winners.length > 0) {
         r.outcome = 'winners';
         r.payouts = splitProportional(totalPotCents, winners);
       } else {
         r.outcome = 'no_winner';
         const t = target.get(m.id) ?? null;
-        if (t && totalPotCents > 0) {
+        if (t) {
           r.rolledToMarketId = t;
-          const cur = rolledIn.get(t) ?? { cents: 0, from: [] };
-          rolledIn.set(t, { cents: cur.cents + totalPotCents, from: [...cur.from, m.id] });
-        } else if (t) {
-          r.rolledToMarketId = t;
+          if (totalPotCents > 0) {
+            const cur = rolledIn.get(t) ?? { cents: 0, from: [] };
+            rolledIn.set(t, { cents: cur.cents + totalPotCents, from: [...cur.from, m.id] });
+          }
         } else {
-          r.accumulatedCents = totalPotCents;
+          // Nadie acertó y no hay arrastre: el bote se lo queda el organizador.
+          r.houseCents = totalPotCents;
         }
       }
     }
     results.set(m.id, r);
   }
 
-  // Resultados en el orden visual (sort_order).
   const markets = [...active].sort((a, b) => a.sortOrder - b.sortOrder).map((m) => results.get(m.id)!);
 
-  // Totales por persona.
   const people = new Map<string, PersonResult>();
   const person = (key: string, name: string) => {
     let p = people.get(key);
@@ -332,6 +379,7 @@ export function settle(input: SettleInput, resolvers: Record<string, Resolver> =
   return {
     markets,
     people: [...people.values()].sort((a, b) => b.totalCents - a.totalCents || a.bettorName.localeCompare(b.bettorName)),
-    accumulatedCents: markets.reduce((s, r) => s + r.accumulatedCents, 0),
+    houseCents: markets.reduce((s, r) => s + r.houseCents, 0),
+    timeline,
   };
 }
