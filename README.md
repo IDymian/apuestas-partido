@@ -8,6 +8,7 @@ se reparte en proporción entre los que acertaron.
 - **Frontend:** Angular 21 (standalone + signals), Tailwind, PWA.
 - **Backend:** Supabase (Postgres + RLS, Auth para el admin, Storage, Realtime).
 - **Hosting:** Vercel o Netlify (ya configurados).
+- **En línea:** <https://apuestas-partido.vercel.app> (por ahora en modo demo).
 
 > Estado: las 5 fases están completas y probadas en modo demo. Falta conectarla a un proyecto real de Supabase y desplegarla.
 >
