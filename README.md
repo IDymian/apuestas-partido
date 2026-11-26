@@ -1,4 +1,4 @@
-# Polla del Partido ⚽
+# Apuestas del Partido ⚽
 
 App web para organizar apuestas entre amigos en un partido de fútbol: cada quien
 apuesta de S/ 1 a S/ 5 a un jugador en cada mercado (primer gol, último gol,
@@ -15,7 +15,7 @@ se reparte en proporción entre los que acertaron.
 
 ---
 
-## Reglas de la polla
+## Reglas de las apuestas
 
 | Regla | Detalle |
 |---|---|

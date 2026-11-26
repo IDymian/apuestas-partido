@@ -1,6 +1,6 @@
 {
-  "name": "La Polla del Partido",
-  "short_name": "La Polla",
+  "name": "Apuestas del Partido",
+  "short_name": "Apuestas",
   "display": "standalone",
   "scope": "./",
   "start_url": "./",

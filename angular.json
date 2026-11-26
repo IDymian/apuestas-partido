@@ -6,7 +6,7 @@
   },
   "newProjectRoot": "projects",
   "projects": {
-    "polla-partido": {
+    "apuestas-partido": {
       "projectType": "application",
       "schematics": {},
       "root": "",
@@ -61,10 +61,10 @@
           "builder": "@angular/build:dev-server",
           "configurations": {
             "production": {
-              "buildTarget": "polla-partido:build:production"
+              "buildTarget": "apuestas-partido:build:production"
             },
             "development": {
-              "buildTarget": "polla-partido:build:development"
+              "buildTarget": "apuestas-partido:build:development"
             }
           },
           "defaultConfiguration": "development"

@@ -1,5 +1,5 @@
 -- =============================================================================
--- Polla del Partido — esquema inicial
+-- Apuestas del Partido — esquema inicial
 --
 -- Modelo de seguridad:
 --   * RLS activada en TODAS las tablas.

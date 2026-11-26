@@ -1,5 +1,5 @@
 /** Recuerda el último partido abierto, para volver rápido desde la app instalada. */
-const KEY = 'polla:last-match';
+const KEY = 'apuestas:last-match';
 
 export function rememberMatch(code: string, title: string) {
   try {

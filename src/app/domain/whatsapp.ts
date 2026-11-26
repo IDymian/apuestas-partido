@@ -9,7 +9,7 @@ export interface SummaryContext {
 
 /** Resumen de la liquidación en texto para pegar en WhatsApp (*negrita* incluida). */
 export function whatsappSummary(r: SettlementResult, ctx: SummaryContext): string {
-  const lines: string[] = [`⚽ *${ctx.title}*`, '*Resultados de la polla*', ''];
+  const lines: string[] = [`⚽ *${ctx.title}*`, '*Resultados de las apuestas*', ''];
 
   for (const m of r.markets) {
     const head = `*${m.name}* · bote ${formatSoles(m.totalPotCents)}`;

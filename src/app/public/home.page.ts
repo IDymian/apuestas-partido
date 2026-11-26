@@ -9,7 +9,7 @@ import { lastMatch } from '../core/last-match';
   template: `
     <main class="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-10">
       <p class="text-center text-6xl">⚽</p>
-      <h1 class="mt-3 text-center text-3xl font-extrabold text-slate-900">La Polla del Partido</h1>
+      <h1 class="mt-3 text-center text-3xl font-extrabold text-slate-900">Apuestas del Partido</h1>
       <p class="mt-1 text-center text-slate-600">Apuesta con tus amigos al primer gol, al último y a la primera amarilla.</p>
 
       @if (last; as l) {

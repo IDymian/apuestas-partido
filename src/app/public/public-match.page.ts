@@ -31,7 +31,7 @@ type Tab = 'bet' | 'live';
       <header class="bg-emerald-700 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-0 text-white">
         <div class="mx-auto max-w-md">
           <div class="flex items-center justify-between text-xs">
-            <span class="font-semibold uppercase tracking-wider text-emerald-100">⚽ La Polla</span>
+            <span class="font-semibold uppercase tracking-wider text-emerald-100">⚽ Apuestas</span>
             <span class="rounded-full px-2 py-0.5 font-semibold" [class]="statusClass()">{{ statusLabel() }}</span>
           </div>
           <h1 class="mt-2 text-2xl leading-tight font-extrabold">
@@ -124,7 +124,7 @@ export class PublicMatchPage implements OnDestroy {
       this.data.set(d);
       if (d && this.firstLoad) {
         this.tab.set(d.match.status === 'open' ? 'bet' : 'live');
-        document.title = `${d.match.home_team} vs ${d.match.away_team} · La Polla`;
+        document.title = `${d.match.home_team} vs ${d.match.away_team} · Apuestas`;
         rememberMatch(d.match.access_code, `${d.match.home_team} vs ${d.match.away_team}`);
       }
       this.firstLoad = false;

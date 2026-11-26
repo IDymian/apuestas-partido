@@ -410,7 +410,7 @@ interface Draft {
   name: string;
   bets: BetDraft[];
 }
-const draftKey = (code: string) => `polla:draft:${code.toUpperCase()}`;
+const draftKey = (code: string) => `apuestas:draft:${code.toUpperCase()}`;
 function readDraft(code: string): Draft | null {
   try {
     const raw = localStorage.getItem(draftKey(code));

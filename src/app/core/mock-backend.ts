@@ -397,15 +397,15 @@ export class MockAdminApi extends AdminApi {
 
 function readDemoSession(): string | null {
   try {
-    return sessionStorage.getItem('polla:demo-admin');
+    return sessionStorage.getItem('apuestas:demo-admin');
   } catch {
     return null;
   }
 }
 function writeDemoSession(email: string | null) {
   try {
-    if (email) sessionStorage.setItem('polla:demo-admin', email);
-    else sessionStorage.removeItem('polla:demo-admin');
+    if (email) sessionStorage.setItem('apuestas:demo-admin', email);
+    else sessionStorage.removeItem('apuestas:demo-admin');
   } catch {
     /* sin almacenamiento */
   }

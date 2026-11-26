@@ -1,5 +1,5 @@
 /**
- * Lógica pura de liquidación de la polla.
+ * Lógica pura de liquidación de las apuestas.
  *
  * Todo el dinero se maneja en CÉNTIMOS (enteros) para no perder ni ganar
  * dinero por errores de coma flotante. La UI formatea con `formatSoles`.
