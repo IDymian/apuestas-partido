@@ -319,6 +319,13 @@ alter table public.bets         enable row level security;
 alter table public.events       enable row level security;
 alter table public.payouts_paid enable row level security;
 
+-- Permisos explícitos (no dependemos de "Grant API access to new tables
+-- automatically"). Lo que cada rol ve realmente lo deciden las políticas RLS.
+grant usage on schema public to anon, authenticated;
+grant select, insert, update, delete on all tables in schema public to authenticated;
+grant usage, select on all sequences in schema public to authenticated;
+grant select on public.market_types to anon;
+
 -- El admin puede ver su propia fila (para saber que es admin).
 create policy admins_self_read on public.admins
   for select to authenticated using (user_id = auth.uid());

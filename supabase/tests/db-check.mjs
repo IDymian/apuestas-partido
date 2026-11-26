@@ -21,8 +21,8 @@ grant all on storage.objects to anon, authenticated;
 create function storage.foldername(name text) returns text[] language sql immutable as $$ select (string_to_array(name, '/'))[1:array_length(string_to_array(name,'/'),1)-1] $$;
 create table realtime.log (topic text, payload jsonb);
 create function realtime.send(payload jsonb, event text, topic text, private boolean default true) returns void language sql as $$ insert into realtime.log values (topic, payload) $$;
-alter default privileges in schema public grant all on tables to anon, authenticated;
-alter default privileges in schema public grant all on functions to anon, authenticated;
+-- sin privilegios por defecto: la migración debe dar los suyos
+
 `);
 
 await db.exec(readFileSync(root + 'migrations/20261124000000_init.sql', 'utf8'));
@@ -55,7 +55,9 @@ await expectErr('anon no puede subir a partido inexistente', () => db.query(`ins
 console.log('anon lee storage:', (await q(`select count(*)::int c from storage.objects`))[0].c);
 
 // lecturas como anon
-console.log('anon lee tickets:', (await q(`select count(*)::int c from tickets`))[0].c);
+await expectErr('anon no lee tickets', () => q(`select count(*)::int c from tickets`), /permission/);
+await expectErr('anon no lee eventos directo', () => q(`select * from events`), /permission/);
+console.log('anon lee market_types:', (await q(`select count(*)::int c from market_types`))[0].c);
 await expectErr('anon no lee public_bets', () => q(`select * from public_bets`), /permission/);
 const pub = (await q(`select get_public_match('demo26') j`))[0].j;
 console.log('público: bets', pub.bets.length, 'players', pub.players.length, 'markets', pub.markets.length, 'receipt?', JSON.stringify(pub).includes('receipt'));
@@ -75,8 +77,8 @@ await expectErr('duplicada', () => q(`select submit_ticket('DEMO26','X',$1::json
 await expectErr('21 apuestas', () => q(`select submit_ticket('DEMO26','X',$1::jsonb,$2)`, [bets(Array.from({ length: 21 }, () => ({ market_id: mk.first_goal, player_id: og, amount: 1 }))), `${m.id}/r2.jpg`]), /entre 1 y 20/);
 await expectErr('sin captura subida', () => q(`select submit_ticket('DEMO26','X',$1::jsonb,$2)`, [bets([{ market_id: mk.first_goal, player_id: og, amount: 1 }]), `${m.id}/nada.jpg`]), /No se encontró/);
 await expectErr('nombre vacío', () => q(`select submit_ticket('DEMO26','   ',$1::jsonb,$2)`, [bets([{ market_id: mk.first_goal, player_id: og, amount: 1 }]), `${m.id}/r2.jpg`]), /nombre/);
-await expectErr('anon no inserta directo', () => q(`insert into tickets (match_id, bettor_name, status) values ($1,'x','approved')`, [m.id]), /row-level/);
-await expectErr('anon no aprueba', async () => { const r = await db.query(`update tickets set status='approved'`); if (r.affectedRows === 0) throw new Error('row-level: 0 filas'); }, /row-level/);
+await expectErr('anon no inserta directo', () => q(`insert into tickets (match_id, bettor_name, status) values ($1,'x','approved')`, [m.id]), /row-level|permission/);
+await expectErr('anon no aprueba', async () => { const r = await db.query(`update tickets set status='approved'`); if (r.affectedRows === 0) throw new Error('row-level: 0 filas'); }, /row-level|permission/);
 await db.exec(`reset role`);
 const [tk] = await q(`select bettor_name, total, status from tickets where id=$1`, [t]);
 console.log('ticket guardado', tk);
