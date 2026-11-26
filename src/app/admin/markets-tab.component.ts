@@ -27,8 +27,8 @@ import { friendlyError } from '../core/public-api';
             </label>
           </div>
 
-          <div class="mt-3 grid grid-cols-2 gap-2">
-            <label class="block">
+          <div class="mt-3 grid grid-cols-3 gap-2">
+            <label class="col-span-2 block">
               <span class="label">Tipo</span>
               <select class="input mt-1" [(ngModel)]="m.type" [name]="'type' + m.id">
                 @for (t of data().marketTypes; track t.type) {
@@ -36,7 +36,15 @@ import { friendlyError } from '../core/public-api';
                 }
               </select>
             </label>
-            <label class="block">
+            @if (hasParam(m.type)) {
+              <label class="block">
+                <span class="label">N</span>
+                <input class="input mt-1" type="number" min="1" max="200" inputmode="numeric" [(ngModel)]="m.param" [name]="'param' + m.id" />
+              </label>
+            } @else {
+              <span></span>
+            }
+            <label class="col-span-3 block">
               <span class="label">Pozo inicial (S/)</span>
               <input class="input mt-1" type="number" min="0" step="0.01" inputmode="decimal" [(ngModel)]="m.initial_pot" [name]="'pot' + m.id" />
             </label>
@@ -44,7 +52,7 @@ import { friendlyError } from '../core/public-api';
           <label class="mt-2 block">
             <span class="label">Si nadie acierta, el bote pasa a…</span>
             <select class="input mt-1" [(ngModel)]="m.rollover_to_market_id" [name]="'roll' + m.id">
-              <option [ngValue]="null">Queda acumulado (próximo partido)</option>
+              <option [ngValue]="null">Se lo queda el organizador</option>
               @for (o of drafts(); track o.id) {
                 @if (o.id !== m.id) {
                   <option [ngValue]="o.id">{{ o.name }}</option>
@@ -63,7 +71,8 @@ import { friendlyError } from '../core/public-api';
 
     <button type="button" class="btn-secondary mt-4 h-12 w-full" [disabled]="busy()" (click)="addMarket()">+ Agregar mercado</button>
     <p class="mt-3 text-xs text-slate-500">
-      Tip: carga en "Pozo inicial" lo que quedó acumulado del partido anterior. Para un tipo de mercado nuevo hay que agregarlo en
+      Si nadie acierta un mercado, su bote se lo queda el organizador (salvo que elijas pasarlo a otro mercado).
+      "N" es la cantidad de goles (cuartete = 4, sextete = 6) o el número de gol (15, 28). Para un tipo nuevo hay que agregarlo en
       <code>market_types</code> y en la lógica de reparto (ver README).
     </p>
   `,
@@ -83,16 +92,23 @@ export class MarketsTabComponent {
     effect(() => this.drafts.set(this.sorted().map((m) => ({ ...m }))));
   }
 
+  protected hasParam(type: string) {
+    return this.data().marketTypes.find((t) => t.type === type)?.has_param ?? false;
+  }
+
   async save(m: MarketRow) {
     if (!m.name.trim()) return this.error.set('El mercado necesita un nombre.');
     const pot = Number(m.initial_pot);
     if (!Number.isFinite(pot) || pot < 0) return this.error.set('El pozo inicial no puede ser negativo.');
+    const param = this.hasParam(m.type) ? Math.round(Number(m.param)) : null;
+    if (param !== null && !(param >= 1 && param <= 200)) return this.error.set('N debe estar entre 1 y 200.');
     await this.run(() =>
       this.api.saveMarket({
         id: m.id,
         match_id: m.match_id,
         name: m.name.trim(),
         type: m.type,
+        param,
         is_active: m.is_active,
         rollover_to_market_id: m.rollover_to_market_id,
         initial_pot: Math.round(pot * 100) / 100,
@@ -128,6 +144,7 @@ export class MarketsTabComponent {
         sort_order: (this.drafts().at(-1)?.sort_order ?? 0) + 1,
         is_active: false,
         rollover_to_market_id: null,
+        param: null,
         initial_pot: 0,
       }),
     );

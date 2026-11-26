@@ -13,7 +13,7 @@ type Tab = 'bet' | 'live';
   imports: [BetFlowComponent, LiveBoardComponent, RouterLink],
   template: `
     @if (loading() && !data()) {
-      <div class="grid min-h-dvh place-items-center text-slate-500">Cargando partido…</div>
+      <div class="grid min-h-dvh place-items-center text-slate-500">Cargando jornada…</div>
     } @else if (loadError() && !data()) {
       <div class="mx-auto max-w-md p-6 text-center">
         <p class="mt-20 text-slate-700">{{ loadError() }}</p>
@@ -35,7 +35,7 @@ type Tab = 'bet' | 'live';
             <span class="rounded-full px-2 py-0.5 font-semibold" [class]="statusClass()">{{ statusLabel() }}</span>
           </div>
           <h1 class="mt-2 text-2xl leading-tight font-extrabold">
-            {{ d.match.home_team }} <span class="font-normal text-emerald-200">vs</span> {{ d.match.away_team }}
+            {{ d.match.title }}
           </h1>
           @if (startsAt()) {
             <p class="text-sm text-emerald-100">{{ startsAt() }}</p>
@@ -45,7 +45,7 @@ type Tab = 'bet' | 'live';
               Apostar
             </button>
             <button type="button" role="tab" class="tab" [class.tab-on]="tab() === 'live'" [attr.aria-selected]="tab() === 'live'" (click)="tab.set('live')">
-              Bote en vivo
+              En vivo
             </button>
           </nav>
         </div>
@@ -64,7 +64,7 @@ type Tab = 'bet' | 'live';
               <p class="text-4xl">⏱️</p>
               <h2 class="mt-2 text-lg font-bold">Apuestas cerradas</h2>
               <p class="mt-1 text-slate-600">
-                {{ d.match.status === 'closed' ? 'El partido ya empezó.' : 'El partido terminó.' }} Mira el bote y los resultados en vivo.
+                {{ d.match.status === 'closed' ? 'La jornada ya empezó.' : 'La jornada terminó.' }} Mira el bote y los resultados en vivo.
               </p>
               <button type="button" class="btn-primary mt-4" (click)="tab.set('live')">Ver bote en vivo</button>
             </section>
@@ -124,8 +124,8 @@ export class PublicMatchPage implements OnDestroy {
       this.data.set(d);
       if (d && this.firstLoad) {
         this.tab.set(d.match.status === 'open' ? 'bet' : 'live');
-        document.title = `${d.match.home_team} vs ${d.match.away_team} · Apuestas`;
-        rememberMatch(d.match.access_code, `${d.match.home_team} vs ${d.match.away_team}`);
+        document.title = `${d.match.title} · Apuestas`;
+        rememberMatch(d.match.access_code, d.match.title);
       }
       this.firstLoad = false;
     } catch (e) {

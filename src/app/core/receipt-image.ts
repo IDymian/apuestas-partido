@@ -1,5 +1,5 @@
 /**
- * Prepara la captura del Yape para subirla: acepta JPG, PNG, WEBP y HEIC/HEIF
+ * Prepara la captura del pago (Plin) para subirla: acepta JPG, PNG, WEBP y HEIC/HEIF
  * (iPhone) de hasta 10 MB y la convierte a un JPG de menos de ~1 MB.
  * Las librerías se cargan solo cuando hacen falta.
  */

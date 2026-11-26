@@ -13,13 +13,13 @@ export const routes: Routes = [
     path: 'admin',
     canActivate: [adminGuard],
     loadComponent: () => import('./admin/admin-matches.page').then((m) => m.AdminMatchesPage),
-    title: 'Partidos · Apuestas',
+    title: 'Jornadas · Apuestas',
   },
   {
     path: 'admin/m/:id',
     canActivate: [adminGuard],
     loadComponent: () => import('./admin/admin-match.page').then((m) => m.AdminMatchPage),
-    title: 'Partido · Apuestas',
+    title: 'Jornada · Apuestas',
   },
   { path: '**', redirectTo: '' },
 ];

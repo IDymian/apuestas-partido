@@ -5,9 +5,9 @@ import { readFileSync } from 'node:fs';
 const env = Object.fromEntries(readFileSync('.env', 'utf8').trim().split(/\r?\n/).map((l) => l.split('=')));
 const sb = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 const pub = await sb.rpc('get_public_match', { p_code: 'demo26' });
-console.log('RPC público:', pub.error?.message ?? `ok · ${pub.data.match.home_team} vs ${pub.data.match.away_team} · ${pub.data.bets.length} apuestas aprobadas · ${pub.data.players.length} jugadores`);
+console.log('RPC público:', pub.error?.message ?? `ok · ${pub.data.match.title} · ${pub.data.teams.length} equipos · ${pub.data.bets.length} apuestas aprobadas · ${pub.data.players.length} jugadores`);
 console.log('código malo →', (await sb.rpc('get_public_match', { p_code: 'NOPE99' })).data);
-for (const t of ['tickets', 'bets', 'events', 'matches', 'admins']) {
+for (const t of ['tickets', 'bets', 'events', 'matches', 'teams', 'players', 'admins']) {
   const r = await sb.from(t).select('*').limit(1);
   console.log(`anon lee ${t}:`, r.error ? `bloqueado (${r.error.message})` : `${r.data.length} filas`);
 }

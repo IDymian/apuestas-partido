@@ -10,12 +10,12 @@ import { AMOUNTS } from '../core/models';
         class="w-full max-w-md rounded-t-3xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl"
         role="dialog"
         aria-modal="true"
-        [attr.aria-label]="'Monto para ' + playerName()"
+        [attr.aria-label]="'Monto para ' + choiceName()"
         (click)="$event.stopPropagation()"
       >
         <div class="mx-auto mb-4 h-1.5 w-10 rounded-full bg-slate-200"></div>
         <p class="text-xs font-semibold uppercase tracking-wide text-emerald-700">{{ marketName() }}</p>
-        <h3 class="mt-0.5 text-xl font-bold text-slate-900">{{ playerName() }}</h3>
+        <h3 class="mt-0.5 text-xl font-bold text-slate-900">{{ choiceName() }}</h3>
         <p class="mt-3 text-sm text-slate-600">¿Cuánto le apuestas?</p>
         <div class="mt-2 grid grid-cols-5 gap-2">
           @for (a of amounts; track a) {
@@ -46,7 +46,7 @@ import { AMOUNTS } from '../core/models';
 })
 export class AmountSheetComponent {
   readonly marketName = input.required<string>();
-  readonly playerName = input.required<string>();
+  readonly choiceName = input.required<string>();
   readonly current = input<number | null>(null);
   readonly picked = output<number>();
   readonly removed = output<void>();

@@ -41,10 +41,10 @@ const TABS: { id: Tab; label: string }[] = [
       <header class="bg-slate-900 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
         <div class="mx-auto max-w-2xl">
           <div class="flex items-center justify-between gap-2">
-            <a routerLink="/admin" class="text-sm text-slate-300">← Partidos</a>
+            <a routerLink="/admin" class="text-sm text-slate-300">← Jornadas</a>
             <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="statusBadge()">{{ statusLabel[d.match.status] }}</span>
           </div>
-          <h1 class="mt-1 text-xl leading-tight font-extrabold">{{ d.match.home_team }} vs {{ d.match.away_team }}</h1>
+          <h1 class="mt-1 text-xl leading-tight font-extrabold">{{ d.match.title }}</h1>
           <div class="mt-1 flex flex-wrap items-center gap-2 text-sm">
             <span class="font-mono tracking-wider text-slate-300">{{ d.match.access_code }}</span>
             <button type="button" class="rounded-md bg-white/10 px-2 py-0.5 text-xs" (click)="copyLink()">{{ copied() ? '¡Link copiado!' : 'Copiar link' }}</button>
@@ -58,7 +58,7 @@ const TABS: { id: Tab; label: string }[] = [
                 <button type="button" class="flex-1 rounded-xl bg-red-500 py-2 text-sm font-bold" (click)="setStatus('closed')">🔒 Cerrar apuestas</button>
               }
               @case ('closed') {
-                <button type="button" class="flex-1 rounded-xl bg-emerald-500 py-2 text-sm font-bold" (click)="setStatus('finished')">🏁 Finalizar partido</button>
+                <button type="button" class="flex-1 rounded-xl bg-emerald-500 py-2 text-sm font-bold" (click)="setStatus('finished')">🏁 Finalizar jornada</button>
                 <button type="button" class="rounded-xl bg-white/10 px-3 py-2 text-sm" (click)="setStatus('open')">Reabrir</button>
               }
               @case ('finished') {
@@ -154,7 +154,7 @@ export class AdminMatchPage implements OnDestroy {
     try {
       const d = await this.api.getMatch(this.id());
       if (!d) {
-        this.error.set('Partido no encontrado');
+        this.error.set('Jornada no encontrada');
         return;
       }
       this.error.set(null);
@@ -176,8 +176,8 @@ export class AdminMatchPage implements OnDestroy {
 
   async setStatus(status: MatchStatus) {
     const msg: Record<MatchStatus, string> = {
-      closed: '¿Cerrar las apuestas? Nadie más podrá apostar.',
-      finished: '¿Finalizar el partido? Se mostrarán los resultados a todos.',
+      closed: '¿Cerrar las apuestas y empezar la jornada? Nadie más podrá apostar.',
+      finished: '¿Finalizar la jornada? Se mostrarán los resultados a todos.',
       open: '¿Reabrir las apuestas?',
     };
     if (!confirm(msg[status])) return;

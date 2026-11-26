@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { MatchFormComponent } from './match-form.component';
 import { AdminApi } from '../core/admin-api';
@@ -13,7 +13,7 @@ import { friendlyError } from '../core/public-api';
       <div class="mx-auto flex max-w-2xl items-center justify-between gap-2">
         <div class="min-w-0">
           <p class="text-xs text-slate-400">Organizador{{ api.isDemo ? ' · demo' : '' }}</p>
-          <h1 class="text-xl font-extrabold">Partidos</h1>
+          <h1 class="text-xl font-extrabold">Jornadas</h1>
         </div>
         <button type="button" class="rounded-lg bg-white/10 px-3 py-1.5 text-sm" (click)="logout()">Salir</button>
       </div>
@@ -22,11 +22,11 @@ import { friendlyError } from '../core/public-api';
     <main class="mx-auto max-w-2xl px-4 py-4">
       @if (creating()) {
         <section class="card">
-          <h2 class="mb-3 font-bold">Nuevo partido</h2>
-          <app-match-form [cancellable]="true" (saved)="created($event)" (cancelled)="creating.set(false)" />
+          <h2 class="mb-3 font-bold">Nueva jornada</h2>
+          <app-match-form [cancellable]="true" [defaults]="payDefaults()" (saved)="created($event)" (cancelled)="creating.set(false)" />
         </section>
       } @else {
-        <button type="button" class="btn-primary w-full" (click)="creating.set(true)">+ Nuevo partido</button>
+        <button type="button" class="btn-primary w-full" (click)="creating.set(true)">+ Nueva jornada</button>
       }
 
       @if (error()) {
@@ -38,7 +38,7 @@ import { friendlyError } from '../core/public-api';
           <li>
             <a [routerLink]="['/admin/m', m.id]" class="card flex items-center gap-3 active:bg-slate-50">
               <div class="min-w-0 flex-1">
-                <p class="truncate font-bold text-slate-900">{{ m.home_team }} vs {{ m.away_team }}</p>
+                <p class="truncate font-bold text-slate-900">{{ m.title }}</p>
                 <p class="text-xs text-slate-500">
                   <span class="font-mono">{{ m.access_code }}</span>
                   @if (m.starts_at) {
@@ -51,7 +51,7 @@ import { friendlyError } from '../core/public-api';
           </li>
         } @empty {
           @if (!loading()) {
-            <li class="py-10 text-center text-slate-500">Aún no hay partidos. Crea el primero.</li>
+            <li class="py-10 text-center text-slate-500">Aún no hay jornadas. Crea la primera.</li>
           }
         }
       </ul>
@@ -66,6 +66,11 @@ export class AdminMatchesPage implements OnInit {
   protected creating = signal(false);
   protected error = signal<string | null>(null);
   protected label = STATUS_LABEL;
+  /** La jornada nueva hereda los datos de pago de la más reciente. */
+  protected payDefaults = computed(() => {
+    const last = this.matches()[0];
+    return last ? { pay_method: last.pay_method, pay_number: last.pay_number, pay_holder: last.pay_holder } : null;
+  });
 
   async ngOnInit() {
     try {

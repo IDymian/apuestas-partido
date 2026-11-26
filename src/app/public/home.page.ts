@@ -10,7 +10,7 @@ import { lastMatch } from '../core/last-match';
     <main class="mx-auto flex min-h-dvh max-w-md flex-col justify-center px-6 py-10">
       <p class="text-center text-6xl">⚽</p>
       <h1 class="mt-3 text-center text-3xl font-extrabold text-slate-900">Apuestas del Partido</h1>
-      <p class="mt-1 text-center text-slate-600">Apuesta con tus amigos al primer gol, al último y a la primera amarilla.</p>
+      <p class="mt-1 text-center text-slate-600">Apuesta con tus amigos en la pichanga: goles, equipos, amarillas y más.</p>
 
       @if (last; as l) {
         <a [routerLink]="['/p', l.code]" class="card mt-8 flex items-center gap-3 active:bg-slate-50">
@@ -24,7 +24,7 @@ import { lastMatch } from '../core/last-match';
       }
 
       <form class="card" [class.mt-8]="!last" [class.mt-3]="!!last" (submit)="$event.preventDefault(); go()">
-        <label for="code" class="text-sm font-semibold text-slate-700">Código del partido</label>
+        <label for="code" class="text-sm font-semibold text-slate-700">Código de la jornada</label>
         <input
           id="code"
           class="mt-2 h-14 w-full rounded-xl border border-slate-300 px-4 text-center font-mono text-2xl tracking-[0.3em] uppercase outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
@@ -41,8 +41,8 @@ import { lastMatch } from '../core/last-match';
       @if (isDemo) {
         <p class="mt-4 text-center text-xs text-slate-500">
           Modo demo · prueba con
-          <a routerLink="/p/DEMO26" class="font-semibold text-emerald-700">DEMO26</a>,
-          <a routerLink="/p/ENVIVO" class="font-semibold text-emerald-700">ENVIVO</a> o
+          <a routerLink="/p/DEMO26" class="font-semibold text-emerald-700">DEMO26</a> (en vivo),
+          <a routerLink="/p/ABIERTA" class="font-semibold text-emerald-700">ABIERTA</a> o
           <a routerLink="/p/FINAL" class="font-semibold text-emerald-700">FINAL</a>
         </p>
       }

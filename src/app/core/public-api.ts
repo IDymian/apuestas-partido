@@ -1,14 +1,16 @@
 import { inject, Injectable } from '@angular/core';
-import { BetDraft, PublicMatchData } from './models';
+import { BetDraft, MarketTarget, PublicMatchData, selectionPayload } from './models';
 import { SupabaseService } from './supabase.service';
+
+export type SubmitBet = BetDraft & { target: MarketTarget };
 
 /** Lo que la parte pública (sin login) necesita del backend. */
 export abstract class PublicApi {
   abstract readonly isDemo: boolean;
   abstract getMatch(code: string): Promise<PublicMatchData | null>;
   abstract uploadReceipt(matchId: string, image: Blob): Promise<string>;
-  abstract submitTicket(code: string, bettorName: string, bets: BetDraft[], receiptPath: string): Promise<string>;
-  /** Avisa cuando algo del partido cambió. Devuelve la función para desuscribirse. */
+  abstract submitTicket(code: string, bettorName: string, bets: SubmitBet[], receiptPath: string): Promise<string>;
+  /** Avisa cuando algo de la jornada cambió. Devuelve la función para desuscribirse. */
   abstract subscribe(code: string, onChange: () => void): () => void;
   abstract qrUrl(path: string | null): string | null;
 }
@@ -40,11 +42,11 @@ export class SupabasePublicApi extends PublicApi {
     return path;
   }
 
-  async submitTicket(code: string, bettorName: string, bets: BetDraft[], receiptPath: string): Promise<string> {
+  async submitTicket(code: string, bettorName: string, bets: SubmitBet[], receiptPath: string): Promise<string> {
     const { data, error } = await this.sb.client.rpc('submit_ticket', {
       p_code: code,
       p_bettor_name: bettorName,
-      p_bets: bets.map((b) => ({ market_id: b.marketId, player_id: b.playerId, amount: b.amount })),
+      p_bets: bets.map((b) => ({ market_id: b.marketId, amount: b.amount, ...selectionPayload(b.target, b.selection) })),
       p_receipt_path: receiptPath,
     });
     if (error) throw error;
@@ -67,6 +69,6 @@ export class SupabasePublicApi extends PublicApi {
   }
 
   qrUrl(path: string | null): string | null {
-    return path ? this.sb.client.storage.from('yape-qr').getPublicUrl(path).data.publicUrl : null;
+    return path ? this.sb.client.storage.from('pay-qr').getPublicUrl(path).data.publicUrl : null;
   }
 }

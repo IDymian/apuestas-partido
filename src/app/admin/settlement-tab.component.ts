@@ -1,9 +1,9 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { AdminApi } from '../core/admin-api';
-import { AdminMatchData } from '../core/models';
+import { AdminMatchData, SECTIONS } from '../core/models';
 import { friendlyError } from '../core/public-api';
-import { adminToSettleInput } from '../domain/adapt';
-import { formatSoles, PersonResult, settle } from '../domain/settlement';
+import { adminToSettleInput, makeSelectionLabel } from '../domain/adapt';
+import { formatSoles, MarketResult, PersonResult, settle } from '../domain/settlement';
 import { whatsappSummary } from '../domain/whatsapp';
 
 @Component({
@@ -11,7 +11,7 @@ import { whatsappSummary } from '../domain/whatsapp';
   template: `
     @if (data().match.status !== 'finished') {
       <p class="mb-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">
-        Resultado <b>parcial</b>: el partido no ha terminado. Se recalcula solo con cada evento.
+        Resultado <b>parcial</b>: la jornada no ha terminado. Se recalcula solo con cada evento.
       </p>
     }
     @if (pendingCount() > 0) {
@@ -20,53 +20,55 @@ import { whatsappSummary } from '../domain/whatsapp';
       </p>
     }
 
-    <!-- Por mercado -->
-    <div class="space-y-3">
-      @for (m of result().markets; track m.marketId) {
-        <section class="card">
-          <div class="flex items-baseline justify-between gap-2">
-            <h2 class="font-bold">{{ m.name }}</h2>
-            <span class="text-lg font-extrabold text-emerald-700">{{ soles(m.totalPotCents) }}</span>
-          </div>
-          <p class="text-xs text-slate-500">
-            Apuestas {{ soles(m.betsPotCents) }}
-            @if (m.initialPotCents) {
-              · pozo inicial {{ soles(m.initialPotCents) }}
-            }
-            @if (m.rolledInCents) {
-              · arrastre {{ soles(m.rolledInCents) }}
-            }
-          </p>
-          <div class="mt-2 text-sm">
-            @switch (m.outcome) {
-              @case ('winners') {
-                <p>Ganador: <b>{{ playerName(m.winnerPlayerId) }}</b></p>
-                <ul class="mt-1">
-                  @for (p of m.payouts; track p.personKey) {
-                    <li class="flex justify-between">
-                      <span>{{ p.bettorName }} <span class="text-xs text-slate-500">(S/ {{ p.stakeCents / 100 }})</span></span>
-                      <b>{{ soles(p.amountCents) }}</b>
-                    </li>
-                  }
-                </ul>
+    @for (sec of sections(); track sec.id) {
+      <h2 class="mt-4 mb-2 px-1 text-sm font-bold text-slate-700">{{ sec.icon }} Bote {{ sec.label }}</h2>
+      <div class="space-y-3">
+        @for (m of sec.markets; track m.marketId) {
+          <section class="card">
+            <div class="flex items-baseline justify-between gap-2">
+              <h3 class="font-bold">{{ m.name }}</h3>
+              <span class="text-lg font-extrabold text-emerald-700">{{ soles(m.totalPotCents) }}</span>
+            </div>
+            <p class="text-xs text-slate-500">
+              Apuestas {{ soles(m.betsPotCents) }}
+              @if (m.initialPotCents) {
+                · pozo inicial {{ soles(m.initialPotCents) }}
               }
-              @case ('no_winner') {
-                <p>
-                  Ganador: <b>{{ playerName(m.winnerPlayerId) }}</b> · nadie acertó →
-                  {{ m.rolledToMarketId ? 'pasa a ' + marketName(m.rolledToMarketId) : 'queda acumulado' }}
-                </p>
+              @if (m.rolledInCents) {
+                · arrastre {{ soles(m.rolledInCents) }}
               }
-              @case ('refund') {
-                <p>{{ m.reason }}: se devuelve lo apostado{{ m.accumulatedCents ? '; ' + soles(m.accumulatedCents) + ' acumulado' : '' }}.</p>
+            </p>
+            <div class="mt-2 text-sm">
+              @switch (m.outcome) {
+                @case ('winners') {
+                  <p>Ganó: <b>{{ label(m) }}</b></p>
+                  <ul class="mt-1">
+                    @for (p of m.payouts; track p.personKey) {
+                      <li class="flex justify-between">
+                        <span>{{ p.bettorName }} <span class="text-xs text-slate-500">(S/ {{ p.stakeCents / 100 }})</span></span>
+                        <b>{{ soles(p.amountCents) }}</b>
+                      </li>
+                    }
+                  </ul>
+                }
+                @case ('no_winner') {
+                  <p>
+                    Ganó: <b>{{ label(m) }}</b> · nadie acertó →
+                    {{ m.rolledToMarketId ? 'pasa a ' + marketName(m.rolledToMarketId) : 'se lo queda el organizador' }}
+                  </p>
+                }
+                @case ('refund') {
+                  <p>{{ m.reason }}: se devuelve lo apostado.</p>
+                }
+                @default {
+                  <p class="text-slate-500">{{ m.reason ?? 'Sin resolver' }}</p>
+                }
               }
-              @default {
-                <p class="text-slate-500">{{ m.reason ?? 'Sin resolver' }}</p>
-              }
-            }
-          </div>
-        </section>
-      }
-    </div>
+            </div>
+          </section>
+        }
+      </div>
+    }
 
     <!-- Por persona -->
     <section class="card mt-4">
@@ -106,13 +108,11 @@ import { whatsappSummary } from '../domain/whatsapp';
           <p class="font-bold">{{ soles(totalToPay()) }}</p>
         </div>
         <div class="rounded-xl bg-amber-50 p-2">
-          <p class="text-xs text-amber-800">Acumulado</p>
-          <p class="font-bold text-amber-900">{{ soles(result().accumulatedCents) }}</p>
+          <p class="text-xs text-amber-800">Para el organizador</p>
+          <p class="font-bold text-amber-900">{{ soles(result().houseCents) }}</p>
         </div>
       </div>
-      @if (result().accumulatedCents > 0) {
-        <p class="mt-2 text-xs text-slate-500">Cárgalo como "Pozo inicial" en un mercado del próximo partido.</p>
-      }
+      <p class="mt-2 text-xs text-slate-500">"Para el organizador" = botes donde nadie acertó y pozos iniciales no repartidos.</p>
     </section>
 
     @if (error()) {
@@ -139,8 +139,14 @@ export class SettlementTabComponent {
   protected copied = signal(false);
 
   protected result = computed(() => settle(adminToSettleInput(this.data())));
-  private players = computed(() => new Map(this.data().players.map((p) => [p.id, p.name])));
-  private markets = computed(() => new Map(this.data().markets.map((m) => [m.id, m.name])));
+  private markets = computed(() => new Map(this.data().markets.map((m) => [m.id, m])));
+  private types = computed(() => new Map(this.data().marketTypes.map((t) => [t.type, t])));
+  private labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams));
+  protected sections = computed(() =>
+    SECTIONS.map((s) => ({ ...s, markets: this.result().markets.filter((m) => this.types().get(m.type)?.section === s.id) })).filter(
+      (s) => s.markets.length,
+    ),
+  );
   protected paid = computed(() => new Set(this.data().paid.map((p) => p.person_key)));
   protected toPay = computed(() => this.result().people.filter((p) => p.totalCents > 0));
   protected paidCount = computed(() => this.toPay().filter((p) => this.paid().has(p.personKey)).length);
@@ -149,18 +155,18 @@ export class SettlementTabComponent {
 
   protected summary = computed(() =>
     whatsappSummary(this.result(), {
-      title: `${this.data().match.home_team} vs ${this.data().match.away_team}`,
-      playerName: (id) => this.playerName(id),
+      title: this.data().match.title,
+      selectionLabel: (m, s) => this.labeler()(this.types().get(m.type)?.target, s, m.type),
       marketName: (id) => this.marketName(id),
       paidKeys: this.paid(),
     }),
   );
 
-  playerName(id: string | null) {
-    return (id && this.players().get(id)) || '¿?';
+  label(m: MarketResult) {
+    return this.labeler()(this.types().get(m.type)?.target, m.winnerSelection, m.type);
   }
   marketName(id: string) {
-    return this.markets().get(id) ?? '¿?';
+    return this.markets().get(id)?.name ?? '¿?';
   }
 
   async togglePaid(p: PersonResult, paid: boolean) {

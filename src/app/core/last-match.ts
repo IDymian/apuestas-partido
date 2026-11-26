@@ -1,4 +1,4 @@
-/** Recuerda el último partido abierto, para volver rápido desde la app instalada. */
+/** Recuerda la última jornada abierta, para volver rápido desde la app instalada. */
 const KEY = 'apuestas:last-match';
 
 export function rememberMatch(code: string, title: string) {

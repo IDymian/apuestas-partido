@@ -1,16 +1,16 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { AmountSheetComponent } from './amount-sheet.component';
-import { formatSoles } from '../domain/settlement';
-import { BetDraft, MAX_BETS_PER_TICKET, Market, Player, PublicMatchData, teamName } from '../core/models';
+import { formatSoles, STREAK_MAX_OPTION } from '../domain/settlement';
+import { makeSelectionLabel } from '../domain/adapt';
+import { BetDraft, HOUSE_WARNING, Market, MAX_BETS_PER_TICKET, PublicMatchData, SECTIONS } from '../core/models';
 import { friendlyError, PublicApi } from '../core/public-api';
 import { prepareReceipt } from '../core/receipt-image';
 
 type Step = 'pick' | 'pay' | 'done';
 
-interface PlayerGroup {
-  key: string;
+interface Choice {
+  selection: string;
   label: string;
-  players: Player[];
 }
 
 @Component({
@@ -36,69 +36,64 @@ interface PlayerGroup {
           }
         </section>
 
-        <p class="mt-5 px-1 text-sm font-semibold text-slate-700">2. Elige tus jugadores</p>
-        <p class="px-1 text-xs text-slate-500">Toca un jugador para apostarle de S/ 1 a S/ 5. Puedes apostar en varios mercados.</p>
+        <p class="mt-3 rounded-xl bg-amber-50 p-3 text-sm text-amber-900">⚠️ {{ warning }}</p>
 
-        @for (mg of marketGroups(); track mg.market.id) {
-          <section class="card mt-3">
-            <div class="flex items-baseline justify-between gap-2">
-              <h2 class="text-lg font-bold text-slate-900">{{ mg.market.name }}</h2>
-              <span class="shrink-0 text-xs font-medium text-slate-500">Bote {{ soles(potByMarket().get(mg.market.id) ?? 0) }}</span>
-            </div>
-            @for (g of mg.groups; track g.key) {
-              <p class="mt-3 mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">{{ g.label }}</p>
-              <div class="flex flex-wrap gap-2">
-                @for (p of g.players; track p.id) {
-                  @let amt = amountFor(mg.market.id, p.id);
-                  <button
-                    type="button"
-                    class="chip"
-                    [class.chip-on]="amt"
-                    [attr.aria-pressed]="!!amt"
-                    (click)="openSheet(mg.market, p)"
-                  >
-                    {{ p.name }}
-                    @if (amt) {
-                      <span class="ml-1.5 rounded-full bg-white/25 px-1.5 text-xs font-bold">S/ {{ amt }}</span>
+        <p class="mt-5 px-1 text-sm font-semibold text-slate-700">2. Elige tus apuestas</p>
+        <p class="px-1 text-xs text-slate-500">Toca una apuesta para ver las opciones. De S/ 1 a S/ 5 cada una.</p>
+
+        @for (sec of sections(); track sec.id) {
+          <h2 class="mt-4 mb-2 px-1 text-sm font-bold text-slate-700">{{ sec.icon }} Bote {{ sec.label }}</h2>
+          <div class="space-y-2">
+            @for (m of sec.markets; track m.id) {
+              @let mine = countFor(m.id);
+              <section class="card p-0">
+                <button type="button" class="flex w-full items-center gap-3 p-4 text-left" (click)="toggle(m.id)" [attr.aria-expanded]="open() === m.id">
+                  <span class="min-w-0 flex-1">
+                    <span class="block font-bold text-slate-900">{{ m.name }}</span>
+                    <span class="block text-xs text-slate-500">{{ hint(m) }} · Bote {{ soles(potByMarket().get(m.id) ?? 0) }}</span>
+                  </span>
+                  @if (mine) {
+                    <span class="shrink-0 rounded-full bg-emerald-600 px-2 py-0.5 text-xs font-bold text-white">{{ mine }}</span>
+                  }
+                  <span class="shrink-0 text-slate-400">{{ open() === m.id ? '▲' : '▼' }}</span>
+                </button>
+                @if (open() === m.id) {
+                  <div class="flex flex-wrap gap-2 border-t border-slate-100 p-4">
+                    @for (c of choices(m); track c.selection) {
+                      @let amt = amountFor(m.id, c.selection);
+                      <button type="button" class="chip" [class.chip-on]="amt" [attr.aria-pressed]="!!amt" (click)="openSheet(m, c)">
+                        {{ c.label }}
+                        @if (amt) {
+                          <span class="ml-1.5 rounded-full bg-white/25 px-1.5 text-xs font-bold">S/ {{ amt }}</span>
+                        }
+                      </button>
                     }
-                  </button>
+                  </div>
                 }
-              </div>
+              </section>
             }
-          </section>
+          </div>
         }
 
         <section class="card mt-5">
           <h2 class="text-sm font-semibold text-slate-700">3. Tus apuestas</h2>
           @if (bets().length === 0) {
-            <p class="mt-2 text-sm text-slate-500">Aún no elegiste ningún jugador.</p>
+            <p class="mt-2 text-sm text-slate-500">Aún no elegiste nada.</p>
             @if (showErrors()) {
-              <p class="mt-1 text-sm text-red-600">Elige al menos un jugador.</p>
+              <p class="mt-1 text-sm text-red-600">Elige al menos una apuesta.</p>
             }
           } @else {
             <ul class="mt-2 divide-y divide-slate-100">
-              @for (b of bets(); track b.marketId + b.playerId) {
+              @for (b of bets(); track b.marketId + b.selection) {
                 <li class="flex items-center gap-2 py-2.5">
                   <div class="min-w-0 flex-1">
-                    <p class="truncate font-semibold text-slate-900">{{ playerById().get(b.playerId)?.name }}</p>
+                    <p class="truncate font-semibold text-slate-900">{{ choiceLabel(b) }}</p>
                     <p class="text-xs text-slate-500">{{ marketById().get(b.marketId)?.name }}</p>
                   </div>
-                  <button
-                    type="button"
-                    class="rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-800"
-                    (click)="openSheetById(b.marketId, b.playerId)"
-                    aria-label="Cambiar monto"
-                  >
+                  <button type="button" class="rounded-lg bg-emerald-50 px-3 py-1.5 text-sm font-bold text-emerald-800" (click)="editBet(b)" aria-label="Cambiar monto">
                     S/ {{ b.amount }} ✎
                   </button>
-                  <button
-                    type="button"
-                    class="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600"
-                    (click)="remove(b.marketId, b.playerId)"
-                    aria-label="Quitar apuesta"
-                  >
-                    ✕
-                  </button>
+                  <button type="button" class="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-red-50 hover:text-red-600" (click)="remove(b.marketId, b.selection)" aria-label="Quitar apuesta">✕</button>
                 </li>
               }
             </ul>
@@ -118,24 +113,25 @@ interface PlayerGroup {
 
       <!-- ====================== 4. Pago ====================== -->
       @case ('pay') {
+        @let mt = data().match;
         <button type="button" class="mb-3 text-sm font-semibold text-emerald-700" (click)="step.set('pick')">← Cambiar apuestas</button>
 
         <section class="card text-center">
-          <p class="text-sm text-slate-600">{{ name().trim() }}, yapea</p>
+          <p class="text-sm text-slate-600">{{ name().trim() }}, deposita por {{ mt.pay_method }}</p>
           <p class="text-4xl font-extrabold text-slate-900">{{ soles(totalCents()) }}</p>
           <p class="text-xs text-slate-500">{{ bets().length }} {{ bets().length === 1 ? 'apuesta' : 'apuestas' }}</p>
 
           @if (qr()) {
-            <img [src]="qr()" alt="QR de Yape del organizador" class="mx-auto mt-4 w-56 max-w-full rounded-xl border border-slate-200" />
+            <img [src]="qr()" [alt]="'QR de ' + mt.pay_method" class="mx-auto mt-4 w-56 max-w-full rounded-xl border border-slate-200" />
           }
-          @if (data().match.yape_number) {
-            <div class="mt-4 rounded-2xl bg-violet-50 p-3">
-              <p class="text-xs font-semibold uppercase tracking-wide text-violet-700">Yape</p>
-              <p class="text-2xl font-bold tracking-wide text-violet-900">{{ data().match.yape_number }}</p>
-              @if (data().match.yape_holder) {
-                <p class="text-sm text-violet-800">{{ data().match.yape_holder }}</p>
+          @if (mt.pay_number) {
+            <div class="mt-4 rounded-2xl bg-cyan-50 p-3">
+              <p class="text-xs font-semibold uppercase tracking-wide text-cyan-800">{{ mt.pay_method }}</p>
+              <p class="text-2xl font-bold tracking-wide text-cyan-950">{{ mt.pay_number }}</p>
+              @if (mt.pay_holder) {
+                <p class="text-sm text-cyan-900">{{ mt.pay_holder }}</p>
               }
-              <button type="button" class="mt-2 rounded-lg bg-violet-600 px-4 py-2 text-sm font-semibold text-white" (click)="copyYape()">
+              <button type="button" class="mt-2 rounded-lg bg-cyan-700 px-4 py-2 text-sm font-semibold text-white" (click)="copyNumber()">
                 {{ copied() ? '¡Copiado!' : 'Copiar número' }}
               </button>
             </div>
@@ -143,11 +139,8 @@ interface PlayerGroup {
         </section>
 
         <section class="card mt-3">
-          <h2 class="text-sm font-semibold text-slate-700">Sube la captura de tu Yape</h2>
-          <label
-            class="mt-3 flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center active:bg-slate-50"
-            [class.border-emerald-500]="preview()"
-          >
+          <h2 class="text-sm font-semibold text-slate-700">Sube la captura de tu {{ mt.pay_method }}</h2>
+          <label class="mt-3 flex min-h-32 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-slate-300 p-4 text-center active:bg-slate-50" [class.border-emerald-500]="preview()">
             @if (preparing()) {
               <span class="text-sm text-slate-600">Procesando imagen…</span>
             } @else if (preview()) {
@@ -166,15 +159,10 @@ interface PlayerGroup {
           <p class="mt-3 rounded-xl bg-red-50 p-3 text-sm text-red-700" role="alert">{{ error() }}</p>
         }
 
-        <button
-          type="button"
-          class="btn-primary mt-4 w-full"
-          [disabled]="!receipt() || sending() || preparing()"
-          (click)="submit()"
-        >
+        <button type="button" class="btn-primary mt-4 w-full" [disabled]="!receipt() || sending() || preparing()" (click)="submit()">
           {{ sending() ? 'Enviando…' : 'Enviar apuesta' }}
         </button>
-        <p class="mt-2 text-center text-xs text-slate-500">Tu apuesta queda pendiente hasta que el organizador verifique tu Yape.</p>
+        <p class="mt-2 text-center text-xs text-slate-500">Tu apuesta queda pendiente hasta que el organizador verifique tu pago.</p>
       }
 
       <!-- ====================== 5. Confirmación ====================== -->
@@ -182,12 +170,12 @@ interface PlayerGroup {
         <section class="card text-center">
           <div class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-emerald-100 text-3xl">✓</div>
           <h2 class="mt-3 text-xl font-bold text-slate-900">¡Apuesta enviada!</h2>
-          <p class="mt-1 text-slate-600">Tu apuesta se aprobará cuando el organizador verifique tu Yape.</p>
+          <p class="mt-1 text-slate-600">Tu apuesta se aprobará cuando el organizador verifique tu {{ data().match.pay_method }}.</p>
           <ul class="mt-4 divide-y divide-slate-100 text-left">
-            @for (b of sent(); track b.marketId + b.playerId) {
+            @for (b of sent(); track b.marketId + b.selection) {
               <li class="flex justify-between gap-2 py-2 text-sm">
-                <span><b>{{ playerById().get(b.playerId)?.name }}</b> · {{ marketById().get(b.marketId)?.name }}</span>
-                <span class="font-semibold">S/ {{ b.amount }}</span>
+                <span><b>{{ choiceLabel(b) }}</b> · {{ marketById().get(b.marketId)?.name }}</span>
+                <span class="shrink-0 font-semibold">S/ {{ b.amount }}</span>
               </li>
             }
           </ul>
@@ -201,17 +189,15 @@ interface PlayerGroup {
     @if (sheet(); as s) {
       <app-amount-sheet
         [marketName]="s.market.name"
-        [playerName]="s.player.name"
-        [current]="amountFor(s.market.id, s.player.id)"
-        (picked)="setAmount(s.market.id, s.player.id, $event)"
-        (removed)="remove(s.market.id, s.player.id); sheet.set(null)"
+        [choiceName]="s.choice.label"
+        [current]="amountFor(s.market.id, s.choice.selection)"
+        (picked)="setAmount(s.market.id, s.choice.selection, $event)"
+        (removed)="remove(s.market.id, s.choice.selection); sheet.set(null)"
         (closed)="sheet.set(null)"
       />
     }
     @if (toast()) {
-      <div class="fixed inset-x-4 bottom-28 z-50 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm text-white shadow-lg">
-        {{ toast() }}
-      </div>
+      <div class="fixed inset-x-4 bottom-28 z-50 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm text-white shadow-lg">{{ toast() }}</div>
     }
   `,
 })
@@ -223,11 +209,13 @@ export class BetFlowComponent {
   private api = inject(PublicApi);
   protected readonly maxBets = MAX_BETS_PER_TICKET;
   protected readonly soles = formatSoles;
+  protected readonly warning = HOUSE_WARNING;
 
   protected readonly step = signal<Step>('pick');
   protected readonly name = signal('');
   protected readonly bets = signal<BetDraft[]>([]);
-  protected readonly sheet = signal<{ market: Market; player: Player } | null>(null);
+  protected readonly open = signal<string | null>(null);
+  protected readonly sheet = signal<{ market: Market; choice: Choice } | null>(null);
   protected readonly showErrors = signal(false);
   protected readonly toast = signal<string | null>(null);
 
@@ -241,9 +229,25 @@ export class BetFlowComponent {
   private uploadedPath: string | null = null;
   private draftLoadedFor = '';
 
-  protected readonly playerById = computed(() => new Map(this.data().players.map((p) => [p.id, p])));
   protected readonly marketById = computed(() => new Map(this.data().markets.map((m) => [m.id, m])));
-  protected readonly qr = computed(() => this.api.qrUrl(this.data().match.yape_qr_path));
+  protected readonly qr = computed(() => this.api.qrUrl(this.data().match.pay_qr_path));
+  private readonly labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams));
+
+  protected readonly sections = computed(() => {
+    const markets = [...this.data().markets].sort((a, b) => a.sort_order - b.sort_order);
+    return SECTIONS.map((s) => ({ ...s, markets: markets.filter((m) => m.section === s.id) })).filter((s) => s.markets.length);
+  });
+
+  private readonly playerChoices = computed(() =>
+    this.data().players.filter((p) => !p.is_own_goal).sort((a, b) => a.sort_order - b.sort_order).map((p) => ({ selection: p.id, label: p.name })),
+  );
+  private readonly ownGoalChoice = computed(() => {
+    const og = this.data().players.find((p) => p.is_own_goal);
+    return og ? [{ selection: og.id, label: '🙈 Autogol' }] : [];
+  });
+  private readonly teamChoices = computed(() =>
+    [...this.data().teams].sort((a, b) => a.sort_order - b.sort_order).map((t) => ({ selection: t.id, label: t.name })),
+  );
 
   protected readonly potByMarket = computed(() => {
     const map = new Map<string, number>();
@@ -252,28 +256,10 @@ export class BetFlowComponent {
     return map;
   });
 
-  protected readonly marketGroups = computed(() => {
-    const d = this.data();
-    const sorted = [...d.players].sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
-    return [...d.markets]
-      .sort((a, b) => a.sort_order - b.sort_order)
-      .map((market) => {
-        const groups: PlayerGroup[] = [
-          { key: 'home', label: teamName(d.match, 'home'), players: sorted.filter((p) => p.team === 'home') },
-          { key: 'away', label: teamName(d.match, 'away'), players: sorted.filter((p) => p.team === 'away') },
-        ];
-        if (market.allows_own_goal) {
-          groups.push({ key: 'og', label: 'Especial', players: sorted.filter((p) => p.is_own_goal) });
-        }
-        return { market, groups: groups.filter((g) => g.players.length > 0) };
-      });
-  });
-
   protected readonly totalCents = computed(() => this.bets().reduce((s, b) => s + b.amount * 100, 0));
   protected readonly sentTotal = computed(() => this.sent().reduce((s, b) => s + b.amount * 100, 0));
 
   constructor() {
-    // Recupera el borrador (nombre + apuestas) si recargan la página.
     effect(() => {
       const code = this.code();
       const saved = readDraft(code);
@@ -288,50 +274,83 @@ export class BetFlowComponent {
       const draft = { name: this.name(), bets: this.bets() };
       if (this.draftLoadedFor === code) writeDraft(code, draft);
     });
-    // Quita apuestas a jugadores o mercados que ya no existen.
+    // Quita apuestas a opciones o mercados que ya no existen.
     effect(() => {
-      const p = this.playerById();
-      const m = this.marketById();
-      const valid = this.bets().filter((b) => p.has(b.playerId) && m.has(b.marketId));
+      const valid = this.bets().filter((b) => {
+        const m = this.marketById().get(b.marketId);
+        return m && this.choices(m).some((c) => c.selection === b.selection);
+      });
       if (valid.length !== this.bets().length) this.bets.set(valid);
     });
   }
 
-  protected amountFor(marketId: string, playerId: string): number | null {
-    return this.bets().find((b) => b.marketId === marketId && b.playerId === playerId)?.amount ?? null;
+  protected choices(m: Market): Choice[] {
+    if (m.target === 'team') return this.teamChoices();
+    if (m.target === 'number') {
+      const min = m.option_min ?? 1;
+      const max = m.option_max ?? STREAK_MAX_OPTION;
+      return Array.from({ length: max - min + 1 }, (_, i) => {
+        const n = min + i;
+        return { selection: String(n), label: n === max ? `${n}+` : String(n) };
+      });
+    }
+    return [...this.playerChoices(), ...(m.allows_own_goal ? this.ownGoalChoice() : [])];
   }
 
-  protected openSheet(market: Market, player: Player) {
-    this.sheet.set({ market, player });
+  protected hint(m: Market): string {
+    if (m.target === 'team') return 'A un equipo';
+    if (m.target === 'number') return 'A un número';
+    return 'A un jugador';
   }
 
-  protected openSheetById(marketId: string, playerId: string) {
-    const market = this.marketById().get(marketId);
-    const player = this.playerById().get(playerId);
-    if (market && player) this.sheet.set({ market, player });
+  protected choiceLabel(b: BetDraft): string {
+    const m = this.marketById().get(b.marketId);
+    return this.labeler()(m?.target, b.selection, m?.type);
   }
 
-  protected setAmount(marketId: string, playerId: string, amount: number) {
+  protected countFor(marketId: string) {
+    return this.bets().filter((b) => b.marketId === marketId).length;
+  }
+
+  protected amountFor(marketId: string, selection: string): number | null {
+    return this.bets().find((b) => b.marketId === marketId && b.selection === selection)?.amount ?? null;
+  }
+
+  protected toggle(marketId: string) {
+    this.open.set(this.open() === marketId ? null : marketId);
+  }
+
+  protected openSheet(market: Market, choice: Choice) {
+    this.sheet.set({ market, choice });
+  }
+
+  protected editBet(b: BetDraft) {
+    const market = this.marketById().get(b.marketId);
+    const choice = market && this.choices(market).find((c) => c.selection === b.selection);
+    if (market && choice) this.sheet.set({ market, choice });
+  }
+
+  protected setAmount(marketId: string, selection: string, amount: number) {
     const list = this.bets();
-    const i = list.findIndex((b) => b.marketId === marketId && b.playerId === playerId);
+    const i = list.findIndex((b) => b.marketId === marketId && b.selection === selection);
     if (i >= 0) {
       this.bets.set(list.map((b, j) => (j === i ? { ...b, amount } : b)));
     } else if (list.length >= MAX_BETS_PER_TICKET) {
       this.flash(`Máximo ${MAX_BETS_PER_TICKET} apuestas por ticket`);
     } else {
-      this.bets.set([...list, { marketId, playerId, amount }]);
+      this.bets.set([...list, { marketId, selection, amount }]);
     }
     this.sheet.set(null);
   }
 
-  protected remove(marketId: string, playerId: string) {
-    this.bets.set(this.bets().filter((b) => !(b.marketId === marketId && b.playerId === playerId)));
+  protected remove(marketId: string, selection: string) {
+    this.bets.set(this.bets().filter((b) => !(b.marketId === marketId && b.selection === selection)));
   }
 
   protected goPay() {
     this.showErrors.set(true);
     if (!this.name().trim() || this.bets().length === 0) {
-      this.flash(!this.name().trim() ? 'Falta tu nombre' : 'Elige al menos un jugador');
+      this.flash(!this.name().trim() ? 'Falta tu nombre' : 'Elige al menos una apuesta');
       if (!this.name().trim()) document.getElementById('bettor')?.focus();
       return;
     }
@@ -360,9 +379,9 @@ export class BetFlowComponent {
     }
   }
 
-  protected async copyYape() {
+  protected async copyNumber() {
     try {
-      await navigator.clipboard.writeText((this.data().match.yape_number ?? '').replace(/\s/g, ''));
+      await navigator.clipboard.writeText((this.data().match.pay_number ?? '').replace(/\s/g, ''));
       this.copied.set(true);
       setTimeout(() => this.copied.set(false), 2000);
     } catch {
@@ -377,7 +396,8 @@ export class BetFlowComponent {
     this.error.set(null);
     try {
       this.uploadedPath ??= await this.api.uploadReceipt(this.data().match.id, blob);
-      await this.api.submitTicket(this.code(), this.name().trim(), this.bets(), this.uploadedPath);
+      const withTarget = this.bets().map((b) => ({ ...b, target: this.marketById().get(b.marketId)!.target }));
+      await this.api.submitTicket(this.code(), this.name().trim(), withTarget, this.uploadedPath);
       this.sent.set(this.bets());
       this.bets.set([]);
       this.receipt.set(null);
@@ -410,12 +430,12 @@ interface Draft {
   name: string;
   bets: BetDraft[];
 }
-const draftKey = (code: string) => `apuestas:draft:${code.toUpperCase()}`;
+const draftKey = (code: string) => `apuestas:draft2:${code.toUpperCase()}`;
 function readDraft(code: string): Draft | null {
   try {
     const raw = localStorage.getItem(draftKey(code));
     const d = raw ? (JSON.parse(raw) as Draft) : null;
-    return d && typeof d.name === 'string' && Array.isArray(d.bets) ? d : null;
+    return d && typeof d.name === 'string' && Array.isArray(d.bets) && d.bets.every((b) => typeof b.selection === 'string') ? d : null;
   } catch {
     return null;
   }

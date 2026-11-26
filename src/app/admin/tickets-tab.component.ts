@@ -1,6 +1,7 @@
 import { Component, computed, effect, inject, input, output, signal } from '@angular/core';
 import { AdminApi } from '../core/admin-api';
-import { AdminMatchData, TICKET_STATUS_LABEL, TicketRow, TicketStatus } from '../core/models';
+import { AdminMatchData, BetRow, betSelection, TICKET_STATUS_LABEL, TicketRow, TicketStatus } from '../core/models';
+import { makeSelectionLabel } from '../domain/adapt';
 import { friendlyError } from '../core/public-api';
 import { formatSoles } from '../domain/settlement';
 
@@ -38,7 +39,7 @@ type Filter = TicketStatus | 'all';
           <ul class="mt-2 space-y-0.5 text-sm">
             @for (b of t.bets; track b.id) {
               <li class="flex justify-between gap-2">
-                <span class="min-w-0 truncate"><b>{{ player(b.player_id) }}</b> · <span class="text-slate-500">{{ market(b.market_id) }}</span></span>
+                <span class="min-w-0 truncate"><b>{{ choice(b) }}</b> · <span class="text-slate-500">{{ market(b.market_id) }}</span></span>
                 <span class="shrink-0 font-semibold">S/ {{ b.amount }}</span>
               </li>
             }
@@ -47,7 +48,7 @@ type Filter = TicketStatus | 'all';
           @if (t.receipt_path) {
             @if (urls()[t.id]; as url) {
               <button type="button" class="mt-3 block w-full" (click)="zoom.set(url)" aria-label="Ver captura en grande">
-                <img [src]="url" alt="Captura de Yape" class="max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-contain" loading="lazy" />
+                <img [src]="url" alt="Captura del pago" class="max-h-96 w-full rounded-xl border border-slate-200 bg-slate-50 object-contain" loading="lazy" />
               </button>
             } @else {
               <p class="mt-3 rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Cargando captura…</p>
@@ -76,7 +77,7 @@ type Filter = TicketStatus | 'all';
 
     @if (zoom()) {
       <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-2" (click)="zoom.set(null)">
-        <img [src]="zoom()" alt="Captura de Yape" class="max-h-full max-w-full object-contain" />
+        <img [src]="zoom()" alt="Captura del pago" class="max-h-full max-w-full object-contain" />
         <button type="button" class="absolute top-4 right-4 rounded-full bg-white/20 px-3 py-1 text-white">Cerrar ✕</button>
       </div>
     }
@@ -102,7 +103,8 @@ export class TicketsTabComponent {
     { id: 'all', label: 'Todos' },
   ];
 
-  private players = computed(() => new Map(this.data().players.map((p) => [p.id, p.name])));
+  private labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams));
+  private marketTarget = computed(() => new Map(this.data().markets.map((m) => [m.id, this.data().marketTypes.find((t) => t.type === m.type)])));
   private markets = computed(() => new Map(this.data().markets.map((m) => [m.id, m.name])));
   protected visible = computed(() => {
     const f = this.filter();
@@ -133,8 +135,9 @@ export class TicketsTabComponent {
   count(f: Filter) {
     return this.data().tickets.filter((t) => f === 'all' || t.status === f).length;
   }
-  player(id: string) {
-    return this.players().get(id) ?? '¿?';
+  choice(b: BetRow) {
+    const t = this.marketTarget().get(b.market_id);
+    return this.labeler()(t?.target, betSelection(b), t?.type);
   }
   market(id: string) {
     return this.markets().get(id) ?? '¿?';

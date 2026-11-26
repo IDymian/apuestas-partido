@@ -1,16 +1,14 @@
 /**
  * Backend falso en memoria para probar la app SIN Supabase (cuando el .env
- * está vacío). La parte pública y el admin comparten los mismos datos, así que
- * lo que apruebas en /admin aparece en el bote en vivo.
+ * está vacío). La parte pública y el admin comparten los mismos datos.
  *
- * Partidos de ejemplo: DEMO26 (abierto), ENVIVO (en juego), FINAL (finalizado).
+ * Jornadas de ejemplo: DEMO26 (en vivo), ABIERTA (apuestas abiertas), FINAL (finalizada).
  * Login admin en modo demo: cualquier correo y contraseña.
  */
 import { inject, Injectable } from '@angular/core';
 import { AdminApi, EventPatch, NewEvent } from './admin-api';
 import {
   AdminMatchData,
-  BetDraft,
   EventRow,
   MarketRow,
   MarketType,
@@ -21,31 +19,68 @@ import {
   PaidRow,
   PlayerRow,
   PublicMatchData,
-  Team,
+  TeamRow,
   TicketRow,
   TicketStatus,
 } from './models';
-import { PublicApi } from './public-api';
+import { PublicApi, SubmitBet } from './public-api';
 
 const delay = (ms = 200) => new Promise((r) => setTimeout(r, ms));
 const clone = <T>(x: T): T => structuredClone(x);
 const uid = (): string => crypto.randomUUID();
 
-const MARKET_TYPES: MarketType[] = [
-  { type: 'first_goal', label: 'Primer gol', allows_own_goal: true, event_type: 'goal' },
-  { type: 'last_goal', label: 'Último gol', allows_own_goal: true, event_type: 'goal' },
-  { type: 'first_yellow', label: 'Primera tarjeta amarilla', allows_own_goal: false, event_type: 'yellow' },
+export const MARKET_TYPES: MarketType[] = [
+  { type: 'first_goal', label: 'Primer gol', target: 'player', section: 'goles', has_param: false, option_min: null, option_max: null, allows_own_goal: true },
+  { type: 'last_goal', label: 'Último gol', target: 'player', section: 'goles', has_param: false, option_min: null, option_max: null, allows_own_goal: true },
+  { type: 'top_scorer', label: 'Pichichi (más goles)', target: 'player', section: 'goles', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'first_to_n_goals', label: 'Primero en llegar a N goles', target: 'player', section: 'goles', has_param: true, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'nth_goal', label: 'Gol número N', target: 'player', section: 'goles', has_param: true, option_min: null, option_max: null, allows_own_goal: true },
+  { type: 'most_wins', label: 'Rey de la cancha', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'longest_streak', label: 'Racha más larga', target: 'number', section: 'equipos', has_param: false, option_min: 1, option_max: 10, allows_own_goal: false },
+  { type: 'most_exits', label: 'Equipo que más sale', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'first_yellow', label: 'Primera amarilla', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'last_yellow', label: 'Última amarilla', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'most_yellows', label: 'El más amonestado', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'first_own_goal', label: 'Primer autogol', target: 'player', section: 'pichanga', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'first_nutmeg_victim', label: 'Primera huacha', target: 'player', section: 'pichanga', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+];
+
+/** Igual que el trigger de la BD: nombre, tipo y parámetro de los 15 mercados. */
+const DEFAULT_MARKETS: [string, string, number | null][] = [
+  ['Primer gol de la noche', 'first_goal', null],
+  ['Último gol de la noche', 'last_goal', null],
+  ['Pichichi de la noche', 'top_scorer', null],
+  ['Primer cuartete', 'first_to_n_goals', 4],
+  ['Primer sextete', 'first_to_n_goals', 6],
+  ['Gol número 15', 'nth_goal', 15],
+  ['Gol número 28', 'nth_goal', 28],
+  ['Rey de la cancha', 'most_wins', null],
+  ['Racha más larga', 'longest_streak', null],
+  ['Equipo que más sale', 'most_exits', null],
+  ['Primera amarilla', 'first_yellow', null],
+  ['Última amarilla', 'last_yellow', null],
+  ['El más amonestado', 'most_yellows', null],
+  ['Primer autogol', 'first_own_goal', null],
+  ['Primera huacha', 'first_nutmeg_victim', null],
+];
+
+export const DEMO_PLAYERS = [
+  'Victor Manuel Espino', 'Oscar Fernando Vara', 'Mate Italo Loechle', 'Angel Jose Pariona',
+  'Alexis Encalada', 'Adrian Ruiz', 'Iker Gabriel Barturen', 'Braden García',
+  'Victor Nicolas Ortiz', 'Diego Guevara', 'Nestor Rojas', 'Paul Espinoza',
+  'Fabian Jesus Sandoval', 'Manuel Tumi', 'Bryan Eduardo Barba', 'David Málaga',
+  'Lorenzo Balicco', 'Andreow Jomark Santiago', 'David Ignacio Vivar', 'Alvaro Fabrizzio Salazar',
 ];
 
 @Injectable({ providedIn: 'root' })
 export class MockStore {
   matches: MatchRow[] = [];
+  teams: TeamRow[] = [];
   players: PlayerRow[] = [];
   markets: MarketRow[] = [];
   tickets: TicketRow[] = [];
   events: EventRow[] = [];
   paid: PaidRow[] = [];
-  /** ruta de captura → URL local de la imagen subida */
   receipts = new Map<string, string>();
   qrs = new Map<string, string>();
   private seq = 0;
@@ -72,33 +107,38 @@ export class MockStore {
     if (code) setTimeout(() => this.listeners.get(code)?.forEach((fn) => fn()), 50);
   }
 
-  /** Igual que el trigger de la BD: crea Autogol y los 3 mercados por defecto. */
+  /** Igual que el trigger de la BD: Equipo A/B/C, Autogol y los 15 mercados. */
   createMatch(input: MatchInput, status: MatchStatus = 'open', id = uid()): MatchRow {
+    const teamIds = ['A', 'B', 'C'].map((l, i) => {
+      const t: TeamRow = { id: `${id}-team-${l}`, match_id: id, name: `Equipo ${l}`, sort_order: i + 1, color: null };
+      this.teams.push(t);
+      return t.id;
+    });
     const m: MatchRow = {
       id,
-      home_team: input.home_team,
-      away_team: input.away_team,
+      title: input.title,
       starts_at: input.starts_at,
       access_code: input.access_code.toUpperCase(),
       status,
-      yape_number: input.yape_number,
-      yape_holder: input.yape_holder,
-      yape_qr_path: null,
+      closed_at: null,
+      starting_team_ids: [teamIds[0], teamIds[1]],
+      pay_method: input.pay_method || 'Plin',
+      pay_number: input.pay_number,
+      pay_holder: input.pay_holder,
+      pay_qr_path: null,
       created_at: new Date().toISOString(),
     };
     this.matches.unshift(m);
-    this.players.push({ id: `${id}-og`, match_id: id, name: 'Autogol', team: null, is_own_goal: true, sort_order: 9999 });
-    const base = { match_id: id, is_active: true, initial_pot: 0 };
-    this.markets.push(
-      { ...base, id: `${id}-fg`, name: 'Primer gol', type: 'first_goal', sort_order: 1, rollover_to_market_id: `${id}-lg` },
-      { ...base, id: `${id}-lg`, name: 'Último gol', type: 'last_goal', sort_order: 2, rollover_to_market_id: null },
-      { ...base, id: `${id}-fy`, name: 'Primera amarilla', type: 'first_yellow', sort_order: 3, rollover_to_market_id: null },
+    this.players.push({ id: `${id}-og`, match_id: id, name: 'Autogol', is_own_goal: true, sort_order: 9999 });
+    DEFAULT_MARKETS.forEach(([name, type, param], i) =>
+      this.markets.push({ id: `${id}-m${i + 1}`, match_id: id, name, type, param, sort_order: i + 1, is_active: true, rollover_to_market_id: null, initial_pot: 0 }),
     );
     return m;
   }
 
-  addTicket(matchId: string, name: string, bets: BetDraft[], status: TicketStatus, minutesAgo: number, reason: string | null = null) {
+  addTicket(matchId: string, name: string, bets: { market: string; player?: string; team?: string; option?: number; amount: number }[], status: TicketStatus, minutesAgo: number, reason: string | null = null) {
     const id = uid();
+    const market = (n: string) => this.markets.find((m) => m.match_id === matchId && m.name === n)!.id;
     this.tickets.push({
       id,
       match_id: matchId,
@@ -109,55 +149,89 @@ export class MockStore {
       reject_reason: reason,
       created_at: new Date(Date.now() - minutesAgo * 60_000).toISOString(),
       reviewed_at: status === 'pending' ? null : new Date().toISOString(),
-      bets: bets.map((b) => ({ id: uid(), ticket_id: id, market_id: b.marketId, player_id: b.playerId, amount: b.amount })),
+      bets: bets.map((b) => ({
+        id: uid(),
+        ticket_id: id,
+        market_id: market(b.market),
+        player_id: b.player ? this.playerId(matchId, b.player) : null,
+        team_id: b.team ? `${matchId}-team-${b.team}` : null,
+        option_value: b.option ?? null,
+        amount: b.amount,
+      })),
     });
     return id;
   }
 
+  playerId(matchId: string, name: string) {
+    return this.players.find((p) => p.match_id === matchId && p.name === name)!.id;
+  }
+
   private seed() {
-    const names: [string, Team][] = [
-      ['Pepito Ramírez', 'home'], ['Juanito Torres', 'home'], ['Fulanito Díaz', 'home'],
-      ['Carlos Medina', 'home'], ['Raúl Paredes', 'home'], ['Mario Quispe', 'home'],
-      ['Diego Salas', 'away'], ['Andrés Rojas', 'away'], ['Hugo Vargas', 'away'],
-      ['Kevin Flores', 'away'], ['Óscar Huamán', 'away'], ['Bruno Chávez', 'away'],
+    // [código, título, estado, cuántos eventos del guion]
+    const scenarios: [string, string, MatchStatus, number][] = [
+      ['FINAL', 'Álvaro Fest (terminada)', 'finished', 99],
+      ['ABIERTA', 'Pichanga del jueves', 'open', 0],
+      ['DEMO26', 'Pichanga de prueba', 'closed', 10],
     ];
-    const scenarios: [string, MatchStatus, [string, 'goal' | 'yellow', number, number][]][] = [
-      ['FINAL', 'finished', [['p9', 'yellow', 12, 0], ['p3', 'goal', 45, 2]]],
-      ['ENVIVO', 'closed', [['p9', 'yellow', 12, 0]]],
-      ['DEMO26', 'open', []],
-    ];
-    for (const [code, status, evs] of scenarios) {
+    for (const [code, title, status, nEvents] of scenarios) {
       const id = `demo-${code}`;
       this.createMatch(
-        {
-          home_team: 'Los Tigres',
-          away_team: 'Las Águilas',
-          starts_at: new Date(Date.now() + 2 * 3600_000).toISOString(),
-          access_code: code,
-          yape_number: '999 888 777',
-          yape_holder: 'Organizador Demo',
-        },
+        { title, starts_at: new Date(Date.now() + (status === 'open' ? 2 : -2) * 3600_000).toISOString(), access_code: code, pay_method: 'Plin', pay_number: '999 888 777', pay_holder: 'Organizador Demo' },
         status,
         id,
       );
-      names.forEach(([name, team], i) =>
-        this.players.push({ id: `${id}-p${i + 1}`, match_id: id, name, team, is_own_goal: false, sort_order: i + 1 }),
-      );
-      this.markets.find((m) => m.id === `${id}-lg`)!.initial_pot = 5;
-      const p = (n: string) => `${id}-${n}`;
-      const fg = p('fg'), lg = p('lg'), fy = p('fy');
-      this.addTicket(id, 'Ana', [{ marketId: fg, playerId: p('p1'), amount: 4 }, { marketId: fy, playerId: p('p9'), amount: 2 }], 'approved', 90);
-      this.addTicket(id, 'Luis', [{ marketId: fg, playerId: p('p2'), amount: 2 }], 'approved', 80);
-      this.addTicket(id, 'Rosa', [{ marketId: lg, playerId: p('p3'), amount: 3 }], 'approved', 70);
-      this.addTicket(id, 'Beto', [{ marketId: lg, playerId: p('p3'), amount: 1 }, { marketId: fy, playerId: p('p7'), amount: 3 }], 'approved', 60);
-      this.addTicket(id, 'Carla Mendoza', [{ marketId: fy, playerId: p('p9'), amount: 5 }, { marketId: lg, playerId: p('p7'), amount: 2 }], 'approved', 50);
-      if (status === 'open') {
-        this.addTicket(id, 'Jorge', [{ marketId: lg, playerId: p('p8'), amount: 5 }, { marketId: fg, playerId: p('og'), amount: 1 }], 'pending', 10);
-        this.addTicket(id, 'Dani', [{ marketId: fg, playerId: p('p10'), amount: 5 }], 'rejected', 30, 'No llegó el Yape');
-      }
-      for (const [pl, type, minute, stoppage] of evs) {
-        this.events.push({ id: uid(), match_id: id, type, player_id: p(pl), minute, stoppage, seq: this.nextSeq() });
-      }
+      DEMO_PLAYERS.forEach((name, i) => this.players.push({ id: `${id}-p${i + 1}`, match_id: id, name, is_own_goal: false, sort_order: i + 1 }));
+      if (status !== 'open') this.matches.find((m) => m.id === id)!.closed_at = new Date(Date.now() - 90 * 60_000).toISOString();
+
+      this.addTicket(id, 'Ana', [
+        { market: 'Primer gol de la noche', player: 'Victor Manuel Espino', amount: 4 },
+        { market: 'Rey de la cancha', team: 'A', amount: 3 },
+        { market: 'Primera amarilla', player: 'Diego Guevara', amount: 2 },
+        { market: 'Racha más larga', option: 3, amount: 2 },
+      ], 'approved', 180);
+      this.addTicket(id, 'Luis', [
+        { market: 'Primer gol de la noche', player: 'Adrian Ruiz', amount: 2 },
+        { market: 'Pichichi de la noche', player: 'Victor Manuel Espino', amount: 5 },
+        { market: 'Equipo que más sale', team: 'C', amount: 3 },
+        { market: 'Primer autogol', player: 'Nestor Rojas', amount: 1 },
+      ], 'approved', 170);
+      this.addTicket(id, 'Rosa', [
+        { market: 'Último gol de la noche', player: 'David Málaga', amount: 3 },
+        { market: 'Primer cuartete', player: 'Victor Manuel Espino', amount: 2 },
+        { market: 'Gol número 15', player: 'Autogol', amount: 1 },
+        { market: 'Primera huacha', player: 'Paul Espinoza', amount: 4 },
+      ], 'approved', 160);
+      this.addTicket(id, 'Beto', [
+        { market: 'Rey de la cancha', team: 'B', amount: 5 },
+        { market: 'Racha más larga', option: 2, amount: 3 },
+        { market: 'El más amonestado', player: 'Diego Guevara', amount: 2 },
+        { market: 'Última amarilla', player: 'Manuel Tumi', amount: 1 },
+        { market: 'Primer sextete', player: 'Adrian Ruiz', amount: 1 },
+        { market: 'Gol número 28', player: 'David Málaga', amount: 1 },
+      ], 'approved', 150);
+      this.addTicket(id, 'Carla', [{ market: 'Primer gol de la noche', player: 'Paul Espinoza', amount: 5 }], 'pending', 140);
+      this.addTicket(id, 'Dani', [{ market: 'Rey de la cancha', team: 'C', amount: 5 }], 'rejected', 135, 'No llegó el Plin');
+
+      const T = (l: string) => `${id}-team-${l}`;
+      const P = (n: string) => this.playerId(id, n);
+      const script: Omit<EventRow, 'id' | 'match_id' | 'seq'>[] = [
+        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('A'), is_own_goal: false, team_out_id: null, minute: 5 },
+        { type: 'yellow', player_id: P('Diego Guevara'), team_id: null, is_own_goal: false, team_out_id: null, minute: 8 },
+        { type: 'goal', player_id: P('Adrian Ruiz'), team_id: T('A'), is_own_goal: false, team_out_id: null, minute: 12 },
+        { type: 'nutmeg', player_id: P('Paul Espinoza'), team_id: null, is_own_goal: false, team_out_id: null, minute: 15 },
+        { type: 'goal', player_id: P('Nestor Rojas'), team_id: T('B'), is_own_goal: true, team_out_id: null, minute: 20 },
+        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('B'), is_own_goal: false, team_out_id: null, minute: 26 },
+        { type: 'yellow', player_id: P('Diego Guevara'), team_id: null, is_own_goal: false, team_out_id: null, minute: 30 },
+        { type: 'rotation', player_id: null, team_id: null, is_own_goal: false, team_out_id: T('B'), minute: 35 },
+        { type: 'goal', player_id: P('David Málaga'), team_id: T('C'), is_own_goal: false, team_out_id: null, minute: 41 },
+        { type: 'yellow', player_id: P('Manuel Tumi'), team_id: null, is_own_goal: false, team_out_id: null, minute: 44 },
+        // Solo en FINAL:
+        { type: 'goal', player_id: P('David Málaga'), team_id: T('C'), is_own_goal: false, team_out_id: null, minute: 52 },
+        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('B'), is_own_goal: false, team_out_id: null, minute: 60 },
+        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('B'), is_own_goal: false, team_out_id: null, minute: 71 },
+        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('B'), is_own_goal: false, team_out_id: null, minute: 80 },
+      ];
+      for (const e of script.slice(0, nEvents)) this.events.push({ ...e, id: uid(), match_id: id, seq: this.nextSeq() });
     }
   }
 }
@@ -178,23 +252,26 @@ export class MockPublicApi extends PublicApi {
     const approved = this.s.tickets
       .filter((t) => t.match_id === m.id && t.status === 'approved')
       .sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const { created_at: _c, ...match } = m;
     return clone({
-      match: {
-        id: m.id, home_team: m.home_team, away_team: m.away_team, starts_at: m.starts_at, access_code: m.access_code,
-        status: m.status, yape_number: m.yape_number, yape_holder: m.yape_holder, yape_qr_path: m.yape_qr_path,
-      },
+      match,
+      teams: this.s.teams.filter((t) => t.match_id === m.id).sort((a, b) => a.sort_order - b.sort_order),
       players: this.s.players
         .filter((p) => p.match_id === m.id)
         .sort((a, b) => Number(a.is_own_goal) - Number(b.is_own_goal) || a.sort_order - b.sort_order),
       markets: this.s.markets
         .filter((k) => k.match_id === m.id && k.is_active)
         .sort((a, b) => a.sort_order - b.sort_order)
-        .map((k) => ({ ...k, allows_own_goal: types.get(k.type)?.allows_own_goal ?? false })),
-      events: this.s.events
-        .filter((e) => e.match_id === m.id)
-        .sort((a, b) => a.minute - b.minute || a.stoppage - b.stoppage || a.seq - b.seq),
+        .map((k) => {
+          const t = types.get(k.type)!;
+          return { ...k, target: t.target, section: t.section, option_min: t.option_min, option_max: t.option_max, allows_own_goal: t.allows_own_goal };
+        }),
+      events: this.s.events.filter((e) => e.match_id === m.id).sort((a, b) => a.minute - b.minute || a.seq - b.seq),
       bets: approved.flatMap((t) =>
-        t.bets.map((b) => ({ id: b.id, ticket_id: t.id, bettor_name: t.bettor_name, market_id: b.market_id, player_id: b.player_id, amount: b.amount, created_at: t.created_at })),
+        t.bets.map((b) => ({
+          id: b.id, ticket_id: t.id, bettor_name: t.bettor_name, market_id: b.market_id,
+          player_id: b.player_id, team_id: b.team_id, option_value: b.option_value, amount: b.amount, created_at: t.created_at,
+        })),
       ),
     });
   }
@@ -206,17 +283,26 @@ export class MockPublicApi extends PublicApi {
     return path;
   }
 
-  async submitTicket(code: string, bettorName: string, bets: BetDraft[], receiptPath: string): Promise<string> {
+  async submitTicket(code: string, bettorName: string, bets: SubmitBet[], receiptPath: string): Promise<string> {
     await delay(400);
     const m = this.s.matches.find((x) => x.access_code === code.toUpperCase());
-    if (!m) throw new Error('Partido no encontrado');
-    if (m.status !== 'open') throw new Error('El partido está cerrado, ya no se aceptan apuestas');
+    if (!m) throw new Error('Jornada no encontrada');
+    if (m.status !== 'open') throw new Error('Las apuestas están cerradas');
     const name = bettorName.trim().replace(/\s+/g, ' ');
     if (!name || name.length > 40) throw new Error('Escribe tu nombre (máximo 40 caracteres)');
     if (bets.length < 1 || bets.length > MAX_BETS_PER_TICKET) throw new Error('Cada ticket debe tener entre 1 y 20 apuestas');
     if (bets.some((b) => b.amount < 1 || b.amount > 5)) throw new Error('Cada apuesta debe ser de S/ 1 a S/ 5');
-    const id = this.s.addTicket(m.id, name, bets, 'pending', 0);
-    this.s.tickets.find((t) => t.id === id)!.receipt_path = receiptPath;
+    const id = uid();
+    this.s.tickets.push({
+      id, match_id: m.id, bettor_name: name, total: bets.reduce((s, b) => s + b.amount, 0), receipt_path: receiptPath,
+      status: 'pending', reject_reason: null, created_at: new Date().toISOString(), reviewed_at: null,
+      bets: bets.map((b) => ({
+        id: uid(), ticket_id: id, market_id: b.marketId, amount: b.amount,
+        player_id: b.target === 'player' ? b.selection : null,
+        team_id: b.target === 'team' ? b.selection : null,
+        option_value: b.target === 'number' ? Number(b.selection) : null,
+      })),
+    });
     this.s.notify(m.id);
     return id;
   }
@@ -267,13 +353,12 @@ export class MockAdminApi extends AdminApi {
     if (!match) return null;
     return clone({
       match,
+      teams: this.s.teams.filter((t) => t.match_id === id).sort((a, b) => a.sort_order - b.sort_order),
       players: this.s.players.filter((p) => p.match_id === id).sort((a, b) => a.sort_order - b.sort_order),
       markets: this.s.markets.filter((m) => m.match_id === id).sort((a, b) => a.sort_order - b.sort_order),
       marketTypes: MARKET_TYPES,
       tickets: this.s.tickets.filter((t) => t.match_id === id).sort((a, b) => a.created_at.localeCompare(b.created_at)),
-      events: this.s.events
-        .filter((e) => e.match_id === id)
-        .sort((a, b) => a.minute - b.minute || a.stoppage - b.stoppage || a.seq - b.seq),
+      events: this.s.events.filter((e) => e.match_id === id).sort((a, b) => a.minute - b.minute || a.seq - b.seq),
       paid: this.s.paid.filter((p) => p.match_id === id),
     });
   }
@@ -282,8 +367,8 @@ export class MockAdminApi extends AdminApi {
     await delay();
     const code = input.access_code.trim().toUpperCase();
     if (!/^[A-Z0-9]{4,20}$/.test(code)) throw new Error('El código debe tener de 4 a 20 letras o números');
-    if (this.s.matches.some((m) => m.access_code === code && m.id !== input.id)) throw new Error('Ese código ya lo usa otro partido');
-    const clean = { ...input, access_code: code, home_team: input.home_team.trim(), away_team: input.away_team.trim() };
+    if (this.s.matches.some((m) => m.access_code === code && m.id !== input.id)) throw new Error('Ese código ya lo usa otra jornada');
+    const clean = { ...input, access_code: code, title: input.title.trim(), pay_method: input.pay_method?.trim() || 'Plin' };
     if (input.id) {
       const m = this.s.matches.find((x) => x.id === input.id)!;
       Object.assign(m, clean);
@@ -294,27 +379,32 @@ export class MockAdminApi extends AdminApi {
   }
 
   async setStatus(matchId: string, status: MatchStatus) {
-    this.s.matches.find((m) => m.id === matchId)!.status = status;
+    const m = this.s.matches.find((x) => x.id === matchId)!;
+    if (status === 'closed' && m.status === 'open' && !m.closed_at) m.closed_at = new Date().toISOString();
+    m.status = status;
+    this.s.notify(matchId);
+  }
+
+  async setStartingTeams(matchId: string, teamIds: [string, string]) {
+    this.s.matches.find((x) => x.id === matchId)!.starting_team_ids = teamIds;
     this.s.notify(matchId);
   }
 
   async uploadQr(matchId: string, file: Blob) {
     const path = `${matchId}/${uid()}.jpg`;
     this.s.qrs.set(path, URL.createObjectURL(file));
-    this.s.matches.find((m) => m.id === matchId)!.yape_qr_path = path;
+    this.s.matches.find((m) => m.id === matchId)!.pay_qr_path = path;
     this.s.notify(matchId);
   }
 
   async removeQr(matchId: string) {
-    this.s.matches.find((m) => m.id === matchId)!.yape_qr_path = null;
+    this.s.matches.find((m) => m.id === matchId)!.pay_qr_path = null;
     this.s.notify(matchId);
   }
 
-  async addPlayers(matchId: string, team: Team, names: string[]) {
+  async addPlayers(matchId: string, names: string[]) {
     let order = Math.max(0, ...this.s.players.filter((p) => p.match_id === matchId && !p.is_own_goal).map((p) => p.sort_order));
-    for (const name of names) {
-      this.s.players.push({ id: uid(), match_id: matchId, name, team, is_own_goal: false, sort_order: ++order });
-    }
+    for (const name of names) this.s.players.push({ id: uid(), match_id: matchId, name, is_own_goal: false, sort_order: ++order });
     this.s.notify(matchId);
   }
 
@@ -344,7 +434,7 @@ export class MockAdminApi extends AdminApi {
       Object.assign(this.s.markets.find((x) => x.id === m.id)!, m);
     } else {
       this.s.markets.push({
-        id: uid(), name: 'Nuevo mercado', type: 'first_goal', sort_order: 99, is_active: true,
+        id: uid(), name: 'Nuevo mercado', type: 'first_goal', param: null, sort_order: 99, is_active: true,
         rollover_to_market_id: null, initial_pot: 0, ...m,
       } as MarketRow);
     }
