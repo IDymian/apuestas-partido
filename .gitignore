@@ -53,3 +53,9 @@ src/environments/env.generated.ts
 /e2e/screenshots/
 /test-results/
 /playwright-report/
+
+# Skills de diseño (solo locales, no se versionan)
+/.agents/
+/.opencode/skills/
+/.opencode/commands/impeccable.md
+/skills-lock.json

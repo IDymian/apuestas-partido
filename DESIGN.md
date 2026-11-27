@@ -40,7 +40,7 @@
 | `.btn-ghost` | Acción secundaria |
 | `.pick` / `.pick-on` | Opción de apuesta (jugador, equipo, número) |
 | `.field` / `.field-label` | Campos de formulario |
-| `.nav-bar` | Barra inferior con indicador deslizante (Apostar · En vivo · Social · Mi cuenta) |
+| `.nav-bar` | Barra inferior con indicador deslizante (Partidos · En vivo · Cupón · Social · Mi perfil) |
 | `<app-icon>` | Íconos de trazo (basados en Lucide, ISC) |
 | `<app-ball3d>` | Escena 3D del inicio (three.js, se carga aparte) |
 | `<app-count-up>` | Soles animados |
@@ -62,3 +62,13 @@
 
 - Logo: `public/brand/mark.svg` (sin fondo) e `icon.svg` (ícono de la app). Se generan con `python scripts/brand/make-logo.py`.
 - Íconos PNG de la PWA y favicon: `npm i --no-save sharp png-to-ico && node scripts/brand/rasterize.mjs`.
+
+## Intocable (excepciones de marca)
+
+Estas decisiones son deliberadas. Un linter o una skill de diseño puede marcarlas; **no se cambian sin hablarlo primero**:
+
+- **Paleta cream** (`#fffaf5`): el fondo cálido es la marca, no un default de plantilla. El hallazgo `cream-palette` se acepta.
+- **Degradado del titular** (`text-gradient` en "no se mancha"): es identidad, no relleno decorativo. El hallazgo `gradient-text` se acepta.
+- **`--ease-spring`**: el rebote en entradas, hojas y botones es parte del carácter festivo. El hallazgo `bounce-easing` se acepta.
+- **Naranja `lime` (`#f26200`)**: es el color de marca. Si no alcanza contraste en texto chico, se corrige el **texto** (token `lime-ink` más oscuro), no el naranja de los botones.
+- **La pelota con gorro**: es el ancla emocional de la portada. Se puede cambiar el medio (3D, imagen, CSS) para rendir mejor en celular, pero no el concepto.
