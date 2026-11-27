@@ -1,10 +1,15 @@
 // Revisa la seguridad del Supabase real como usuario anónimo (sin login).
-// Uso: npm run check:live   (lee SUPABASE_URL y SUPABASE_ANON_KEY del .env)
+// Uso: npm run check:live [CODIGO]   (lee SUPABASE_URL y SUPABASE_ANON_KEY del .env; por defecto DEMO26)
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'node:fs';
 const env = Object.fromEntries(readFileSync('.env', 'utf8').trim().split(/\r?\n/).map((l) => l.split('=')));
 const sb = createClient(env.SUPABASE_URL, env.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
-const pub = await sb.rpc('get_public_match', { p_code: 'prueba' });
+const code = process.argv[2] ?? 'DEMO26';
+const pub = await sb.rpc('get_public_match', { p_code: code });
+if (!pub.error && !pub.data) {
+  console.error(`No existe la jornada ${code}. Pasa un código real: npm run check:live CODIGO`);
+  process.exit(1);
+}
 console.log('RPC público:', pub.error?.message ?? `ok · ${pub.data.match.title} · ${pub.data.teams.length} equipos · ${pub.data.bets.length} apuestas aprobadas · ${pub.data.players.length} jugadores`);
 console.log('código malo →', (await sb.rpc('get_public_match', { p_code: 'NOPE99' })).data);
 for (const t of ['tickets', 'bets', 'events', 'matches', 'teams', 'players', 'admins']) {
