@@ -3,7 +3,7 @@
  * confirmación por correo, inicio de sesión y recuperar contraseña.
  *
  * Con Supabase, los correos (confirmación y recuperación) los envía Supabase
- * Auth. En modo demo todo vive en este navegador y los "correos" se abren
+ * Auth. Con el backend de pruebas local todo vive en este navegador y los "correos" se abren
  * desde la misma pantalla.
  */
 import { inject, Injectable, signal } from '@angular/core';
@@ -17,13 +17,13 @@ export const MIN_PASSWORD = 8;
 export interface SignUpResult {
   /** true si hay que confirmar el correo antes de entrar. */
   needsConfirm: boolean;
-  /** Solo en modo demo: id para "abrir" el correo de prueba. */
-  demoToken?: string;
+  /** Solo en pruebas locales: id para "abrir" el correo de prueba. */
+  testToken?: string;
 }
 
 export abstract class AuthApi {
-  abstract readonly isDemo: boolean;
-  /** ¿Se puede entrar con el usuario además del correo? (solo en demo) */
+  abstract readonly isTestBackend: boolean;
+  /** ¿Se puede entrar con el usuario además del correo? (solo pruebas locales) */
   readonly loginWithUsername: boolean = false;
   /** Usuario logueado (null si no hay sesión). */
   readonly user = signal<AppUser | null>(null);
@@ -36,7 +36,7 @@ export abstract class AuthApi {
   abstract signUp(email: string, username: string, password: string): Promise<SignUpResult>;
   abstract signIn(email: string, password: string): Promise<void>;
   abstract signOut(): Promise<void>;
-  /** Envía el correo para crear una contraseña nueva. Devuelve un token solo en demo. */
+  /** Envía el correo para crear una contraseña nueva. Devuelve un token solo en pruebas locales. */
   abstract sendReset(email: string): Promise<string | undefined>;
   abstract updatePassword(password: string): Promise<void>;
   abstract resendConfirmation(email: string): Promise<void>;
@@ -70,7 +70,7 @@ const origin = () => window.location.origin;
 
 @Injectable()
 export class SupabaseAuthApi extends AuthApi {
-  readonly isDemo = false;
+  readonly isTestBackend = false;
   private sb = inject(SupabaseService);
 
   async init() {
@@ -150,9 +150,9 @@ export class SupabaseAuthApi extends AuthApi {
 }
 
 // ---------------------------------------------------------------------------
-// Modo demo: cuentas en este navegador
+// Backend de pruebas local: cuentas en este navegador (nunca en producción)
 // ---------------------------------------------------------------------------
-interface DemoUser {
+interface LocalUser {
   id: string;
   email: string;
   username: string;
@@ -160,8 +160,8 @@ interface DemoUser {
   confirmed: boolean;
 }
 
-const USERS_KEY = 'copa:demo-users';
-const SESSION_KEY = 'copa:demo-session';
+const USERS_KEY = 'copa:local-users';
+const SESSION_KEY = 'copa:local-session';
 const store = {
   get<T>(k: string, fallback: T): T {
     try {
@@ -181,7 +181,7 @@ const store = {
   },
 };
 
-/** Solo para el modo demo (las contraseñas reales las guarda Supabase Auth). */
+/** Solo para pruebas locales (las contraseñas reales las guarda Supabase Auth). */
 async function hash(text: string): Promise<string> {
   const data = new TextEncoder().encode('copa-alvaro:' + text);
   if (crypto.subtle) {
@@ -197,30 +197,30 @@ async function hash(text: string): Promise<string> {
 const delay = (ms = 350) => new Promise((r) => setTimeout(r, ms));
 
 /** Cuenta de las pruebas automáticas (solo en el backend en memoria). */
-export const DEMO_ACCOUNT = { id: 'demo-user', username: 'demo', email: 'demo@copaalvaro.pe', password: 'demo' };
+export const TEST_ACCOUNT = { id: 'prueba-user', username: 'prueba', email: 'prueba@copaalvaro.pe', password: 'prueba123' };
 
 @Injectable()
 export class MockAuthApi extends AuthApi {
-  readonly isDemo = true;
+  readonly isTestBackend = true;
 
-  private users(): DemoUser[] {
-    return store.get<DemoUser[]>(USERS_KEY, []);
+  private users(): LocalUser[] {
+    return store.get<LocalUser[]>(USERS_KEY, []);
   }
-  private saveUsers(list: DemoUser[]) {
+  private saveUsers(list: LocalUser[]) {
     store.set(USERS_KEY, list);
   }
-  private login(u: DemoUser) {
+  private login(u: LocalUser) {
     store.set(SESSION_KEY, u.id);
     this.user.set({ id: u.id, email: u.email, username: u.username });
   }
 
   async init() {
-    // La cuenta demo siempre existe (usuario demo, contraseña demo).
+    // Cuenta de las pruebas automáticas.
     const list = this.users();
-    if (!list.some((u) => u.id === DEMO_ACCOUNT.id)) {
+    if (!list.some((u) => u.id === TEST_ACCOUNT.id)) {
       this.saveUsers([
         ...list,
-        { id: DEMO_ACCOUNT.id, email: DEMO_ACCOUNT.email, username: DEMO_ACCOUNT.username, passHash: await hash(DEMO_ACCOUNT.password), confirmed: true },
+        { id: TEST_ACCOUNT.id, email: TEST_ACCOUNT.email, username: TEST_ACCOUNT.username, passHash: await hash(TEST_ACCOUNT.password), confirmed: true },
       ]);
     }
     const id = store.get<string | null>(SESSION_KEY, null);
@@ -235,13 +235,13 @@ export class MockAuthApi extends AuthApi {
     const e = email.trim().toLowerCase();
     if (list.some((u) => u.email === e)) throw new Error(authError('already registered'));
     if (!(await this.usernameAvailable(username))) throw new Error('Ese usuario ya está tomado. Prueba con otro.');
-    const u: DemoUser = { id: uuid(), email: e, username: username.trim(), passHash: await hash(password), confirmed: false };
+    const u: LocalUser = { id: uuid(), email: e, username: username.trim(), passHash: await hash(password), confirmed: false };
     this.saveUsers([...list, u]);
-    return { needsConfirm: true, demoToken: u.id };
+    return { needsConfirm: true, testToken: u.id };
   }
 
   /** "Abrir" el correo de confirmación de prueba. */
-  confirmDemo(token: string): boolean {
+  confirmTestMail(token: string): boolean {
     const list = this.users();
     const u = list.find((x) => x.id === token);
     if (!u) return false;
@@ -252,7 +252,7 @@ export class MockAuthApi extends AuthApi {
   }
 
   /** "Abrir" el correo de recuperar contraseña de prueba. */
-  startDemoRecovery(token: string): boolean {
+  startTestRecovery(token: string): boolean {
     const u = this.users().find((x) => x.id === token);
     if (!u) return false;
     this.login(u);

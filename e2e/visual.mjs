@@ -6,8 +6,7 @@ const out = 'e2e/screenshots/visual';
 const browser = await chromium.launch();
 const shots = [
   ['inicio', '/'],
-  ['vivo', '/p/DEMO26?tab=live'],
-  ['final', '/p/FINAL'],
+  ['vivo', '/p/COPA?tab=live'],
   ['entrar', '/entrar'],
   ['registro', '/registro'],
 ];
@@ -25,7 +24,7 @@ for (const [device, ctxOpts] of [
   // Admin: Pagos
   await page.goto('http://localhost:4200/admin/login');
   await page.getByLabel('Correo').fill('organizador@copa.pe');
-  await page.getByLabel('Contraseña').fill('demo');
+  await page.getByLabel('Contraseña').fill('admin123');
   await page.getByRole('button', { name: 'Entrar' }).click();
   await page.getByRole('link', { name: /Pagos/ }).click();
   await page.waitForTimeout(1200);

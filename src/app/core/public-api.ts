@@ -7,7 +7,7 @@ export type SubmitBet = BetDraft & { target: MarketTarget };
 
 /** Lo que la parte pública necesita del backend. Apostar y el chat requieren login. */
 export abstract class PublicApi {
-  abstract readonly isDemo: boolean;
+  abstract readonly isTestBackend: boolean;
   abstract getMatch(code: string): Promise<PublicMatchData | null>;
   /** Código de la jornada activa (la app abre directo en ella). */
   abstract activeMatchCode(): Promise<string | null>;
@@ -39,7 +39,7 @@ export function friendlyError(e: unknown): string {
 
 @Injectable()
 export class SupabasePublicApi extends PublicApi {
-  readonly isDemo = false;
+  readonly isTestBackend = false;
   private sb = inject(SupabaseService);
 
   async getMatch(code: string): Promise<PublicMatchData | null> {

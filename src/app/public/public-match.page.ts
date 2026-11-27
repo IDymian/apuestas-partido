@@ -6,6 +6,9 @@ import { SlipComponent } from './slip.component';
 import { SocialComponent } from './social.component';
 import { AccountComponent } from './account.component';
 import { MatchContext } from './match-context';
+import { DepositSheetComponent } from './deposit-sheet.component';
+import { ProfileSheetComponent } from './profile-sheet.component';
+import { sound } from '../ui/sound';
 import { GameSheetComponent } from './game-sheet.component';
 import { balanceLabel, STATUS_LABEL } from '../core/models';
 import { friendlyError, PublicApi } from '../core/public-api';
@@ -23,13 +26,13 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'live', label: 'En vivo', icon: 'live' },
   { id: 'slip', label: 'Cupón', icon: 'ticket' },
   { id: 'social', label: 'Social', icon: 'chat' },
-  { id: 'mine', label: 'Mi cuenta', icon: 'user' },
+  { id: 'mine', label: 'Mi perfil', icon: 'user' },
 ];
 
 @Component({
   selector: 'app-public-match-page',
   providers: [MatchContext],
-  imports: [GameSheetComponent, LobbyComponent, LiveTabComponent, SlipComponent, SocialComponent, AccountComponent, RouterLink, BrandComponent, IconComponent, AccountChipComponent],
+  imports: [GameSheetComponent, DepositSheetComponent, ProfileSheetComponent, LobbyComponent, LiveTabComponent, SlipComponent, SocialComponent, AccountComponent, RouterLink, BrandComponent, IconComponent, AccountChipComponent],
   template: `
     @if (loading() && !ctx.data()) {
       <div class="mx-auto max-w-md px-4 pt-6" aria-busy="true" aria-label="Cargando">
@@ -109,7 +112,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
           @case ('mine') {
             <div class="anim-tab">
               @if (auth.user()) {
-                <app-account [code]="code()" [data]="d" [suggest]="rechargeAsk()" (goBet)="setTab('games')" />
+                <app-account (goBet)="setTab('games')" />
               } @else {
                 <section class="mt-6 flex flex-col items-center px-6 text-center anim-in">
                   <div class="grid h-20 w-20 place-items-center rounded-[28px] bg-night-3 text-lime"><app-icon name="user" [size]="36" /></div>
@@ -168,6 +171,14 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
       @if (ctx.openSheet(); as g) {
         <app-game-sheet [game]="g" (closed)="ctx.sheetGame.set(null)" (full)="flash('Máximo 20 apuestas por cupón')" />
       }
+      @if (ctx.profileOf(); as who) {
+        <app-profile-sheet [username]="who" (closed)="ctx.profileOf.set(null)" />
+      }
+      @if (ctx.depositAsk(); as ask) {
+        @if (auth.user()) {
+          <app-deposit-sheet [suggest]="ask.amount" (closed)="ctx.depositAsk.set(null)" />
+        }
+      }
 
       @if (toast()) {
         <div class="fixed inset-x-4 bottom-44 z-50 mx-auto max-w-sm rounded-2xl bg-ink px-4 py-3 text-center text-sm font-bold text-white shadow-lg anim-pop" role="status">{{ toast() }}</div>
@@ -195,8 +206,6 @@ export class PublicMatchPage implements OnDestroy {
   protected readonly tabIndex = computed(() => TABS.findIndex((t) => t.id === this.tab()));
   protected readonly toast = signal<string | null>(null);
   protected readonly bumping = signal(false);
-  /** Pedido de abrir la recarga en "Mi cuenta" (objeto nuevo cada vez). */
-  protected readonly rechargeAsk = signal<{ amount: number | null } | null>(null);
   protected readonly statusLabel = computed(() => STATUS_LABEL[this.ctx.data()?.match.status ?? 'open']);
   private unsubscribe: (() => void) | null = null;
 
@@ -223,6 +232,14 @@ export class PublicMatchPage implements OnDestroy {
         });
       }
     });
+    // ¡Gol! en el partido en vivo
+    let lastGoals: number | null = null;
+    effect(() => {
+      const g = this.ctx.liveGame();
+      const goals = g ? g.homeGoals + g.awayGoals : null;
+      if (goals !== null && lastGoals !== null && goals > lastGoals) sound.goal();
+      lastGoals = goals;
+    });
     document.addEventListener('visibilitychange', this.onVisible);
   }
 
@@ -231,8 +248,7 @@ export class PublicMatchPage implements OnDestroy {
   };
 
   protected openRecharge(amount: number | null) {
-    this.rechargeAsk.set({ amount });
-    this.setTab('mine');
+    this.ctx.depositAsk.set({ amount });
   }
 
   protected setTab(t: Tab) {

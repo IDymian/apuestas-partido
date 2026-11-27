@@ -245,35 +245,37 @@
 }
 
 /* -----------------------------------------------------------------------------
-   Animaciones de entrada/salida (Angular animate.enter / animate.leave)
+   Animaciones de entrada/salida.
+   Usan "backwards" (no "both"): al terminar no dejan un transform activo, que
+   haría que las barras fijas (Social, cupón) se ubiquen mal dentro del contenedor.
    ----------------------------------------------------------------------------- */
 .anim-in {
-  animation: fade-up 0.55s var(--ease-out-quint) both;
+  animation: fade-up 0.55s var(--ease-out-quint) backwards;
   animation-delay: calc(var(--i, 0) * 55ms);
 }
 .anim-pop {
-  animation: pop 0.45s var(--ease-spring) both;
+  animation: pop 0.45s var(--ease-spring) backwards;
 }
 .anim-out {
   animation: fade-out 0.2s ease-in both;
 }
 .anim-expand {
-  animation: expand 0.35s var(--ease-out-quint) both;
+  animation: expand 0.35s var(--ease-out-quint) backwards;
 }
 .anim-sheet {
-  animation: sheet-up 0.42s var(--ease-out-quint) both;
+  animation: sheet-up 0.42s var(--ease-out-quint) backwards;
 }
 .anim-sheet-out {
   animation: sheet-down 0.22s ease-in both;
 }
 .anim-backdrop {
-  animation: fade-in 0.25s ease-out both;
+  animation: fade-in 0.25s ease-out backwards;
 }
 .anim-msg {
-  animation: msg-in 0.35s var(--ease-spring) both;
+  animation: msg-in 0.35s var(--ease-spring) backwards;
 }
 .anim-tab {
-  animation: tab-in 0.4s var(--ease-out-quint) both;
+  animation: tab-in 0.4s var(--ease-out-quint) backwards;
 }
 .anim-bump {
   animation: bump 0.45s var(--ease-spring);

@@ -48,7 +48,7 @@ El usuario es el nombre con el que apuestas y comentas. Nadie puede apostar a no
 
 ### 2. Saldo por Plin (billetera)
 
-1. En **Mi cuenta → Recargar**: eliges el monto (10, 20, 30, 50 u otro hasta S/ 500), **plineas al QR**
+1. Con el botón **Depositar** (arriba, siempre visible): eliges el monto (10, 20, 30, 50 u otro hasta S/ 500), **plineas al QR**
    y subes la captura → la recarga queda **"Por confirmar"**.
 2. Al organizador le llega el aviso en **`/admin/pagos`** (sonido, vibración y notificación del navegador).
    Compara la captura con su app de Plin y toca **Aceptar** (o Rechazar con motivo; tiene "Deshacer").
@@ -56,14 +56,27 @@ El usuario es el nombre con el que apuestas y comentas. Nadie puede apostar a no
 4. Con el saldo se hacen **todas las apuestas que quieras**: cada cupón se descuenta al momento y entra al bote.
    Si el cupón cuesta más que el saldo, la app muestra cuánto falta y un botón **"Recargar S/ X"**.
 5. Si el organizador **anula un ticket** (pestaña Tickets), el monto vuelve al saldo.
+6. **Liquidación:** cuando el organizador da un resultado (Admin → Liquidación → "Dar resultado y acreditar" o
+   "Acreditar todos los listos"), a cada ganador se le **suma su parte del bote al saldo** (y las devoluciones).
+   Puede re-liquidar si corrige un evento o deshacer; los saldos se actualizan solos.
+7. **Al final**, en `/admin/pagos` → "Saldos", el organizador plinea a cada uno su saldo y toca **"Pagué"**:
+   el saldo queda en 0 y todo cuadra.
 
 > ¿Por qué no una pasarela de pago? Plin y Yape entre personas no tienen una API pública. Pasarelas como Culqi,
 > Izipay o Mercado Pago piden RUC o cuenta de negocio, cobran comisión y necesitan un backend propio.
 > Para un partido entre amigos, la recarga con un toque del organizador es lo más simple y seguro.
 
-**Saldo = recargas aceptadas − tickets no anulados.** Lo calcula la base de datos (`wallet_balance`) y
-`submit_ticket` lo verifica con un bloqueo por usuario, así no se puede gastar dos veces el mismo saldo.
-Los premios los paga el organizador al final (Liquidación → "pagado" y resumen para WhatsApp).
+**Solo se juega con plata depositada.** Saldo = recargas aceptadas − tickets no anulados + ganancias acreditadas
+− retiros. Lo calcula la base de datos (`wallet_balance`); `submit_ticket` lo verifica con un bloqueo por usuario (no se
+gasta dos veces el mismo saldo) y `admin_settle_market` **no deja acreditar más de lo apostado** en la jornada
+(más los pozos iniciales que ponga el organizador, por defecto S/ 0).
+
+### Mi perfil
+
+Datos básicos (usuario, correo), saldo con botón Depositar, **tus apuestas** con su estado (en juego, ganó, perdió,
+devuelto), aciertos y cuánto cobras. En **Social** cualquiera puede **buscar a un apostador por su usuario** o
+**tocar un mensaje** para ver sus estadísticas y apuestas (sin datos privados). También se activan o apagan los
+**efectos de sonido** (agregar al cupón, apuesta hecha, saldo acreditado, mensaje, ¡gol! en vivo).
 
 ### 3. Social
 
@@ -116,7 +129,7 @@ La app muestra el QR en **Recargar**. Hay dos formas de ponerlo:
 1. **Recomendada (con Supabase):** en `/admin` → la jornada → pestaña **Datos** → **QR de Plin** → elige la imagen.
    Se guarda en Supabase (bucket `pay-qr`) y queda en esa jornada; las jornadas nuevas heredan número y titular.
 2. **Por defecto para todas las jornadas:** guarda la imagen del QR como **`public/pago/qr.png`**.
-   Funciona también en modo demo. Si la jornada tiene un QR subido, se usa ese.
+   Si la jornada tiene un QR subido, se usa ese.
    Ojo: si el repositorio es público, la imagen también lo será.
 
 ---
@@ -134,7 +147,7 @@ npm install
 1. Crea un proyecto en <https://supabase.com> (São Paulo es la región más cercana a Lima).
 2. **SQL Editor:** corre en orden los archivos de [`supabase/migrations/`](supabase/migrations/):
    `…_init.sql`, `…_jornadas.sql` y `…_copa_alvaro.sql` (o `npx supabase db push`).
-3. Datos de prueba (opcional): [`supabase/seed.sql`](supabase/seed.sql) crea la jornada **DEMO26**.
+3. **No** corras `supabase/seed.sql` en producción: es solo para el test de la base de datos.
 4. **Authentication → Sign In / Providers → Email:** activa *Allow new users to sign up* y *Confirm email*.
 5. **Authentication → URL Configuration:**
    - *Site URL*: `https://tu-app.vercel.app`
@@ -145,11 +158,17 @@ npm install
    Por ejemplo, [Resend](https://resend.com) tiene plan gratis: host `smtp.resend.com`, puerto `465`, usuario `resend`
    y como contraseña tu API key de Resend.
    Opcional: traduce las plantillas *Confirm signup* y *Reset password* al español.
-7. **Admin:** crea tu usuario (regístrate en la app o en *Authentication → Users*) y dale permisos:
+7. **Administrador** (no hay usuario ni contraseña fijos: el admin es tu propia cuenta):
+   1. Entra a la app desplegada y **crea tu cuenta** en "Registrarme" (correo, usuario y una contraseña segura),
+      o créala en *Authentication → Users → Add user* marcando *Auto Confirm User*.
+   2. En **SQL Editor** dale permisos de organizador (cambia el correo):
 
-   ```sql
-   insert into public.admins (user_id) select id from auth.users where email = 'tu-correo@ejemplo.com';
-   ```
+      ```sql
+      insert into public.admins (user_id) select id from auth.users where email = 'tu-correo@ejemplo.com';
+      ```
+   3. Entra a **`/admin`** con ese mismo correo y contraseña.
+
+   Con `npm run start:mock` (solo en tu PC) el panel `/admin` acepta cualquier correo y contraseña.
 
 ## 3. `.env`
 
@@ -194,10 +213,10 @@ Recuerda correr la migración `…_copa_alvaro.sql` en Supabase **antes** de pub
 
 | Vista / pestaña | Para qué |
 |---|---|
-| **💸 Pagos** (`/admin/pagos`) | Recargas por Plin por confirmar, con aviso en tiempo real, captura, **Aceptar / Rechazar** y "Deshacer". |
+| **💸 Pagos** (`/admin/pagos`) | Depósitos por Plin por confirmar, con aviso en tiempo real, captura, **Aceptar / Rechazar** y "Deshacer". Abajo, **Saldos** de todos con **"Pagué"** para devolver la plata al final. |
 | Tickets | Ver los tickets y **anularlos** (el monto vuelve al saldo). |
 | Eventos | Partido en juego (marcador, fixture y tabla; "Terminar y pasar al siguiente"), ⚽ Gol, 🙈 Autogol, 🟨 Amarilla, 🟥 Roja, ✨ Golazo, 🥅 Palo, 🚨 Penal, 🙅 Falla penal, 🤦 Blooper, 🏊 Piscinazo, y 🥜 Huacha. Cada evento queda en el partido en juego. Todo se edita o borra. |
-| Liquidación | Ganador por mercado, reparto por persona, lo que queda para el organizador, "pagado" y resumen para WhatsApp. |
+| Liquidación | Ganador por mercado y reparto. **"Dar resultado y acreditar"** (o "Acreditar todos los listos") suma la ganancia al saldo de cada ganador; se puede re-liquidar o deshacer. Resumen para WhatsApp. |
 | Jugadores | Ya vienen los 20; se pueden agregar, renombrar o quitar. |
 | Mercados | Activar, ordenar, renombrar, N, arrastre y pozo inicial. |
 | Datos | Nombre, fecha, código, Plin (número, titular y **QR**). |
@@ -221,7 +240,7 @@ Recuerda correr la migración `…_copa_alvaro.sql` en Supabase **antes** de pub
 supabase/migrations/   esquema, RLS, RPC, storage, triggers (…_copa_alvaro.sql: cuentas, billetera, chat, mercados)
 supabase/tests/        prueba de la BD con PGlite
 src/app/domain/        cancha, mercados y reparto (funciones puras) + tests
-src/app/core/          APIs (Supabase y demo), auth, billetera
+src/app/core/          APIs (Supabase y backend de pruebas local), auth, billetera
 src/app/auth/          entrar, registro, recuperar, nueva contraseña
 src/app/public/        inicio, jornada: apostar, en vivo, social, mi cuenta
 src/app/admin/         panel del organizador y Pagos

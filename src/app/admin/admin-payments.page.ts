@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { AdminApi } from '../core/admin-api';
-import { DepositRow } from '../core/models';
+import { BalanceRow, DepositRow } from '../core/models';
 import { friendlyError } from '../core/public-api';
 import { formatSoles } from '../domain/settlement';
 
@@ -93,6 +93,30 @@ import { formatSoles } from '../domain/settlement';
       </ul>
     </main>
 
+    <section class="mx-auto max-w-2xl px-4 pb-10">
+      <div class="card">
+        <div class="flex items-center justify-between gap-2">
+          <h2 class="font-bold">💵 Saldos (para devolver al final)</h2>
+          <button type="button" class="btn-secondary h-9 text-xs" (click)="loadBalances()">Actualizar</button>
+        </div>
+        <p class="mt-1 text-sm text-slate-600">Cuando termine todo, plinea a cada uno su saldo y marca "Pagué". Así su saldo queda en 0 y todo cuadra.</p>
+        <ul class="mt-2 divide-y divide-slate-100">
+          @for (b of balances(); track b.user_id) {
+            <li class="flex items-center gap-3 py-2.5">
+              <span class="min-w-0 flex-1 truncate font-semibold">{{ b.username }}</span>
+              <span class="font-bold tabular-nums" [class.text-slate-400]="b.balance <= 0">{{ soles(cents(b.balance)) }}</span>
+              <button type="button" class="btn-primary h-9 text-xs" [disabled]="b.balance <= 0 || busy() === b.user_id" (click)="paid(b.user_id, b.username, b.balance)">Pagué</button>
+            </li>
+          } @empty {
+            <li class="py-4 text-center text-sm text-slate-500">Nadie tiene saldo todavía.</li>
+          }
+        </ul>
+        @if (balances().length) {
+          <p class="mt-2 text-right text-sm text-slate-600">Total en saldos: <b>{{ soles(balancesTotal()) }}</b></p>
+        }
+      </div>
+    </section>
+
     @if (undo(); as u) {
       <div class="fixed inset-x-4 bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 mx-auto flex max-w-md items-center justify-between gap-3 rounded-2xl bg-slate-900 px-4 py-3 text-sm text-white shadow-xl" role="status">
         <span>{{ u.text }}</span>
@@ -120,6 +144,33 @@ export class AdminPaymentsPage implements OnInit, OnDestroy {
   protected readonly undo = signal<{ id: string; text: string } | null>(null);
   protected readonly notifState = signal<NotificationPermission | 'unsupported'>(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
   protected readonly total = computed(() => this.items().reduce((s, d) => s + d.amount, 0));
+  protected readonly balances = signal<BalanceRow[]>([]);
+  protected readonly balancesTotal = computed(() => this.balances().reduce((s, b) => s + this.cents(b.balance), 0));
+
+  protected cents(soles: number) {
+    return Math.round(soles * 100);
+  }
+
+  async loadBalances() {
+    try {
+      this.balances.set(await this.api.balances());
+    } catch (e) {
+      this.error.set(friendlyError(e));
+    }
+  }
+
+  async paid(userId: string, username: string, balance: number) {
+    if (!confirm(`¿Ya le plineaste ${formatSoles(this.cents(balance))} a ${username}? Su saldo quedará en S/ 0.`)) return;
+    this.busy.set(userId);
+    try {
+      await this.api.payout(userId, this.cents(balance));
+      await this.loadBalances();
+    } catch (e) {
+      this.error.set(friendlyError(e));
+    } finally {
+      this.busy.set(null);
+    }
+  }
 
   private seen: Set<string> | null = null;
   private off: (() => void) | null = null;
@@ -130,6 +181,7 @@ export class AdminPaymentsPage implements OnInit, OnDestroy {
 
   ngOnInit() {
     this.refresh();
+    this.loadBalances();
     this.off = this.api.subscribeDeposits(() => this.refresh());
     // Respaldo por si se pierde un aviso en tiempo real.
     this.poll = setInterval(() => this.refresh(), 15_000);
@@ -232,6 +284,7 @@ export class AdminPaymentsPage implements OnInit, OnDestroy {
     this.busy.set(d.id);
     try {
       await this.api.setDepositStatus(d.id, status, reason);
+      this.loadBalances();
       this.seen?.delete(d.id);
       this.items.update((list) => list.filter((x) => x.id !== d.id));
       clearTimeout(this.undoTimer);

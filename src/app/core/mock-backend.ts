@@ -2,8 +2,8 @@
  * Backend falso en memoria para probar la app SIN Supabase (cuando el .env
  * está vacío). La parte pública y el admin comparten los mismos datos.
  *
- * Jornadas de ejemplo: DEMO26 (en vivo), ABIERTA (apuestas abiertas), FINAL (finalizada).
- * Login admin en modo demo: cualquier correo y contraseña.
+ * Solo para pruebas locales (npm run start:mock / test:e2e): una jornada "COPA" sin jugar.
+ * Admin local: cualquier correo y contraseña.
  */
 import { inject, Injectable } from '@angular/core';
 import { AdminApi, EventPatch, NewEvent } from './admin-api';
@@ -17,6 +17,7 @@ import {
   AdminMatchData,
   ChatMessage,
   DEFAULT_PAY_HOLDER,
+  BalanceRow,
   CreditRow,
   DEFAULT_PAY_METHOD,
   DepositRow,
@@ -100,11 +101,11 @@ const DEFAULT_MARKETS: [string, string, number | null][] = [
   ['¿Cuántos palos habrá?', 'total_posts', null],
 ];
 
-/** Jornada y cuenta del modo demo. */
-export const DEMO_CODE = 'COPA';
-export const DEMO_USER_ID = 'demo-user';
+/** Jornada y cuenta de las pruebas automáticas. */
+export const TEST_CODE = 'COPA';
+export const TEST_USER_ID = 'prueba-user';
 
-export const DEMO_PLAYERS = [
+export const DEFAULT_PLAYERS = [
   'Victor Manuel Espino', 'Oscar Fernando Vara', 'Mate Italo Loechle', 'Angel Jose Pariona',
   'Alexis Encalada', 'Adrian Ruiz', 'Iker Gabriel Barturen', 'Braden García',
   'Victor Nicolas Ortiz', 'Diego Guevara', 'Nestor Rojas', 'Paul Espinoza',
@@ -122,12 +123,13 @@ export class MockStore {
   events: EventRow[] = [];
   paid: PaidRow[] = [];
   receipts = new Map<string, string>();
-  /** Dueño (id de cuenta demo) de cada ticket enviado desde la app. */
+  /** Dueño (cuenta) de cada ticket enviado desde la app. */
   ticketOwner = new Map<string, string>();
   messages = new Map<string, ChatMessage[]>();
   deposits: DepositRow[] = [];
   settlements: (SettlementRow & { match_id: string })[] = [];
   credits: (CreditRow & { match_id: string; created_at: string })[] = [];
+  withdrawals: { user_id: string; username: string; amount_cents: number }[] = [];
   private bus = new Map<string, Set<() => void>>();
   private chatListeners = new Map<string, Set<() => void>>();
   qrs = new Map<string, string>();
@@ -169,7 +171,8 @@ export class MockStore {
       .filter((t) => this.ticketOwner.get(t.id) === userId && t.status !== 'rejected')
       .reduce((s, t) => s + t.total, 0);
     const won = this.credits.filter((c) => c.user_id === userId).reduce((s, c) => s + c.amount_cents, 0);
-    return Math.round(dep * 100 - spent * 100 + won) / 100;
+    const out = this.withdrawals.filter((w) => w.user_id === userId).reduce((s, w) => s + w.amount_cents, 0);
+    return Math.round(dep * 100 - spent * 100 + won - out) / 100;
   }
 
   subscribeChat(code: string, fn: () => void) {
@@ -215,7 +218,7 @@ export class MockStore {
     this.matches.unshift(m);
     this.players.push({ id: `${id}-og`, match_id: id, name: 'Autogol', is_own_goal: true, sort_order: 9999 });
     // Igual que la BD: los 20 jugadores de siempre.
-    DEMO_PLAYERS.forEach((name, i) => this.players.push({ id: `${id}-p${i + 1}`, match_id: id, name, is_own_goal: false, sort_order: i + 1 }));
+    DEFAULT_PLAYERS.forEach((name, i) => this.players.push({ id: `${id}-p${i + 1}`, match_id: id, name, is_own_goal: false, sort_order: i + 1 }));
     DEFAULT_MARKETS.forEach(([name, type, param], i) =>
       this.markets.push({ id: `${id}-m${i + 1}`, match_id: id, name, type, param, sort_order: i + 1, is_active: true, rollover_to_market_id: null, initial_pot: 0 }),
     );
@@ -264,68 +267,29 @@ export class MockStore {
   }
 
   private seed() {
-    // Cuenta demo (usuario "demo"): S/ 50 de saldo ya acreditado.
+    // Cuenta de las pruebas automáticas: S/ 50 de saldo ya acreditado.
     this.deposits.push({
-      id: uid(), user_id: DEMO_USER_ID, username: 'demo', amount: 50, receipt_path: null, status: 'approved',
+      id: uid(), user_id: TEST_USER_ID, username: 'prueba', amount: 50, receipt_path: null, status: 'approved',
       reject_reason: null, created_at: new Date(Date.now() - 30 * 60_000).toISOString(), reviewed_at: new Date().toISOString(),
     });
-    // Una recarga por confirmar, para ver la vista de Pagos del organizador.
-    this.deposits.push({
-      id: uid(), user_id: 'demo-carla', username: 'Carla', amount: 20, receipt_path: null, status: 'pending',
-      reject_reason: null, created_at: new Date(Date.now() - 6 * 60_000).toISOString(), reviewed_at: null,
-    });
-
-    // Una sola jornada, antes del primer partido (nada en vivo todavía).
-    const code = DEMO_CODE;
-    const id = `demo-${code}`;
+    // Una jornada, antes del primer partido (nada en vivo todavía).
+    const code = TEST_CODE;
     this.createMatch(
       { title: 'Copa Álvaro', starts_at: new Date(Date.now() + 2 * 3600_000).toISOString(), access_code: code, pay_method: DEFAULT_PAY_METHOD, pay_number: '999 888 777', pay_holder: DEFAULT_PAY_HOLDER },
       'open',
-      id,
+      `local-${code}`,
     );
-
-    // Apuestas de otros amigos (para que se vean botes y cuotas).
-    this.addTicket(id, 'Ana', [
-      { market: 'Ganador · Equipo 1 vs Equipo 2', option: 1, amount: 4 },
-      { market: 'Primer gol de la noche', player: 'Victor Manuel Espino', amount: 3 },
-      { market: 'Campeón de la liga', team: '1', amount: 3 },
-      { market: 'Primera roja', player: 'Diego Guevara', amount: 2 },
-    ], 'approved', 50);
-    this.addTicket(id, 'Luis', [
-      { market: 'Ganador · Equipo 1 vs Equipo 2', option: 2, amount: 2 },
-      { market: 'Ganador · Equipo 3 vs Equipo 4', option: 0, amount: 3 },
-      { market: 'Pichichi de la noche', player: 'Victor Manuel Espino', amount: 5 },
-      { market: 'Primer palo', player: 'Adrian Ruiz', amount: 1 },
-    ], 'approved', 45);
-    this.addTicket(id, 'Rosa', [
-      { market: 'Ganador · Equipo 1 vs Equipo 2', option: 1, amount: 2 },
-      { market: 'Primer gol · Equipo 1 vs Equipo 2', player: 'Adrian Ruiz', amount: 3 },
-      { market: 'Campeón de la liga', team: '3', amount: 4 },
-      { market: 'Primer golazo', player: 'David Málaga', amount: 2 },
-    ], 'approved', 40);
-    this.addTicket(id, 'Beto', [
-      { market: 'Ganador · Equipo 3 vs Equipo 4', option: 1, amount: 5 },
-      { market: 'Ganador · Equipo 1 vs Equipo 3', option: 2, amount: 2 },
-      { market: '¿Cuántos palos habrá?', option: 2, amount: 3 },
-      { market: 'Último de la tabla', team: '4', amount: 2 },
-    ], 'approved', 35);
-
-    const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
-    this.messages.set(code, [
-      { id: uid(), user_id: null, username: 'Rosa', body: '⚪ La esférica no se mancha, que gane el mejor', created_at: ago(40) },
-      { id: uid(), user_id: null, username: 'Luis', body: 'Ya pliné 💸 le voy al Equipo 2', created_at: ago(30) },
-      { id: uid(), user_id: null, username: 'Ana', body: '🔥 El Equipo 1 arrasa hoy', created_at: ago(20) },
-    ]);
   }
+
 
 }
 
 // ---------------------------------------------------------------------------
-// Parte pública (demo)
+// Parte pública (pruebas locales)
 // ---------------------------------------------------------------------------
 @Injectable()
 export class MockPublicApi extends PublicApi {
-  readonly isDemo = true;
+  readonly isTestBackend = true;
   private s = inject(MockStore);
   private auth = inject(AuthApi);
 
@@ -503,13 +467,13 @@ export class MockPublicApi extends PublicApi {
 }
 
 // ---------------------------------------------------------------------------
-// Admin (demo)
+// Admin (pruebas locales)
 // ---------------------------------------------------------------------------
 @Injectable()
 export class MockAdminApi extends AdminApi {
-  readonly isDemo = true;
+  readonly isTestBackend = true;
   private s = inject(MockStore);
-  private email: string | null = readDemoSession();
+  private email: string | null = readLocalAdmin();
 
   async currentEmail() {
     return this.email;
@@ -518,11 +482,11 @@ export class MockAdminApi extends AdminApi {
     await delay();
     if (!email.trim() || !password) throw new Error('Escribe correo y contraseña');
     this.email = email.trim();
-    writeDemoSession(this.email);
+    writeLocalAdmin(this.email);
   }
   async signOut() {
     this.email = null;
-    writeDemoSession(null);
+    writeLocalAdmin(null);
   }
   async isAdmin() {
     return !!this.email;
@@ -688,6 +652,22 @@ export class MockAdminApi extends AdminApi {
     this.s.notify(m.match_id);
   }
 
+  async balances(): Promise<BalanceRow[]> {
+    await delay(100);
+    const users = new Map<string, string>();
+    for (const d of this.s.deposits) if (d.status === 'approved') users.set(d.user_id, d.username);
+    for (const c of this.s.credits) users.set(c.user_id, c.username);
+    return [...users].map(([user_id, username]) => ({ user_id, username, balance: this.s.balance(user_id) })).sort((a, b) => b.balance - a.balance);
+  }
+
+  async payout(userId: string, amountCents: number) {
+    if (amountCents <= 0) throw new Error('Monto inválido');
+    if (amountCents > Math.round(this.s.balance(userId) * 100)) throw new Error('No puede retirar más que su saldo');
+    const name = this.s.deposits.find((d) => d.user_id === userId)?.username ?? '¿?';
+    this.s.withdrawals.push({ user_id: userId, username: name, amount_cents: amountCents });
+    this.s.emit('wallet:' + userId);
+  }
+
   async pendingDeposits(): Promise<DepositRow[]> {
     await delay(150);
     return clone(this.s.deposits.filter((d) => d.status === 'pending').sort((a, b) => a.created_at.localeCompare(b.created_at)));
@@ -734,17 +714,17 @@ export class MockAdminApi extends AdminApi {
   }
 }
 
-function readDemoSession(): string | null {
+function readLocalAdmin(): string | null {
   try {
-    return sessionStorage.getItem('apuestas:demo-admin');
+    return sessionStorage.getItem('copa:local-admin');
   } catch {
     return null;
   }
 }
-function writeDemoSession(email: string | null) {
+function writeLocalAdmin(email: string | null) {
   try {
-    if (email) sessionStorage.setItem('apuestas:demo-admin', email);
-    else sessionStorage.removeItem('apuestas:demo-admin');
+    if (email) sessionStorage.setItem('copa:local-admin', email);
+    else sessionStorage.removeItem('copa:local-admin');
   } catch {
     /* sin almacenamiento */
   }

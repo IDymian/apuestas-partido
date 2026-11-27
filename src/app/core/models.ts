@@ -220,6 +220,13 @@ export interface CreditRow {
   amount_cents: number;
 }
 
+/** Saldo de una persona (vista del organizador). */
+export interface BalanceRow {
+  user_id: string;
+  username: string;
+  balance: number;
+}
+
 /** Saldo para mostrar: "S/ 14" o "S/ 14.50". */
 export function balanceLabel(soles: number | null): string {
   if (soles === null) return '…';

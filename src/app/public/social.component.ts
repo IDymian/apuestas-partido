@@ -3,6 +3,8 @@ import { ChatMessage, QUICK_REACTIONS } from '../core/models';
 import { friendlyError, PublicApi } from '../core/public-api';
 import { AuthApi } from '../core/auth';
 import { IconComponent } from '../ui/icon.component';
+import { MatchContext } from './match-context';
+import { sound } from '../ui/sound';
 
 const AVATAR_TONES = ['from-lime to-gold', 'from-gold to-[#ffc266]', 'from-[#ff8a1f] to-[#d13f00]', 'from-ink to-ink/70', 'from-lime to-[#ffb27a]'];
 const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.charCodeAt(0), 0) % AVATAR_TONES.length];
@@ -15,8 +17,36 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
     <section class="anim-in">
       <p class="eyebrow">La tribuna</p>
       <h2 class="mt-1 font-display text-3xl font-extrabold">Social</h2>
-      <p class="mt-1 text-sm text-mute">Comenta el partido y pica a tus amigos.</p>
+      <p class="mt-1 text-sm text-mute">Comenta el partido y pica a tus amigos. Toca un nombre para ver sus apuestas.</p>
     </section>
+
+    <!-- Buscar apostador -->
+    <div class="relative mt-3">
+      <span class="pointer-events-none absolute inset-y-0 left-3.5 grid place-items-center text-faint"><app-icon name="at" [size]="17" /></span>
+      <input
+        class="field h-11 pl-10 text-[15px]"
+        type="search"
+        placeholder="Buscar apostador por usuario"
+        aria-label="Buscar apostador por usuario"
+        autocapitalize="none"
+        [value]="query()"
+        (input)="query.set($any($event.target).value)"
+      />
+      @if (results().length) {
+        <ul class="glass-raised absolute inset-x-0 top-12 z-20 max-h-64 overflow-y-auto p-1.5 anim-pop">
+          @for (u of results(); track u) {
+            <li>
+              <button type="button" class="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left hover:bg-ink/[0.05]" (click)="open(u)">
+                <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br font-display text-sm font-extrabold text-white" [class]="toneOf(u)">{{ u.charAt(0).toUpperCase() }}</span>
+                <span class="font-bold">{{ u }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else if (query().trim().length >= 2) {
+        <p class="mt-1 px-1 text-xs text-faint">No hay apostadores con ese usuario.</p>
+      }
+    </div>
 
     <div class="mt-4 space-y-1" aria-live="polite">
       @if (loading() && messages().length === 0) {
@@ -36,17 +66,18 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
         }
         <div class="flex items-end gap-2 pt-2" [class.flex-row-reverse]="g.mine">
           @if (!g.mine) {
-            <span class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br font-display text-sm font-extrabold text-white" [class]="g.tone">
+            <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br font-display text-sm font-extrabold text-white" [class]="g.tone" (click)="open(g.username)" [attr.aria-label]="'Ver perfil de ' + g.username">
               {{ g.username.charAt(0).toUpperCase() }}
-            </span>
+            </button>
           }
           <div class="flex min-w-0 max-w-[80%] flex-col gap-1" [class.items-end]="g.mine">
             @if (!g.mine) {
-              <span class="px-3 text-xs font-bold text-mute">{{ g.username }}</span>
+              <button type="button" class="w-fit px-3 text-xs font-bold text-mute hover:text-lime" (click)="open(g.username)">{{ g.username }}</button>
             }
             @for (m of g.items; track m.id) {
               <p
-                class="w-fit max-w-full rounded-3xl px-4 py-2.5 text-[15px] leading-snug break-words whitespace-pre-wrap anim-msg"
+                (click)="open(g.username)"
+                class="w-fit max-w-full cursor-pointer rounded-3xl px-4 py-2.5 text-[15px] leading-snug break-words whitespace-pre-wrap anim-msg"
                 [class]="g.mine ? 'rounded-br-lg bg-lime text-white font-semibold' : 'rounded-bl-lg border border-ink/[0.06] bg-white text-ink'"
                 [class.text-3xl]="isEmojiOnly(m.body)"
                 [class.bg-transparent]="isEmojiOnly(m.body)"
@@ -61,7 +92,8 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
     </div>
 
     <!-- Escribir -->
-    <div class="fixed inset-x-0 bottom-[calc(5.4rem+env(safe-area-inset-bottom))] z-30 mx-auto max-w-md px-3">
+    <div class="fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-night from-75% to-night/0 pt-5 pb-[calc(5.6rem+env(safe-area-inset-bottom))]">
+    <div class="mx-auto max-w-md px-3 md:max-w-2xl" data-testid="composer">
       <div class="no-scrollbar -mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3">
         @for (r of reactions; track r) {
           <button type="button" class="shrink-0 rounded-full border border-ink/10 bg-white/95 px-3 py-1.5 text-xs font-bold shadow-sm backdrop-blur-xl transition hover:border-lime/50 active:scale-95" [disabled]="sending()" (click)="send(r)">
@@ -89,7 +121,9 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
         <p class="mt-2 rounded-2xl bg-candy/90 px-3 py-2 text-center text-xs font-bold text-white anim-pop" role="alert">{{ error() }}</p>
       }
     </div>
-    <div class="h-20"></div>
+    </div>
+    <!-- Espacio para que el último mensaje quede por encima de la barra de escribir -->
+    <div class="h-28"></div>
   `,
 })
 export class SocialComponent implements OnDestroy {
@@ -104,6 +138,19 @@ export class SocialComponent implements OnDestroy {
   protected readonly sending = signal(false);
   protected readonly error = signal<string | null>(null);
   protected readonly draft = signal('');
+  protected readonly query = signal('');
+  private readonly ctx = inject(MatchContext);
+  /** Usuarios que apostaron o escribieron (para el buscador). */
+  private readonly people = computed(() => {
+    const names = new Map<string, string>();
+    for (const b of this.ctx.data()?.bets ?? []) names.set(b.bettor_name.toLowerCase(), b.bettor_name);
+    for (const m of this.messages()) names.set(m.username.toLowerCase(), m.username);
+    return [...names.values()].sort((a, b) => a.localeCompare(b));
+  });
+  protected readonly results = computed(() => {
+    const q = this.query().trim().toLowerCase();
+    return q.length < 2 ? [] : this.people().filter((u) => u.toLowerCase().includes(q)).slice(0, 8);
+  });
   private unsubscribe: (() => void) | null = null;
   private poll: ReturnType<typeof setInterval> | undefined;
 
@@ -169,6 +216,7 @@ export class SocialComponent implements OnDestroy {
     try {
       await this.api.postMessage(this.code(), body);
       if (text === this.draft()) this.draft.set('');
+      sound.message();
       await this.load();
       this.scrollToEnd('smooth');
       navigator.vibrate?.(8);
@@ -211,7 +259,17 @@ export class SocialComponent implements OnDestroy {
   }
 
   private scrollToEnd(behavior: ScrollBehavior) {
-    setTimeout(() => this.end()?.nativeElement.scrollIntoView({ behavior, block: 'end' }), 30);
+    setTimeout(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior }), 30);
+  }
+
+  /** Abre el perfil (estadísticas como apostador) de alguien. */
+  protected open(username: string) {
+    this.query.set('');
+    this.ctx.profileOf.set(username);
+  }
+
+  protected toneOf(name: string) {
+    return tone(name);
   }
 
   ngOnDestroy() {

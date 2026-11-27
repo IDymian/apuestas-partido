@@ -1,5 +1,6 @@
 import { computed, effect, Injectable, signal } from '@angular/core';
 import { BetDraft, MAX_BETS_PER_TICKET } from './models';
+import { sound } from '../ui/sound';
 
 /**
  * Cupón de apuestas (como en las casas de apuestas): tocar una opción la agrega
@@ -44,9 +45,14 @@ export class SlipService {
   toggle(marketId: string, selection: string): boolean {
     if (this.has(marketId, selection)) {
       this.remove(marketId, selection);
+      sound.remove();
       return true;
     }
-    if (this.bets().length >= MAX_BETS_PER_TICKET) return false;
+    if (this.bets().length >= MAX_BETS_PER_TICKET) {
+      sound.error();
+      return false;
+    }
+    sound.add();
     this.bets.update((list) => [...list, { marketId, selection, amount: 1 }]);
     this.bump.update((n) => n + 1);
     navigator.vibrate?.(10);

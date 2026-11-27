@@ -19,6 +19,9 @@
 --   * Liquidación: el organizador da por cerrado un mercado cuando quiere; a los
 --     ganadores se les acredita su parte del bote (y las devoluciones) en el saldo.
 --     Puede volver a liquidar o deshacer, y los saldos se actualizan.
+--   * Solo se juega con plata depositada: lo acreditado nunca supera lo apostado
+--     en la jornada, y al final el organizador devuelve los saldos por Plin
+--     (`withdrawals`), así todo cuadra.
 -- =============================================================================
 
 -- Las funciones se crean antes que algunas tablas que usan (se validan al ejecutarse).
@@ -472,7 +475,21 @@ create policy market_settlements_admin on public.market_settlements
 create policy credits_admin on public.credits
   for all to authenticated using (public.is_admin()) with check (public.is_admin());
 
--- Saldo (soles, con céntimos) = recargas aceptadas − tickets no anulados + ganancias y devoluciones acreditadas.
+-- Retiros: lo que el organizador ya devolvió por Plin a cada persona.
+create table public.withdrawals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users (id) on delete cascade,
+  username text not null,
+  amount_cents int not null check (amount_cents > 0),
+  created_at timestamptz not null default now()
+);
+create index withdrawals_user_idx on public.withdrawals (user_id);
+alter table public.withdrawals enable row level security;
+grant select, insert, update, delete on public.withdrawals to authenticated;
+create policy withdrawals_admin on public.withdrawals
+  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- Saldo (soles, con céntimos) = recargas aceptadas − tickets no anulados + ganancias acreditadas − retiros.
 create or replace function public.wallet_balance(p_uid uuid)
 returns numeric
 language sql
@@ -484,6 +501,7 @@ as $$
       coalesce((select sum(amount) from deposits where user_id = p_uid and status = 'approved'), 0) * 100
     - coalesce((select sum(total) from tickets where user_id = p_uid and status <> 'rejected'), 0) * 100
     + coalesce((select sum(amount_cents) from credits where user_id = p_uid), 0)
+    - coalesce((select sum(amount_cents) from withdrawals where user_id = p_uid), 0)
   )::numeric / 100, 2);
 $$;
 revoke execute on function public.wallet_balance(uuid) from public, anon, authenticated;
@@ -498,6 +516,7 @@ set search_path = public
 as $$
   select jsonb_build_object(
     'balance', wallet_balance(auth.uid()),
+    'withdrawn_cents', coalesce((select sum(amount_cents) from withdrawals where user_id = auth.uid()), 0),
     'credits', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', c.id, 'kind', c.kind, 'amount_cents', c.amount_cents, 'market_name', k.name, 'created_at', c.created_at
@@ -583,6 +602,8 @@ create trigger broadcast_deposits after insert or update or delete on public.dep
 for each row execute function public.tg_broadcast_deposit();
 create trigger broadcast_credits after insert or delete on public.credits
 for each row execute function public.tg_broadcast_deposit();
+create trigger broadcast_withdrawals after insert or delete on public.withdrawals
+for each row execute function public.tg_broadcast_deposit();
 
 -- Liquidar un mercado (solo admin): reemplaza lo acreditado antes (se puede volver a liquidar).
 -- p_credits: [{user_id, username, kind: 'win'|'refund', amount_cents}]
@@ -618,6 +639,60 @@ begin
     insert into credits (match_id, market_id, user_id, username, kind, amount_cents)
     values (v_match, p_market, (v_c ->> 'user_id')::uuid, coalesce(v_c ->> 'username', '¿?'), v_c ->> 'kind', (v_c ->> 'amount_cents')::int);
   end loop;
+  -- Solo se reparte plata apostada: lo acreditado en la jornada no puede superar
+  -- lo apostado (tickets en juego) más los pozos iniciales que puso el organizador.
+  if (select coalesce(sum(amount_cents), 0) from credits where match_id = v_match)
+     > (select coalesce(sum(total), 0) * 100 from tickets where match_id = v_match and status = 'approved')
+       + (select coalesce(sum(initial_pot), 0) * 100 from markets where match_id = v_match) then
+    raise exception 'Lo acreditado supera lo apostado en la jornada';
+  end if;
+end;
+$$;
+
+-- Saldos de todos (para devolverlos por Plin al final).
+create or replace function public.admin_balances()
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Solo el organizador';
+  end if;
+  return coalesce((
+    select jsonb_agg(jsonb_build_object('user_id', p.id, 'username', p.username, 'balance', wallet_balance(p.id)) order by wallet_balance(p.id) desc, p.username)
+    from profiles p
+    where exists (select 1 from deposits d where d.user_id = p.id and d.status = 'approved')
+       or exists (select 1 from credits c where c.user_id = p.id)
+  ), '[]'::jsonb);
+end;
+$$;
+
+-- El organizador le devolvió plata a alguien por Plin (no más que su saldo).
+create or replace function public.admin_payout(p_user uuid, p_amount_cents int)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = public
+as $$
+declare
+  v_name text;
+begin
+  if not public.is_admin() then
+    raise exception 'Solo el organizador';
+  end if;
+  perform pg_advisory_xact_lock(hashtext('wallet:' || p_user::text));
+  if p_amount_cents is null or p_amount_cents <= 0 then
+    raise exception 'Monto inválido';
+  end if;
+  if p_amount_cents > round(wallet_balance(p_user) * 100) then
+    raise exception 'No puede retirar más que su saldo';
+  end if;
+  select username into v_name from profiles where id = p_user;
+  insert into withdrawals (user_id, username, amount_cents) values (p_user, coalesce(v_name, '¿?'), p_amount_cents);
 end;
 $$;
 
@@ -954,6 +1029,10 @@ revoke execute on function public.admin_settle_market(uuid, text, text, jsonb) f
 revoke execute on function public.admin_unsettle_market(uuid) from public, anon;
 grant execute on function public.admin_settle_market(uuid, text, text, jsonb) to authenticated;
 grant execute on function public.admin_unsettle_market(uuid) to authenticated;
+revoke execute on function public.admin_balances() from public, anon;
+revoke execute on function public.admin_payout(uuid, int) from public, anon;
+grant execute on function public.admin_balances() to authenticated;
+grant execute on function public.admin_payout(uuid, int) to authenticated;
 grant execute on function public.request_deposit(int, text) to authenticated;
 grant execute on function public.get_my_tickets(text) to authenticated;
 grant execute on function public.get_messages(text, int) to authenticated;

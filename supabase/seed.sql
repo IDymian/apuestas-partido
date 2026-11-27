@@ -1,14 +1,14 @@
 -- =============================================================================
--- Datos de prueba: Copa Álvaro EN VIVO con código DEMO26 (liga de 4 equipos).
--- Link para apostar en local: http://localhost:4200/p/DEMO26
--- Se puede correr varias veces: borra la jornada demo y la vuelve a crear.
+-- Datos de PRUEBA para el test de la base de datos (npm run test:db): jornada en vivo con código PRUEBA.
+-- Link para apostar en local: http://localhost:4200/p/PRUEBA
+-- Se puede correr varias veces: borra la jornada PRUEBA y la vuelve a crear. No hace falta en producción.
 -- El número de pago es de mentira: cámbialo en el admin (pestaña Datos).
 --
 -- Partido 1: Equipo 1 2-1 Equipo 2 · Partido 2: Equipo 3 1-0 Equipo 4
 -- Partido 3 (en juego): Equipo 1 vs Equipo 3
 -- =============================================================================
 
-delete from public.matches where access_code = 'DEMO26';
+delete from public.matches where access_code = 'PRUEBA';
 
 -- Helpers temporales (solo existen durante esta sesión)
 create or replace function pg_temp.pid(m uuid, n text) returns uuid language sql as
@@ -26,7 +26,7 @@ declare
 begin
   -- La jornada trae sola los 4 equipos, los 20 jugadores y todos los mercados.
   insert into public.matches (title, starts_at, access_code, status, pay_method, pay_number, pay_holder)
-  values ('Copa Álvaro · En vivo', now() - interval '2 hours', 'DEMO26', 'open', 'Plin', '999 888 777', 'Alvaro Fabrizzio Salazar')
+  values ('Copa Álvaro · En vivo', now() - interval '2 hours', 'PRUEBA', 'open', 'Plin', '999 888 777', 'Alvaro Fabrizzio Salazar')
   returning id into m;
 
   e1 := pg_temp.tid(m, 'Equipo 1');

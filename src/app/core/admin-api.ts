@@ -1,5 +1,6 @@
 import { inject, Injectable } from '@angular/core';
 import {
+  BalanceRow,
   CreditRow,
   DEFAULT_PAY_METHOD,
   DepositRow,
@@ -24,7 +25,7 @@ export type EventPatch = Partial<Pick<EventRow, 'type' | 'player_id' | 'team_id'
 
 /** Operaciones del organizador (requieren login de admin). */
 export abstract class AdminApi {
-  abstract readonly isDemo: boolean;
+  abstract readonly isTestBackend: boolean;
 
   abstract currentEmail(): Promise<string | null>;
   abstract signIn(email: string, password: string): Promise<void>;
@@ -55,6 +56,10 @@ export abstract class AdminApi {
   abstract settleMarket(marketId: string, outcome: SettlementRow['outcome'], winner: string | null, credits: Omit<CreditRow, 'market_id'>[]): Promise<void>;
   /** Deshace la liquidación (los saldos vuelven a como estaban). */
   abstract unsettleMarket(marketId: string): Promise<void>;
+  /** Saldos de todos (para devolverlos por Plin al final). */
+  abstract balances(): Promise<BalanceRow[]>;
+  /** Registra que se le devolvió plata por Plin a alguien (baja su saldo). */
+  abstract payout(userId: string, amountCents: number): Promise<void>;
   /** Recargas de saldo por confirmar (más antiguas primero). */
   abstract pendingDeposits(): Promise<DepositRow[]>;
   abstract setDepositStatus(id: string, status: TicketStatus, reason?: string | null): Promise<void>;
@@ -71,7 +76,7 @@ export abstract class AdminApi {
 
 @Injectable()
 export class SupabaseAdminApi extends AdminApi {
-  readonly isDemo = false;
+  readonly isTestBackend = false;
   private sb = inject(SupabaseService);
   private get db() {
     return this.sb.client;
@@ -104,6 +109,17 @@ export class SupabaseAdminApi extends AdminApi {
 
   async unsettleMarket(marketId: string) {
     const { error } = await this.db.rpc('admin_unsettle_market', { p_market: marketId });
+    if (error) throw error;
+  }
+
+  async balances(): Promise<BalanceRow[]> {
+    const { data, error } = await this.db.rpc('admin_balances');
+    if (error) throw error;
+    return ((data as BalanceRow[] | null) ?? []).map((b) => ({ ...b, balance: Number(b.balance) }));
+  }
+
+  async payout(userId: string, amountCents: number) {
+    const { error } = await this.db.rpc('admin_payout', { p_user: userId, p_amount_cents: amountCents });
     if (error) throw error;
   }
 

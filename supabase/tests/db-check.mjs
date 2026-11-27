@@ -48,14 +48,14 @@ const expectErr = async (label, fn, pattern) => {
 };
 
 // --- Seed ---
-const [demo] = await q(`select id, status, closed_at from matches where access_code='DEMO26'`);
-const count = async (t) => (await q(`select count(*)::int c from ${t} where match_id=$1`, [demo.id]))[0].c;
+const [seedMatch] = await q(`select id, status, closed_at from matches where access_code='PRUEBA'`);
+const count = async (t) => (await q(`select count(*)::int c from ${t} where match_id=$1`, [seedMatch.id]))[0].c;
 check('seed: 4 equipos', (await count('teams')) === 4);
 check('seed: 21 jugadores (20 + Autogol)', (await count('players')) === 21);
 check('seed: 138 mercados (24 de la jornada + 19 × 6 por partido)', (await count('markets')) === 138, `(${await count('markets')})`);
-check('seed: partido en juego = 3', (await q(`select current_game from matches where id=$1`, [demo.id]))[0].current_game === 3);
+check('seed: partido en juego = 3', (await q(`select current_game from matches where id=$1`, [seedMatch.id]))[0].current_game === 3);
 check('seed: 10 eventos', (await count('events')) === 10);
-check('seed: jornada cerrada con closed_at', demo.status === 'closed' && !!demo.closed_at);
+check('seed: jornada cerrada con closed_at', seedMatch.status === 'closed' && !!seedMatch.closed_at);
 
 // --- Jornada abierta para probar submit_ticket ---
 const [{ id: mid }] = await q(`insert into matches (title, access_code) values ('Test', 'TEST01') returning id`);
@@ -67,7 +67,7 @@ check('defaults: arrancan A y B', m2.starting_team_ids.join() === [teams[0].id, 
 await q(`insert into players (match_id, name, sort_order) values ($1,'Pepe',1), ($1,'Lucho',2)`, [mid]);
 const pl = Object.fromEntries((await q(`select name, id from players where match_id=$1`, [mid])).map((r) => [r.name, r.id]));
 const mk = Object.fromEntries((await q(`select name, id from markets where match_id=$1`, [mid])).map((r) => [r.name, r.id]));
-const otherTeam = (await q(`select id from teams where match_id=$1 limit 1`, [demo.id]))[0].id;
+const otherTeam = (await q(`select id from teams where match_id=$1 limit 1`, [seedMatch.id]))[0].id;
 
 // --- Cuentas ---
 const U1 = '00000000-0000-0000-0000-0000000000a1', U2 = '00000000-0000-0000-0000-0000000000a2', U3 = '00000000-0000-0000-0000-0000000000a3';
@@ -98,8 +98,8 @@ await expectErr('anon no lee el chat', () => q(`select get_messages('TEST01')`),
 await expectErr('anon no escribe en el chat', () => q(`select post_message('TEST01', 'hola')`), /permission/);
 await expectErr('anon no inserta tickets directo', () => q(`insert into tickets (match_id, bettor_name, status) values ($1,'x','approved')`, [mid]), /permission/);
 
-const pub = (await q(`select get_public_match('demo26') j`))[0].j;
-check('público: jornada demo', pub.match.title === 'Copa Álvaro · En vivo' && pub.teams.length === 4 && pub.markets.length === 138 && pub.match.current_game === 3 && pub.events.every((e) => 'game' in e) && pub.events.length === 10);
+const pub = (await q(`select get_public_match('prueba') j`))[0].j;
+check('público: jornada de prueba', pub.match.title === 'Copa Álvaro · En vivo' && pub.teams.length === 4 && pub.markets.length === 138 && pub.match.current_game === 3 && pub.events.every((e) => 'game' in e) && pub.events.length === 10);
 check('público: solo apuestas aprobadas (18)', pub.bets.length === 18, `(${pub.bets.length})`);
 check('público: sin rutas de captura', !JSON.stringify(pub).includes('receipt'));
 check('público: Plin y titular', pub.match.pay_method === 'Plin');
@@ -266,6 +266,27 @@ await asUser(ADM);
 await q(`select admin_unsettle_market($1)`, [mk['Primer gol de la noche']]);
 await asUser(U1);
 check('deshacer la liquidación devuelve el saldo', Math.abs(Number((await wallet()).balance) - before) < 0.001);
+
+// El bote es solo plata apostada: no se puede acreditar más de lo que se apostó
+await asUser(ADM);
+await expectErr('no se acredita más de lo apostado en la jornada', () => q(`select admin_settle_market($1, 'winners', 'x', $2::jsonb)`, [mk['Primer gol de la noche'], JSON.stringify([{ user_id: U1, username: 'Pepe.Lucho', kind: 'win', amount_cents: 999999 }])]), /supera lo apostado/);
+await asUser(U1);
+check('el intento fallido no cambió el saldo', Math.abs(Number((await wallet()).balance) - before) < 0.001);
+
+// Retiros: el organizador devuelve el saldo por Plin al final
+await expectErr('usuario no ve saldos de todos', () => q(`select admin_balances()`), /Solo el organizador/);
+await expectErr('usuario no se paga a sí mismo', () => q(`select admin_payout($1, 100)`, [U1]), /Solo el organizador/);
+await asUser(ADM);
+const bal = (await q(`select admin_balances() j`))[0].j;
+check('admin ve el saldo de cada uno', bal.some((b) => b.username === 'Pepe.Lucho' && Math.abs(Number(b.balance) - before) < 0.001));
+await expectErr('no se retira más que el saldo', () => q(`select admin_payout($1, $2)`, [U1, Math.round(before * 100) + 1]), /más que su saldo/);
+await q(`select admin_payout($1, 200)`, [U1]);
+await asUser(U1);
+const afterPayout = await wallet();
+check('retiro de S/ 2 baja el saldo y queda registrado', Math.abs(Number(afterPayout.balance) - (before - 2)) < 0.001 && afterPayout.withdrawn_cents === 200);
+await asUser(ADM);
+await q(`delete from withdrawals where user_id=$1`, [U1]);
+await asUser(U1);
 
 // Si el organizador anula un ticket, el monto vuelve al saldo.
 await asUser(ADM);

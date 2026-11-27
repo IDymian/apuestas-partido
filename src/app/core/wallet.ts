@@ -1,6 +1,7 @@
 import { effect, inject, Injectable, signal, untracked } from '@angular/core';
 import { Credit, Deposit } from './models';
 import { friendlyError, PublicApi } from './public-api';
+import { sound } from '../ui/sound';
 import { AuthApi } from './auth';
 
 /**
@@ -19,6 +20,8 @@ export class WalletService {
   readonly credits = signal<Credit[]>([]);
   readonly error = signal<string | null>(null);
   private off: (() => void) | null = null;
+  /** Cuántas recargas aceptadas + acreditaciones había (para el sonido de monedas). */
+  private creditedCount = 0;
 
   constructor() {
     effect(() => {
@@ -40,6 +43,10 @@ export class WalletService {
     if (!this.auth.user()) return;
     try {
       const w = await this.api.getWallet();
+      const before = this.balance();
+      const credited = (w.credits ?? []).length + w.deposits.filter((d) => d.status === 'approved').length;
+      if (before !== null && credited > this.creditedCount) sound.coin();
+      this.creditedCount = credited;
       this.balance.set(Number(w.balance));
       this.deposits.set(w.deposits);
       this.credits.set(w.credits ?? []);

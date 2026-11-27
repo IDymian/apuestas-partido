@@ -7,7 +7,7 @@ import { IconComponent } from '../ui/icon.component';
 import { confetti } from '../ui/confetti';
 
 type Mode = 'login' | 'signup' | 'forgot' | 'reset' | 'confirmed';
-type Sent = { kind: 'confirm' | 'reset'; email: string; demoToken?: string } | null;
+type Sent = { kind: 'confirm' | 'reset'; email: string; testToken?: string } | null;
 
 const NEXT_KEY = 'copa:next';
 /** Solo rutas internas (evita redirecciones a otros sitios). */
@@ -57,14 +57,14 @@ function takeNext(): string | null {
             </p>
             <p class="mt-2 text-sm text-faint">¿No aparece? Mira en spam o promociones.</p>
 
-            @if (auth.isDemo) {
+            @if (auth.isTestBackend) {
               <div class="mt-5 rounded-2xl border border-dashed border-gold/50 bg-gold/10 p-4 text-left">
                 <p class="text-xs font-extrabold tracking-wider text-gold uppercase">📬 Bandeja de prueba (pruebas locales)</p>
-                @if (s.demoToken) {
+                @if (s.testToken) {
                   <p class="mt-1 text-sm text-ink">
                     {{ s.kind === 'confirm' ? 'Copa Álvaro: confirma tu cuenta' : 'Copa Álvaro: crea tu nueva contraseña' }}
                   </p>
-                  <button type="button" class="btn mt-3 h-11 w-full text-[15px]" (click)="openDemoMail(s)">
+                  <button type="button" class="btn mt-3 h-11 w-full text-[15px]" (click)="openTestMail(s)">
                     {{ s.kind === 'confirm' ? 'Confirmar mi cuenta' : 'Crear contraseña nueva' }}
                   </button>
                 } @else {
@@ -413,7 +413,7 @@ export class AuthPage implements OnDestroy {
         await this.router.navigateByUrl(this.next() ?? '/', { replaceUrl: true });
         return;
       }
-      this.sent.set({ kind: 'confirm', email: this.email.trim(), demoToken: r.demoToken });
+      this.sent.set({ kind: 'confirm', email: this.email.trim(), testToken: r.testToken });
       this.startCooldown();
     });
   }
@@ -423,7 +423,7 @@ export class AuthPage implements OnDestroy {
     await this.run(async () => {
       const token = await this.auth.sendReset(this.email);
       rememberNext(this.next());
-      this.sent.set({ kind: 'reset', email: this.email.trim(), demoToken: token });
+      this.sent.set({ kind: 'reset', email: this.email.trim(), testToken: token });
     });
   }
 
@@ -446,16 +446,16 @@ export class AuthPage implements OnDestroy {
   }
 
   /** Solo pruebas locales: simula abrir el correo. */
-  protected openDemoMail(s: NonNullable<Sent>) {
+  protected openTestMail(s: NonNullable<Sent>) {
     const mock = this.auth as MockAuthApi;
-    if (!s.demoToken) return;
+    if (!s.testToken) return;
     this.handoff = true;
     if (s.kind === 'confirm') {
-      mock.confirmDemo(s.demoToken);
+      mock.confirmTestMail(s.testToken);
       this.sent.set(null);
       this.router.navigateByUrl('/cuenta-confirmada');
     } else {
-      mock.startDemoRecovery(s.demoToken);
+      mock.startTestRecovery(s.testToken);
       this.sent.set(null);
       this.router.navigateByUrl('/nueva-clave');
     }

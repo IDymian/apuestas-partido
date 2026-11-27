@@ -11,6 +11,7 @@ import { MARKET_ICON } from './market-utils';
 import { IconComponent } from '../ui/icon.component';
 import { CountUpComponent } from '../ui/count-up.component';
 import { confetti } from '../ui/confetti';
+import { sound } from '../ui/sound';
 
 /** Cupón: monto por selección, total, saldo y apostar. */
 @Component({
@@ -160,9 +161,11 @@ export class SlipComponent {
       this.slip.clear();
       await this.wallet.refresh();
       window.scrollTo({ top: 0 });
+      sound.bet();
       setTimeout(() => confetti(), 150);
     } catch (e) {
       this.error.set(friendlyError(e));
+      sound.error();
       this.wallet.refresh();
     } finally {
       this.sending.set(false);
