@@ -26,10 +26,12 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
     <!-- Partido en juego -->
     <section class="card">
       <div class="flex items-center justify-between">
-        <p class="label">Partido en juego · {{ cur?.number }} de {{ lg.games.length }}</p>
-        <span class="rounded-full px-2 py-0.5 text-xs font-bold" [class]="cur?.status === 'played' ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800'">
-          {{ cur?.status === 'played' ? 'Terminado' : 'En juego' }}
-        </span>
+        <p class="label">{{ cur ? 'Partido actual · ' + cur.number + ' de ' + lg.games.length : 'Liga terminada' }}</p>
+        @if (cur) {
+          <span class="rounded-full px-2 py-0.5 text-xs font-bold" [class]="cur.status === 'live' ? 'bg-red-100 text-red-700' : cur.status === 'played' ? 'bg-slate-200 text-slate-700' : 'bg-amber-100 text-amber-800'">
+            {{ cur.status === 'live' ? '● En vivo' : cur.status === 'played' ? 'Terminado' : 'Por empezar' }}
+          </span>
+        }
       </div>
       @if (cur) {
         <div class="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl bg-emerald-50 p-3 text-center">
@@ -38,9 +40,22 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
           <p class="truncate font-bold text-emerald-950">{{ teamName(cur.away) }}</p>
         </div>
       }
+      @if (cur && cur.status === 'pending') {
+        <button type="button" class="btn-primary mt-2 h-14 w-full text-base" [disabled]="busy() || data().match.status === 'finished'" (click)="goLive()">
+          ▶ Poner en vivo el partido {{ cur.number }}
+        </button>
+        <p class="mt-1 text-xs text-slate-500">Mientras ningún partido esté en vivo, la pestaña "En vivo" de los apostadores queda vacía.</p>
+      } @else if (cur && cur.status === 'live') {
+        <button type="button" class="mt-2 h-14 w-full rounded-2xl bg-slate-900 text-base font-bold text-white active:scale-[0.98] disabled:opacity-50" [disabled]="busy()" (click)="endGame()">
+          ⏹ Terminar partido {{ cur.number }}
+        </button>
+        <p class="mt-1 text-xs text-slate-500">Al terminar se cierran sus apuestas y queda listo el siguiente partido.</p>
+      }
       <div class="mt-2 grid grid-cols-2 gap-2">
-        <button type="button" class="btn-secondary h-11" [disabled]="busy() || data().match.current_game <= 1" (click)="setGame(data().match.current_game - 1)">◀ Partido anterior</button>
-        <button type="button" class="btn-primary h-11 text-sm" [disabled]="busy() || data().match.current_game >= lg.games.length" (click)="nextGame()">Terminar y pasar al siguiente ▶</button>
+        <button type="button" class="btn-secondary h-10 text-xs" [disabled]="busy() || data().match.current_game <= 1" (click)="setGame(data().match.current_game - 1)">◀ Volver al partido anterior</button>
+        @if (cur?.status === 'live') {
+          <button type="button" class="btn-secondary h-10 text-xs" [disabled]="busy()" (click)="pauseLive()">Quitar de en vivo</button>
+        }
       </div>
 
       <ul class="mt-3 divide-y divide-slate-100 text-sm">
@@ -260,7 +275,13 @@ export class EventsTabComponent {
   private teamMap = computed(() => new Map(this.data().teams.map((t) => [t.id, t.name])));
   protected sorted = computed(() => [...this.data().events].sort((a, b) => a.minute - b.minute || a.seq - b.seq));
   protected liga = computed(() =>
-    league(toTimelineEvents(this.data().events), teamOrder(this.data().teams), this.data().match.current_game ?? 1, this.data().match.status === 'finished'),
+    league(
+      toTimelineEvents(this.data().events),
+      teamOrder(this.data().teams),
+      this.data().match.current_game ?? 1,
+      this.data().match.status === 'finished',
+      !!this.data().match.game_live,
+    ),
   );
   protected currentGame = computed(() => this.liga().games.find((g) => g.number === (this.data().match.current_game ?? 1)) ?? null);
   protected curTeams = computed(() => {
@@ -320,17 +341,32 @@ export class EventsTabComponent {
   }
 
   async setGame(n: number) {
-    if (n < 1 || n > this.liga().games.length || n === this.data().match.current_game) return;
-    const g = this.liga().games.find((x) => x.number === n)!;
-    await this.run(() => this.api.setCurrentGame(this.data().match.id, n), `Partido ${n}: ${this.teamName(g.home)} vs ${this.teamName(g.away)}`);
+    if (n < 1 || n > this.liga().games.length + 1 || n === this.data().match.current_game) return;
+    const g = this.liga().games.find((x) => x.number === n);
+    await this.run(() => this.api.setCurrentGame(this.data().match.id, n, false), g ? `Partido ${n}: ${this.teamName(g.home)} vs ${this.teamName(g.away)}` : 'Liga terminada');
     this.goalTeam.set(null);
     this.lastGoal.set(null);
   }
 
-  async nextGame() {
+  async goLive() {
     const g = this.currentGame();
-    if (g && !confirm(`¿Terminar el partido ${g.number} (${this.teamName(g.home)} ${g.homeGoals} - ${g.awayGoals} ${this.teamName(g.away)}) y pasar al siguiente?`)) return;
-    await this.setGame((this.data().match.current_game ?? 1) + 1);
+    if (!g) return;
+    await this.run(() => this.api.setGameLive(this.data().match.id, true), `● En vivo: ${this.teamName(g.home)} vs ${this.teamName(g.away)}`);
+    this.refreshMinute();
+  }
+
+  async pauseLive() {
+    await this.run(() => this.api.setGameLive(this.data().match.id, false), 'Partido quitado de en vivo');
+  }
+
+  async endGame() {
+    const g = this.currentGame();
+    if (!g) return;
+    if (!confirm(`¿Terminar el partido ${g.number}? Queda ${this.teamName(g.home)} ${g.homeGoals} - ${g.awayGoals} ${this.teamName(g.away)}.`)) return;
+    // current_game = siguiente; si era el último, queda "todos terminados".
+    await this.run(() => this.api.setCurrentGame(this.data().match.id, g.number + 1, false), `🏁 Terminó el partido ${g.number}`);
+    this.goalTeam.set(null);
+    this.lastGoal.set(null);
   }
 
   private validMinute(): number | null {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatSoles, personKey, SettleBet, SettleInput, SettleMarket, settle, splitProportional, TicketStatus } from './settlement';
 import { courtTimeline, TimelineEvent } from './timeline';
-import { fixture, league } from './league';
+import { fixture, league, liveGame, marketOpen } from './league';
 
 // ---- Fixtures --------------------------------------------------------------
 
@@ -436,6 +436,42 @@ describe('liga todos contra todos', () => {
     const r = run([], 6, true, [bet('Ana', 'Campeón', T1, 5)]);
     expect(w(r, 'Campeón').outcome).toBe('refund');
     expect(w(r, 'Campeón').refunds[0].amountCents).toBe(500);
+  });
+});
+
+describe('en vivo y mercados abiertos', () => {
+  const TEAMS4 = ['e1', 'e2', 'e3', 'e4'];
+  const g = (game: number, team: string) => ev({ type: 'goal', playerId: 'pepe', teamId: team, game });
+  const winner = { type: 'game_winner', param: 1 };
+  const firstGoal = { type: 'game_first_goal', param: 1 };
+  const champion = { type: 'best_team', param: null };
+
+  it('antes de empezar: todo abierto y nada en vivo', () => {
+    const l = league([], TEAMS4, 1, false, false);
+    expect(liveGame(l)).toBeNull();
+    expect(l.games.every((x) => x.status === 'pending')).toBe(true);
+    for (const m of [winner, firstGoal, champion]) expect(marketOpen(m, l, true).open).toBe(true);
+  });
+
+  it('partido 1 en vivo: liga cerrada, ganador abierto, primer gol se cierra con el gol', () => {
+    let l = league([], TEAMS4, 1, false, true);
+    expect(liveGame(l)?.number).toBe(1);
+    expect(marketOpen(champion, l, true)).toEqual({ open: false, reason: 'La liga ya empezó' });
+    expect(marketOpen(firstGoal, l, true).open).toBe(true);
+    l = league([g(1, 'e1')], TEAMS4, 1, false, true);
+    expect(marketOpen(firstGoal, l, true)).toEqual({ open: false, reason: 'Ya hubo gol' });
+    expect(marketOpen(winner, l, true).open).toBe(true);
+  });
+
+  it('partido terminado: sus mercados cerrados; el siguiente sigue abierto', () => {
+    const l = league([], TEAMS4, 2, false, false);
+    expect(marketOpen(winner, l, true)).toEqual({ open: false, reason: 'Finalizado' });
+    expect(marketOpen({ type: 'game_winner', param: 2 }, l, true).open).toBe(true);
+  });
+
+  it('jornada cerrada por el organizador: nada abierto', () => {
+    const l = league([], TEAMS4, 1, false, false);
+    expect(marketOpen(winner, l, false).open).toBe(false);
   });
 });
 

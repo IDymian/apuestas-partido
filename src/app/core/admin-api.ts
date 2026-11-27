@@ -34,8 +34,10 @@ export abstract class AdminApi {
   abstract saveMatch(m: MatchInput): Promise<MatchRow>;
   abstract setStatus(matchId: string, status: MatchStatus): Promise<void>;
   abstract setStartingTeams(matchId: string, teamIds: [string, string]): Promise<void>;
-  /** Partido de la liga que se está jugando. */
-  abstract setCurrentGame(matchId: string, game: number): Promise<void>;
+  /** Partido actual de la liga (y si queda en vivo). */
+  abstract setCurrentGame(matchId: string, game: number, live?: boolean): Promise<void>;
+  /** Prende o apaga "en vivo" para el partido actual. */
+  abstract setGameLive(matchId: string, live: boolean): Promise<void>;
   abstract uploadQr(matchId: string, file: Blob): Promise<void>;
   abstract removeQr(matchId: string): Promise<void>;
 
@@ -171,8 +173,13 @@ export class SupabaseAdminApi extends AdminApi {
     if (error) throw error;
   }
 
-  async setCurrentGame(matchId: string, game: number) {
-    const { error } = await this.db.from('matches').update({ current_game: game }).eq('id', matchId);
+  async setCurrentGame(matchId: string, game: number, live = false) {
+    const { error } = await this.db.from('matches').update({ current_game: game, game_live: live }).eq('id', matchId);
+    if (error) throw error;
+  }
+
+  async setGameLive(matchId: string, live: boolean) {
+    const { error } = await this.db.from('matches').update({ game_live: live }).eq('id', matchId);
     if (error) throw error;
   }
 

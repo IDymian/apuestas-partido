@@ -151,6 +151,24 @@
     @apply border-lime bg-lime text-white shadow-[0_6px_18px_-6px_rgb(242_98_0/0.6)] hover:border-lime hover:bg-lime;
     animation: pop 0.35s var(--ease-spring);
   }
+  /* Botón de cuota (estilo casa de apuestas): opción arriba, cuota abajo. */
+  .odd {
+    @apply flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl border border-ink/[0.08] bg-night-3/70 px-2 py-1.5 text-center transition duration-150 hover:border-lime/50 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-ink/[0.08];
+  }
+  .odd-label {
+    @apply line-clamp-2 text-[12.5px] leading-tight font-semibold text-ink;
+  }
+  .odd-value {
+    @apply font-display text-[15px] leading-none font-extrabold text-lime tabular-nums;
+  }
+  .odd-on {
+    @apply border-lime bg-lime shadow-[0_8px_18px_-8px_rgb(242_98_0/0.8)] hover:border-lime;
+    animation: pop 0.3s var(--ease-spring);
+  }
+  .odd-on .odd-label,
+  .odd-on .odd-value {
+    @apply text-white;
+  }
   .tag {
     @apply inline-flex items-center gap-1 rounded-full bg-ink/[0.05] px-2.5 py-1 text-xs font-bold text-mute;
   }

@@ -71,15 +71,17 @@ export interface League {
 const cmp = (a: Standing, b: Standing) => b.points - a.points || b.gd - a.gd || b.gf - a.gf;
 
 /**
- * @param currentGame partido que se está jugando (los anteriores ya terminaron).
+ * @param currentGame partido actual (los anteriores ya terminaron; mayor que el último = todos terminados).
  * @param finished true si la jornada terminó (el partido actual también cuenta como jugado).
+ * @param live true si el partido actual está en vivo (si no, todavía no empieza).
  */
-export function league(events: TimelineEvent[], teamIds: string[], currentGame: number, finished: boolean): League {
+export function league(events: TimelineEvent[], teamIds: string[], currentGame: number, finished: boolean, live = true): League {
   const fx = fixture(teamIds);
   const invalid: string[] = [];
   const games: LeagueGame[] = fx.map((g) => ({
     ...g,
-    status: g.number < currentGame || (g.number === currentGame && finished) ? 'played' : g.number === currentGame ? 'live' : 'pending',
+    status:
+      g.number < currentGame || (g.number === currentGame && finished) ? 'played' : g.number === currentGame && live ? 'live' : 'pending',
     homeGoals: 0,
     awayGoals: 0,
     goalEventIds: [],
@@ -131,6 +133,33 @@ export function league(events: TimelineEvent[], teamIds: string[], currentGame: 
   const table = [...rows.values()].sort((a, b) => cmp(a, b) || order.get(a.teamId)! - order.get(b.teamId)!);
 
   return { games, table, currentGame, invalidEventIds: invalid };
+}
+
+/** El partido en vivo, si hay. */
+export function liveGame(l: League): LeagueGame | null {
+  return l.games.find((g) => g.status === 'live') ?? null;
+}
+
+/** ¿Ya empezó algún partido? (las apuestas de toda la liga se cierran). */
+export function leagueStarted(l: League): boolean {
+  return l.games.some((g) => g.status !== 'pending');
+}
+
+/**
+ * ¿Se puede apostar a este mercado ahora? Igual que la validación de submit_ticket:
+ *  - Por partido: hasta que termina (en vivo se puede, salvo "primer gol" si ya hubo gol).
+ *  - De toda la liga: solo antes de que empiece el primer partido.
+ */
+export function marketOpen(m: { type: string; param: number | null; section?: string }, l: League, jornadaOpen: boolean): { open: boolean; reason: string | null } {
+  if (!jornadaOpen) return { open: false, reason: 'Apuestas cerradas' };
+  if (m.type === 'game_winner' || m.type === 'game_first_goal') {
+    const g = l.games.find((x) => x.number === m.param);
+    if (!g) return { open: false, reason: 'Partido no encontrado' };
+    if (g.status === 'played') return { open: false, reason: 'Finalizado' };
+    if (g.status === 'live' && m.type === 'game_first_goal' && g.goalEventIds.length) return { open: false, reason: 'Ya hubo gol' };
+    return { open: true, reason: null };
+  }
+  return leagueStarted(l) ? { open: false, reason: 'La liga ya empezó' } : { open: true, reason: null };
 }
 
 /** Primero de la tabla, si nadie lo iguala en puntos, diferencia y goles. */

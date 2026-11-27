@@ -8,7 +8,8 @@
 import { inject, Injectable } from '@angular/core';
 import { AdminApi, EventPatch, NewEvent } from './admin-api';
 import { AuthApi } from './auth';
-import { fixture } from '../domain/league';
+import { fixture, league, marketOpen } from '../domain/league';
+import { teamOrder, toTimelineEvents } from '../domain/adapt';
 import { uuid } from './uid';
 import {
   AdminMatchData,
@@ -92,6 +93,10 @@ const DEFAULT_MARKETS: [string, string, number | null][] = [
   ['Primer piscinazo', 'first_dive', null],
   ['¿Cuántos palos habrá?', 'total_posts', null],
 ];
+
+/** Jornada y cuenta del modo demo. */
+export const DEMO_CODE = 'COPA';
+export const DEMO_USER_ID = 'demo-user';
 
 export const DEMO_PLAYERS = [
   'Victor Manuel Espino', 'Oscar Fernando Vara', 'Mate Italo Loechle', 'Angel Jose Pariona',
@@ -191,6 +196,7 @@ export class MockStore {
       closed_at: null,
       starting_team_ids: [teamIds[0], teamIds[1]],
       current_game: 1,
+      game_live: false,
       pay_method: input.pay_method || DEFAULT_PAY_METHOD,
       pay_number: input.pay_number,
       pay_holder: input.pay_holder,
@@ -246,107 +252,60 @@ export class MockStore {
   }
 
   private seed() {
+    // Cuenta demo (usuario "demo"): S/ 50 de saldo ya acreditado.
+    this.deposits.push({
+      id: uid(), user_id: DEMO_USER_ID, username: 'demo', amount: 50, receipt_path: null, status: 'approved',
+      reject_reason: null, created_at: new Date(Date.now() - 30 * 60_000).toISOString(), reviewed_at: new Date().toISOString(),
+    });
+    // Una recarga por confirmar, para ver la vista de Pagos del organizador.
     this.deposits.push({
       id: uid(), user_id: 'demo-carla', username: 'Carla', amount: 20, receipt_path: null, status: 'pending',
       reject_reason: null, created_at: new Date(Date.now() - 6 * 60_000).toISOString(), reviewed_at: null,
     });
-    // [código, título, estado, cuántos eventos del guion]
-    const scenarios: [string, string, MatchStatus, number][] = [
-      ['FINAL', 'Copa Álvaro · Ensayo', 'finished', 99],
-      ['ABIERTA', 'Copa Álvaro', 'open', 0],
-      ['DEMO26', 'Copa Álvaro · En vivo', 'closed', 11],
-    ];
-    for (const [code, title, status, nEvents] of scenarios) {
-      const id = `demo-${code}`;
-      this.createMatch(
-        { title, starts_at: new Date(Date.now() + (status === 'open' ? 2 : -2) * 3600_000).toISOString(), access_code: code, pay_method: DEFAULT_PAY_METHOD, pay_number: '999 888 777', pay_holder: DEFAULT_PAY_HOLDER },
-        status,
-        id,
-      );
-      if (status !== 'open') this.matches.find((m) => m.id === id)!.closed_at = new Date(Date.now() - 90 * 60_000).toISOString();
 
-      this.addTicket(id, 'Ana', [
-        { market: 'Primer gol de la noche', player: 'Victor Manuel Espino', amount: 4 },
-        { market: 'Campeón de la liga', team: '1', amount: 3 },
-        { market: 'Primera amarilla', player: 'Diego Guevara', amount: 2 },
-        { market: 'Ganador · Equipo 1 vs Equipo 2', option: 1, amount: 2 },
-      ], 'approved', 180);
-      this.addTicket(id, 'Luis', [
-        { market: 'Primer gol de la noche', player: 'Adrian Ruiz', amount: 2 },
-        { market: 'Pichichi de la noche', player: 'Victor Manuel Espino', amount: 5 },
-        { market: 'Equipo más goleado', team: '4', amount: 3 },
-        { market: 'Primer autogol', player: 'Nestor Rojas', amount: 1 },
-      ], 'approved', 170);
-      this.addTicket(id, 'Rosa', [
-        { market: 'Último gol de la noche', player: 'David Málaga', amount: 3 },
-        { market: 'Primer cuartete', player: 'Victor Manuel Espino', amount: 2 },
-        { market: 'Gol número 15', player: 'Autogol', amount: 1 },
-        { market: 'Primera huacha', player: 'Paul Espinoza', amount: 4 },
-        { market: 'Primer palo', player: 'Adrian Ruiz', amount: 2 },
-        { market: 'Primer gol · Equipo 3 vs Equipo 4', player: 'David Málaga', amount: 3 },
-      ], 'approved', 160);
-      this.addTicket(id, 'Fabri', [
-        { market: 'Primer golazo', player: 'Victor Manuel Espino', amount: 5 },
-        { market: 'Primer blooper', player: 'Manuel Tumi', amount: 2 },
-        { market: '¿Cuántos palos habrá?', option: 2, amount: 3 },
-        { market: 'Último de la tabla', team: '2', amount: 2 },
-        { market: 'Primera roja', player: 'Diego Guevara', amount: 4 },
-      ], 'approved', 155);
-      this.addTicket(id, 'Beto', [
-        { market: 'Campeón de la liga', team: '2', amount: 5 },
-        { market: 'Ganador · Equipo 1 vs Equipo 3', option: 0, amount: 3 },
-        { market: 'El más amonestado', player: 'Diego Guevara', amount: 2 },
-        { market: 'Última amarilla', player: 'Manuel Tumi', amount: 1 },
-        { market: 'Primer sextete', player: 'Adrian Ruiz', amount: 1 },
-        { market: 'Gol número 28', player: 'David Málaga', amount: 1 },
-      ], 'approved', 150);
-      this.addTicket(id, 'Carla', [{ market: 'Primer gol de la noche', player: 'Paul Espinoza', amount: 5 }], 'pending', 140);
-      this.addTicket(id, 'Dani', [{ market: 'Campeón de la liga', team: '3', amount: 5 }], 'rejected', 135, 'Apuesta repetida');
+    // Una sola jornada, antes del primer partido (nada en vivo todavía).
+    const code = DEMO_CODE;
+    const id = `demo-${code}`;
+    this.createMatch(
+      { title: 'Copa Álvaro', starts_at: new Date(Date.now() + 2 * 3600_000).toISOString(), access_code: code, pay_method: DEFAULT_PAY_METHOD, pay_number: '999 888 777', pay_holder: DEFAULT_PAY_HOLDER },
+      'open',
+      id,
+    );
 
-      const T = (l: string) => `${id}-team-${l}`;
-      const P = (n: string) => this.playerId(id, n);
-      /** Evento de un jugador en el partido `game` (gol si se pasa el equipo). */
-      const E = (type: EventRow['type'], player: string, game: number, minute: number, team?: string, own = false): Omit<EventRow, 'id' | 'match_id' | 'seq'> => ({
-        type, player_id: P(player), team_id: team ? T(team) : null, is_own_goal: own, team_out_id: null, minute, game,
-      });
-      // Liga: P1 E1 v E2 · P2 E3 v E4 · P3 E1 v E3 · P4 E2 v E4 · P5 E1 v E4 · P6 E2 v E3
-      const script: Omit<EventRow, 'id' | 'match_id' | 'seq'>[] = [
-        E('goal', 'Victor Manuel Espino', 1, 5, '1'),
-        E('golazo', 'Victor Manuel Espino', 1, 5),
-        E('post', 'Adrian Ruiz', 1, 7),
-        E('yellow', 'Diego Guevara', 1, 8),
-        E('goal', 'Adrian Ruiz', 1, 12, '1'),
-        E('goal', 'Nestor Rojas', 1, 20, '2', true), // P1: Equipo 1 2-1 Equipo 2
-        E('nutmeg', 'Paul Espinoza', 2, 24),
-        E('blooper', 'Manuel Tumi', 2, 27),
-        E('goal', 'David Málaga', 2, 31, '3'), // P2: Equipo 3 1-0 Equipo 4
-        E('yellow', 'Diego Guevara', 3, 44),
-        E('yellow', 'Manuel Tumi', 3, 47),
-        // Solo en FINAL:
-        E('goal', 'Victor Manuel Espino', 3, 52, '1'), // P3: Equipo 1 1-0 Equipo 3
-        E('penalty', 'Bryan Eduardo Barba', 3, 55),
-        E('penalty_miss', 'Alvaro Fabrizzio Salazar', 3, 56),
-        E('goal', 'Lorenzo Balicco', 4, 61, '2'),
-        E('red', 'Diego Guevara', 4, 63),
-        E('goal', 'Lorenzo Balicco', 4, 66, '2'), // P4: Equipo 2 2-0 Equipo 4
-        E('dive', 'Oscar Fernando Vara', 5, 70),
-        E('goal', 'Iker Gabriel Barturen', 5, 74, '4'), // P5: Equipo 1 0-1 Equipo 4
-        E('post', 'David Málaga', 6, 80),
-        E('goal', 'David Málaga', 6, 84, '3'),
-        E('goal', 'Braden García', 6, 88, '2'), // P6: Equipo 2 1-1 Equipo 3
-      ];
-      this.matches.find((m) => m.id === id)!.current_game = status === 'finished' ? 6 : status === 'closed' ? 3 : 1;
-      for (const e of script.slice(0, nEvents)) this.events.push({ ...e, id: uid(), match_id: id, seq: this.nextSeq() });
+    // Apuestas de otros amigos (para que se vean botes y cuotas).
+    this.addTicket(id, 'Ana', [
+      { market: 'Ganador · Equipo 1 vs Equipo 2', option: 1, amount: 4 },
+      { market: 'Primer gol de la noche', player: 'Victor Manuel Espino', amount: 3 },
+      { market: 'Campeón de la liga', team: '1', amount: 3 },
+      { market: 'Primera roja', player: 'Diego Guevara', amount: 2 },
+    ], 'approved', 50);
+    this.addTicket(id, 'Luis', [
+      { market: 'Ganador · Equipo 1 vs Equipo 2', option: 2, amount: 2 },
+      { market: 'Ganador · Equipo 3 vs Equipo 4', option: 0, amount: 3 },
+      { market: 'Pichichi de la noche', player: 'Victor Manuel Espino', amount: 5 },
+      { market: 'Primer palo', player: 'Adrian Ruiz', amount: 1 },
+    ], 'approved', 45);
+    this.addTicket(id, 'Rosa', [
+      { market: 'Ganador · Equipo 1 vs Equipo 2', option: 1, amount: 2 },
+      { market: 'Primer gol · Equipo 1 vs Equipo 2', player: 'Adrian Ruiz', amount: 3 },
+      { market: 'Campeón de la liga', team: '3', amount: 4 },
+      { market: 'Primer golazo', player: 'David Málaga', amount: 2 },
+    ], 'approved', 40);
+    this.addTicket(id, 'Beto', [
+      { market: 'Ganador · Equipo 3 vs Equipo 4', option: 1, amount: 5 },
+      { market: 'Ganador · Equipo 1 vs Equipo 3', option: 2, amount: 2 },
+      { market: '¿Cuántos palos habrá?', option: 2, amount: 3 },
+      { market: 'Último de la tabla', team: '4', amount: 2 },
+    ], 'approved', 35);
 
-      const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
-      this.messages.set(code, [
-        { id: uid(), user_id: null, username: 'Rosa', body: '⚪ La esférica no se mancha, que gane el mejor', created_at: ago(150) },
-        { id: uid(), user_id: null, username: 'Luis', body: 'Ya plineé 💸 le voy al Equipo 2', created_at: ago(120) },
-        { id: uid(), user_id: null, username: 'Fabri', body: 'Ese palo de Adrián dolió 🥅', created_at: ago(80) },
-        { id: uid(), user_id: null, username: 'Ana', body: '🔥 Golazo de Victor, se viene el cuartete', created_at: ago(70) },
-      ]);
-    }
+    const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
+    this.messages.set(code, [
+      { id: uid(), user_id: null, username: 'Rosa', body: '⚪ La esférica no se mancha, que gane el mejor', created_at: ago(40) },
+      { id: uid(), user_id: null, username: 'Luis', body: 'Ya pliné 💸 le voy al Equipo 2', created_at: ago(30) },
+      { id: uid(), user_id: null, username: 'Ana', body: '🔥 El Equipo 1 arrasa hoy', created_at: ago(20) },
+    ]);
   }
+
 }
 
 // ---------------------------------------------------------------------------
@@ -405,6 +364,18 @@ export class MockPublicApi extends PublicApi {
     const name = user.username;
     if (bets.length < 1 || bets.length > MAX_BETS_PER_TICKET) throw new Error('Cada ticket debe tener entre 1 y 20 apuestas');
     if (bets.some((b) => b.amount < 1 || b.amount > 5)) throw new Error('Cada apuesta debe ser de S/ 1 a S/ 5');
+    const lg = league(
+      toTimelineEvents(this.s.events.filter((e) => e.match_id === m.id)),
+      teamOrder(this.s.teams.filter((t) => t.match_id === m.id)),
+      m.current_game,
+      false,
+      m.game_live,
+    );
+    for (const b of bets) {
+      const mk = this.s.markets.find((x) => x.id === b.marketId);
+      const st = mk && marketOpen(mk, lg, true);
+      if (!mk || !st?.open) throw new Error(`${mk?.name ?? 'Mercado'}: ${st?.reason ?? 'no recibe apuestas'}`);
+    }
     const total = bets.reduce((s, b) => s + b.amount, 0);
     const balance = this.s.balance(user.id);
     if (total > balance) throw new Error(`Saldo insuficiente: tienes S/ ${Math.max(balance, 0)} y el ticket es de S/ ${total}. Recarga por Plin`);
@@ -458,6 +429,10 @@ export class MockPublicApi extends PublicApi {
 
   subscribeWallet(userId: string, onChange: () => void) {
     return this.s.on('wallet:' + userId, onChange);
+  }
+
+  async activeMatchCode(): Promise<string | null> {
+    return this.s.matches.find((m) => m.status !== 'finished')?.access_code ?? null;
   }
 
   async getMyTickets(code: string): Promise<MyTicket[]> {
@@ -575,8 +550,15 @@ export class MockAdminApi extends AdminApi {
     this.s.notify(matchId);
   }
 
-  async setCurrentGame(matchId: string, game: number) {
-    this.s.matches.find((x) => x.id === matchId)!.current_game = game;
+  async setCurrentGame(matchId: string, game: number, live = false) {
+    const m = this.s.matches.find((x) => x.id === matchId)!;
+    m.current_game = game;
+    m.game_live = live;
+    this.s.notify(matchId);
+  }
+
+  async setGameLive(matchId: string, live: boolean) {
+    this.s.matches.find((x) => x.id === matchId)!.game_live = live;
     this.s.notify(matchId);
   }
 

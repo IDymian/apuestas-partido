@@ -9,6 +9,8 @@ export type SubmitBet = BetDraft & { target: MarketTarget };
 export abstract class PublicApi {
   abstract readonly isDemo: boolean;
   abstract getMatch(code: string): Promise<PublicMatchData | null>;
+  /** Código de la jornada activa (la app abre directo en ella). */
+  abstract activeMatchCode(): Promise<string | null>;
   /** Se paga con el saldo. El nombre del ticket es el usuario logueado (lo pone el servidor). */
   abstract submitTicket(code: string, bets: SubmitBet[]): Promise<string>;
   abstract getMyTickets(code: string): Promise<MyTicket[]>;
@@ -71,6 +73,12 @@ export class SupabasePublicApi extends PublicApi {
 
   subscribeWallet(userId: string, onChange: () => void): () => void {
     return this.listen(`wallet:${userId}`, 'changed', onChange, 200);
+  }
+
+  async activeMatchCode(): Promise<string | null> {
+    const { data, error } = await this.sb.client.rpc('get_active_match_code');
+    if (error) throw error;
+    return (data as string | null) ?? null;
   }
 
   async getMyTickets(code: string): Promise<MyTicket[]> {

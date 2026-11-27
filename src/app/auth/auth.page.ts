@@ -96,10 +96,27 @@ function takeNext(): string | null {
                 <h1 class="mt-1 font-display text-4xl font-extrabold">Entrar</h1>
                 <p class="mt-1 text-mute">Para apostar, ver tus tickets y escribir en Social.</p>
               </section>
+              @if (auth.isDemo) {
+                <section class="mt-5 rounded-3xl border border-lime/30 bg-lime/5 p-4 anim-in">
+                  <p class="text-sm font-bold">Cuenta de prueba</p>
+                  <p class="mt-0.5 text-sm text-mute">Usuario <b class="text-ink">demo</b> · contraseña <b class="text-ink">demo</b> · S/ 50 de saldo</p>
+                  <button type="button" class="btn mt-3 h-11 w-full text-[15px]" [disabled]="busy()" (click)="loginDemo()">Entrar con la cuenta demo</button>
+                </section>
+              }
               <form class="glass mt-5 space-y-4 anim-in" style="--i: 1" (ngSubmit)="login()">
                 <label class="block">
-                  <span class="field-label">Correo</span>
-                  <input class="field" type="email" name="email" autocomplete="email" inputmode="email" required [(ngModel)]="email" placeholder="tucorreo@gmail.com" />
+                  <span class="field-label">{{ auth.loginWithUsername ? 'Correo o usuario' : 'Correo' }}</span>
+                  <input
+                    class="field"
+                    [type]="auth.loginWithUsername ? 'text' : 'email'"
+                    name="email"
+                    autocomplete="username"
+                    autocapitalize="none"
+                    [attr.inputmode]="auth.loginWithUsername ? null : 'email'"
+                    required
+                    [(ngModel)]="email"
+                    [placeholder]="auth.loginWithUsername ? 'demo o tucorreo@gmail.com' : 'tucorreo@gmail.com'"
+                  />
                 </label>
                 <label class="block">
                   <span class="field-label">Contraseña</span>
@@ -375,6 +392,12 @@ export class AuthPage implements OnDestroy {
         this.userState.set('idle');
       }
     }, 400);
+  }
+
+  async loginDemo() {
+    this.email = 'demo';
+    this.password = 'demo';
+    await this.login();
   }
 
   async login() {

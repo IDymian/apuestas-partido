@@ -23,6 +23,8 @@ export interface SignUpResult {
 
 export abstract class AuthApi {
   abstract readonly isDemo: boolean;
+  /** ¿Se puede entrar con el usuario además del correo? (solo en demo) */
+  readonly loginWithUsername: boolean = false;
   /** Usuario logueado (null si no hay sesión). */
   readonly user = signal<AppUser | null>(null);
   /** true cuando ya se leyó la sesión guardada. */
@@ -194,9 +196,13 @@ async function hash(text: string): Promise<string> {
 
 const delay = (ms = 350) => new Promise((r) => setTimeout(r, ms));
 
+/** Cuenta de prueba del modo demo. */
+export const DEMO_ACCOUNT = { id: 'demo-user', username: 'demo', email: 'demo@copaalvaro.pe', password: 'demo' };
+
 @Injectable()
 export class MockAuthApi extends AuthApi {
   readonly isDemo = true;
+  override readonly loginWithUsername = true;
 
   private users(): DemoUser[] {
     return store.get<DemoUser[]>(USERS_KEY, []);
@@ -210,6 +216,14 @@ export class MockAuthApi extends AuthApi {
   }
 
   async init() {
+    // La cuenta demo siempre existe (usuario demo, contraseña demo).
+    const list = this.users();
+    if (!list.some((u) => u.id === DEMO_ACCOUNT.id)) {
+      this.saveUsers([
+        ...list,
+        { id: DEMO_ACCOUNT.id, email: DEMO_ACCOUNT.email, username: DEMO_ACCOUNT.username, passHash: await hash(DEMO_ACCOUNT.password), confirmed: true },
+      ]);
+    }
     const id = store.get<string | null>(SESSION_KEY, null);
     const u = this.users().find((x) => x.id === id && x.confirmed);
     if (u) this.user.set({ id: u.id, email: u.email, username: u.username });
@@ -249,7 +263,8 @@ export class MockAuthApi extends AuthApi {
 
   async signIn(email: string, password: string) {
     await delay();
-    const u = this.users().find((x) => x.email === email.trim().toLowerCase());
+    const key = email.trim().toLowerCase();
+    const u = this.users().find((x) => x.email === key || x.username.toLowerCase() === key);
     if (!u || u.passHash !== (await hash(password))) throw new Error(authError('Invalid login credentials'));
     if (!u.confirmed) throw new Error(authError('Email not confirmed'));
     this.login(u);

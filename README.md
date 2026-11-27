@@ -10,10 +10,24 @@ mira el **bote en vivo** y comenta en **Social**. Se usa sobre todo en el celula
 - **Backend:** Supabase (Postgres + RLS, Auth con correo, Storage, Realtime).
 - **Diseño:** blanco y naranja. Ver [DESIGN.md](DESIGN.md).
 
-> **Modo demo:** sin claves de Supabase en el `.env`, la app usa datos de prueba en el navegador.
-> Los "correos" de confirmación y de recuperación se abren desde la misma pantalla (bandeja de prueba).
-> Prueba `/p/ABIERTA` (apuestas abiertas), `/p/DEMO26` (en vivo) y `/p/FINAL` (terminada).
-> En `/admin` entras con cualquier correo y contraseña. Los datos se pierden al recargar la página.
+> **Modo demo:** sin claves de Supabase en el `.env`, la app usa datos de prueba en el navegador: una jornada
+> **COPA** con los 6 partidos por jugar (nada en vivo). Entra con la cuenta **usuario `demo` · contraseña `demo`**
+> (S/ 50 de saldo) o crea una cuenta; los "correos" se abren desde la misma pantalla (bandeja de prueba).
+> Organizador: `/admin` con cualquier correo y contraseña. Los datos se pierden al recargar la página.
+
+## Cómo se ve (estilo casa de apuestas)
+
+- **Partidos:** al abrir la app aparece la jornada activa con los 6 partidos como "Próximos", cada uno con botones
+  **1 · X · 2** y su **cuota estimada** (bote ÷ lo apostado a esa opción). Tocando el partido se ven todos sus mercados.
+- **Especiales:** las apuestas de toda la liga (campeón, último, primera roja, palo, golazo, penales, bloopers…).
+- **Tabla:** marcadores, fixture, tabla de posiciones, botes y apuestas de todos.
+- **Cupón:** tocar una cuota la agrega (S/ 1); en el cupón eliges S/ 1–5 por selección y apuestas con tu saldo.
+- **En vivo:** vacío hasta que el organizador pone un partido en vivo (Admin → Eventos → "Poner en vivo"). Ahí aparecen
+  el marcador, las jugadas y las apuestas de ese partido que siguen abiertas.
+- Encabezado con **saldo** y botón **Depositar** (recarga por Plin) siempre a la vista.
+
+**Cuándo se cierra cada apuesta:** las de un partido, cuando termina (en vivo se puede apostar al ganador, y al primer gol
+solo mientras va 0-0). Las de toda la liga (especiales), cuando empieza el primer partido. Lo valida la base de datos.
 
 ---
 
@@ -60,8 +74,8 @@ Chat por jornada en tiempo real (canal `chat:<CODIGO>`), con reacciones rápidas
   En las apuestas a jugador aparece el **nombre completo**.
 - **Todos contra todos, uno por uno (6 partidos):** 1) E1 vs E2 · 2) E3 vs E4 · 3) E1 vs E3 · 4) E2 vs E4 · 5) E1 vs E4 · 6) E2 vs E3.
 - **Tabla:** 3 puntos por ganar y 1 por empatar. Desempate: diferencia de gol, goles a favor y el orden de los equipos.
-- En **Eventos** el organizador ve el partido en juego con su marcador. Cada gol, tarjeta, palo, etc. queda en ese partido,
-  y con **"Terminar y pasar al siguiente"** avanza el fixture. En vivo se ven el marcador, el fixture y la tabla.
+- En **Eventos** el organizador ve el partido actual: **"▶ Poner en vivo"** cuando empieza y **"⏹ Terminar partido"**
+  cuando acaba (pasa al siguiente). Cada gol, tarjeta, palo, etc. queda en ese partido.
 
 ## Mercados (36; cada uno tiene su bote)
 

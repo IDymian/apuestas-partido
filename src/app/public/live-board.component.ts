@@ -20,9 +20,9 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
     <section class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff8a1f] via-lime to-[#d13f00] p-5 text-white shadow-[0_24px_50px_-20px_rgb(242_98_0/0.7)] anim-in">
       <div class="pointer-events-none absolute -top-20 -right-16 h-56 w-56 rounded-full bg-white/25 blur-3xl"></div>
       <p class="eyebrow flex items-center gap-2 text-white/85">
-        @if (d.match.status === 'closed') {
+        @if (result().league.games.some(g => g.status === 'live')) {
           <span class="live-dot"></span> En vivo
-        } @else if (finished) {
+        } @else if (finished || result().league.games.every(g => g.status === 'played')) {
           🏁 Final
         } @else {
           ⏳ Antes del pitazo
@@ -37,11 +37,11 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
       </div>
     </section>
 
-    @if (d.match.status !== 'open') {
+    @if (true) {
       <!-- Partido en juego -->
       @let lg = result().league;
       @let cur = currentGame();
-      @if (cur) {
+      @if (cur && cur.status === 'live') {
         <section class="glass mt-4 anim-in" style="--i: 1">
           <p class="eyebrow flex items-center gap-2">
             @if (cur.status === 'live') {

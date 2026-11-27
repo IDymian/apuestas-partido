@@ -47,6 +47,7 @@ export function publicToSettleInput(d: PublicMatchData): SettleInput {
     ownGoalOptionId: d.players.find((p) => p.is_own_goal)?.id ?? null,
     currentGame: d.match.current_game ?? 1,
     finished: d.match.status === 'finished',
+    live: !!d.match.game_live,
     bets: d.bets.map((b) => ({
       ticketId: b.ticket_id,
       ticketStatus: 'approved',
@@ -69,6 +70,7 @@ export function adminToSettleInput(d: AdminMatchData): SettleInput {
     ownGoalOptionId: d.players.find((p) => p.is_own_goal)?.id ?? null,
     currentGame: d.match.current_game ?? 1,
     finished: d.match.status === 'finished',
+    live: !!d.match.game_live,
     bets: tickets.flatMap((t) =>
       t.bets.map((b) => ({
         ticketId: t.id,

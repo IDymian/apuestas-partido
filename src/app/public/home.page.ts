@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { PublicApi } from '../core/public-api';
 import { AuthApi } from '../core/auth';
@@ -113,10 +113,11 @@ const MARQUEE = [
     </div>
   `,
 })
-export class HomePage {
+export class HomePage implements OnInit {
   private router = inject(Router);
   protected readonly auth = inject(AuthApi);
-  protected readonly isDemo = inject(PublicApi).isDemo;
+  private readonly api = inject(PublicApi);
+  protected readonly isDemo = this.api.isDemo;
   protected readonly code = signal('');
   protected readonly last = lastMatch();
   protected readonly marquee = [...MARQUEE, ...MARQUEE];
@@ -125,6 +126,16 @@ export class HomePage {
     { title: 'Recarga saldo por Plin', text: 'Plineas al QR y subes la captura. Cuando el organizador lo confirma, el saldo aparece en tu cuenta.', tone: 'bg-candy text-white' },
     { title: 'Apuesta y vive el partido', text: '25 apuestas: goles, rojas, palos, golazos, bloopers… Se descuentan de tu saldo. El bote sube en vivo y en Social comentan todos.', tone: 'bg-gold text-white' },
   ];
+
+  /** Si hay una jornada activa, la app abre directo en ella. */
+  async ngOnInit() {
+    try {
+      const code = await this.api.activeMatchCode();
+      if (code) this.router.navigate(['/p', code], { replaceUrl: true });
+    } catch {
+      /* sin conexión: queda el inicio con el código */
+    }
+  }
 
   go() {
     const c = this.code().trim().toUpperCase().replace(/[^A-Z0-9]/g, '');

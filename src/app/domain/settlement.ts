@@ -51,6 +51,8 @@ export interface SettleInput {
   currentGame?: number;
   /** La jornada terminó: el partido actual cuenta como jugado. */
   finished?: boolean;
+  /** El partido actual está en vivo (si no, todavía no empieza). */
+  live?: boolean;
 }
 
 export interface ResolveContext {
@@ -368,7 +370,7 @@ function processingOrder(markets: SettleMarket[]): { order: SettleMarket[]; targ
 export function settle(input: SettleInput, resolvers: Record<string, Resolver> = RESOLVERS): SettlementResult {
   const events = sortEvents(input.events);
   const timeline = courtTimeline(events, input.teamIds, input.startingTeamIds);
-  const lg = league(events, input.teamIds, input.currentGame ?? Number.MAX_SAFE_INTEGER, input.finished ?? true);
+  const lg = league(events, input.teamIds, input.currentGame ?? Number.MAX_SAFE_INTEGER, input.finished ?? true, input.live ?? true);
   const active = input.markets.filter((m) => m.isActive);
   const approved = input.bets.filter((b) => b.ticketStatus === 'approved');
   const { order, target } = processingOrder(active);

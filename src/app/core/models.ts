@@ -14,8 +14,10 @@ export interface PublicMatch {
   status: MatchStatus;
   closed_at: string | null;
   starting_team_ids: string[] | null;
-  /** Partido de la liga que se está jugando (1–6). */
+  /** Partido actual de la liga (1–6; 7 = todos terminados). */
   current_game: number;
+  /** El partido actual está en vivo. */
+  game_live: boolean;
   pay_method: string;
   pay_number: string | null;
   pay_holder: string | null;

@@ -104,6 +104,7 @@ check('público: solo apuestas aprobadas (18)', pub.bets.length === 18, `(${pub.
 check('público: sin rutas de captura', !JSON.stringify(pub).includes('receipt'));
 check('público: Plin y titular', pub.match.pay_method === 'Plin');
 check('código malo → null', (await q(`select get_public_match('NOPE') j`))[0].j === null);
+check('jornada activa para abrir directo', typeof (await q(`select get_active_match_code() c`))[0].c === 'string');
 await db.exec(`reset role`);
 
 // --- Como usuario logueado ---
@@ -179,6 +180,27 @@ const mine = (await q(`select get_my_tickets('TEST01') j`))[0].j;
 check('mis tickets: 2 aprobados con sus apuestas', mine.length === 2 && mine.every((t) => t.status === 'approved') && mine.some((t) => t.bets.length === 3));
 check('usuario no lee tickets directo', (await q(`select count(*)::int c from tickets`))[0].c === 0);
 
+// En vivo: el organizador pone el partido 1 en vivo
+await asUser(ADM);
+await q(`update matches set game_live = true where id=$1`, [mid]);
+await asUser(U1);
+await expectErr('liga empezada: mercado de toda la liga cerrado', () => submit([{ market_id: mk['Campeón de la liga'], team_id: teams[0].id, amount: 1 }]), /La liga ya empezó/);
+const okLive = await submit([{ market_id: mk['Ganador · Equipo 1 vs Equipo 2'], option: 1, amount: 1 }]);
+check('en vivo: se apuesta al ganador del partido en juego', !!okLive[0].id);
+await asUser(ADM);
+await q(`insert into events (match_id, type, player_id, team_id, minute, game) values ($1,'goal',$2,$3,2,1)`, [mid, pl['Pepe'], teams[0].id]);
+await asUser(U1);
+await expectErr('en vivo con gol: primer gol del partido cerrado', () => submit([{ market_id: mk['Primer gol · Equipo 1 vs Equipo 2'], player_id: pl['Pepe'], amount: 1 }]), /ya hubo gol/);
+await asUser(ADM);
+await q(`update matches set current_game = 2, game_live = false where id=$1`, [mid]);
+await asUser(U1);
+await expectErr('partido terminado: sus mercados cerrados', () => submit([{ market_id: mk['Ganador · Equipo 1 vs Equipo 2'], option: 2, amount: 1 }]), /ya terminó/);
+check('público: game_live y partido actual', (await q(`select get_public_match('TEST01') j`))[0].j.match.current_game === 2);
+await asUser(ADM);
+await q(`update matches set current_game = 1, game_live = false where id=$1`, [mid]);
+await q(`delete from events where match_id=$1`, [mid]);
+await asUser(U1);
+
 // Chat
 await q(`select post_message('TEST01', '  ¡Feliz cumple Álvaro! 🎂 ')`);
 const msgs = (await q(`select get_messages('test01') j`))[0].j;
@@ -221,7 +243,7 @@ await expectErr('apostar con la jornada cerrada', () => submit([{ market_id: mk[
 await asUser(ADM);
 await q(`update tickets set status='rejected', reject_reason='Apuesta repetida' where id=$1`, [ok2[0].id]);
 await asUser(U1);
-check('ticket rechazado devuelve el saldo (10 + 4 = 14)', (await wallet()).balance === 14);
+check('ticket rechazado devuelve el saldo (9 + 4 = 13)', (await wallet()).balance === 13);
 await db.exec(`reset role`);
 
 // --- Admin vs otro usuario ---

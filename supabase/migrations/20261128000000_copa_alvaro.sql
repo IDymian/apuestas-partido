@@ -34,7 +34,9 @@ alter table public.events add constraint events_shape check (
 );
 
 alter table public.events add column if not exists game int check (game is null or game between 1 and 20);
-alter table public.matches add column if not exists current_game int not null default 1 check (current_game between 1 and 20);
+alter table public.matches add column if not exists current_game int not null default 1 check (current_game between 1 and 21);
+-- El partido actual está en vivo (lo prende y apaga el organizador). current_game = último + 1: todos terminados.
+alter table public.matches add column if not exists game_live boolean not null default false;
 
 -- Equipos de un partido de la liga (orden de los equipos: sort_order, nombre). Null si no son 4 equipos.
 create or replace function public.fixture_pair(p_match uuid, p_game int)
@@ -58,6 +60,8 @@ revoke execute on function public.fixture_pair(uuid, int) from public, anon, aut
 create or replace function public.tg_event_game_check()
 returns trigger
 language plpgsql
+security definer
+set search_path = public
 as $$
 declare
   v_pair uuid[];
@@ -240,7 +244,7 @@ as $$
     'match', jsonb_build_object(
       'id', m.id, 'title', m.title, 'starts_at', m.starts_at, 'access_code', m.access_code,
       'status', m.status, 'closed_at', m.closed_at, 'starting_team_ids', to_jsonb(m.starting_team_ids),
-      'current_game', m.current_game,
+      'current_game', m.current_game, 'game_live', m.game_live,
       'pay_method', m.pay_method, 'pay_number', m.pay_number, 'pay_holder', m.pay_holder, 'pay_qr_path', m.pay_qr_path
     ),
     'teams', coalesce((
@@ -568,6 +572,20 @@ begin
     end if;
     select * into v_type from market_types where type = v_market.type;
 
+    -- ¿Sigue abierto? Por partido: hasta que termina (en vivo, "primer gol" solo mientras va 0-0).
+    -- De toda la liga: solo antes de que empiece el primer partido.
+    if v_market.type in ('game_winner', 'game_first_goal') then
+      if v_market.param < v_match.current_game then
+        raise exception '% ya terminó', v_market.name;
+      end if;
+      if v_market.type = 'game_first_goal' and v_market.param = v_match.current_game and v_match.game_live
+         and exists (select 1 from events where match_id = v_match.id and type = 'goal' and game = v_market.param) then
+        raise exception 'En % ya hubo gol', v_market.name;
+      end if;
+    elsif v_match.current_game > 1 or v_match.game_live then
+      raise exception 'La liga ya empezó: % ya no recibe apuestas', v_market.name;
+    end if;
+
     if v_type.target = 'player' then
       if v_player is null or v_team is not null or v_option is not null then
         raise exception 'En % se apuesta a un jugador', v_market.name;
@@ -735,6 +753,21 @@ revoke execute on function public.tg_broadcast_chat() from public, anon, authent
 
 create trigger broadcast_messages after insert or delete on public.messages
 for each row execute function public.tg_broadcast_chat();
+
+-- -----------------------------------------------------------------------------
+-- 5b. Jornada activa: la más reciente que no terminó (la app abre directo en ella)
+-- -----------------------------------------------------------------------------
+create or replace function public.get_active_match_code()
+returns text
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select access_code from matches where status <> 'finished' order by created_at desc limit 1;
+$$;
+revoke execute on function public.get_active_match_code() from public;
+grant execute on function public.get_active_match_code() to anon, authenticated;
 
 -- -----------------------------------------------------------------------------
 -- 6. Permisos de las RPC

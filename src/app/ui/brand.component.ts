@@ -17,8 +17,10 @@ import { RouterLink } from '@angular/router';
       />
       @if (showName()) {
         <span class="leading-none">
-          <span class="block font-display text-[19px] font-extrabold tracking-tight text-ink">Copa Álvaro</span>
-          <span class="block text-[10px] font-extrabold tracking-[0.22em] text-lime uppercase">la esférica no se mancha</span>
+          <span class="block font-display text-[19px] font-extrabold tracking-tight whitespace-nowrap text-ink">Copa Álvaro</span>
+          @if (slogan()) {
+            <span class="block text-[10px] font-extrabold tracking-[0.18em] whitespace-nowrap text-lime uppercase">la esférica no se mancha</span>
+          }
         </span>
       }
     </a>
@@ -27,4 +29,5 @@ import { RouterLink } from '@angular/router';
 export class BrandComponent {
   readonly size = input(40);
   readonly showName = input(true);
+  readonly slogan = input(true);
 }
