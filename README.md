@@ -3,7 +3,7 @@
 > **La esférica no se mancha.**
 
 App web (PWA) para el partido de la Copa Álvaro: cada amigo crea su cuenta, **recarga saldo por Plin**,
-apuesta de S/ 1 a S/ 5 en **25 mercados** (goles, rojas, palos, golazos, penales, bloopers, mejor y peor equipo…),
+apuesta de S/ 1 a S/ 5 en **36 mercados** (por partido y de toda la liga: goles, rojas, palos, golazos, penales, bloopers, campeón…),
 mira el **bote en vivo** y comenta en **Social**. Se usa sobre todo en el celular.
 
 - **Frontend:** Angular 21 (standalone + signals), Tailwind 4, three.js (escena 3D del inicio), PWA.
@@ -54,26 +54,29 @@ Chat por jornada en tiempo real (canal `chat:<CODIGO>`), con reacciones rápidas
 ("⚪ ¡La esférica no se mancha!", "🥅 ¡Palo!", "🔥 Golazo"…). Tiene anti-spam
 (máximo 6 mensajes cada 15 segundos). Si hace falta moderar, el organizador puede borrar mensajes desde la tabla `messages` en Supabase.
 
-### 4. La jornada
+### 4. La liga
 
 - **4 equipos** (Equipo 1, 2, 3 y 4, de 5 jugadores) y los **20 jugadores de siempre**, que se cargan solos al crear una jornada.
   En las apuestas a jugador aparece el **nombre completo**.
-- Dos equipos en cancha y dos esperando. Cada partidito es a un gol: el que recibe el gol sale y entra el siguiente.
-- **Rotación sin gol:** sale el equipo que elija el admin. No cuenta como ganado ni como salida, y corta la racha.
+- **Todos contra todos, uno por uno (6 partidos):** 1) E1 vs E2 · 2) E3 vs E4 · 3) E1 vs E3 · 4) E2 vs E4 · 5) E1 vs E4 · 6) E2 vs E3.
+- **Tabla:** 3 puntos por ganar y 1 por empatar. Desempate: diferencia de gol, goles a favor y el orden de los equipos.
+- En **Eventos** el organizador ve el partido en juego con su marcador. Cada gol, tarjeta, palo, etc. queda en ese partido,
+  y con **"Terminar y pasar al siguiente"** avanza el fixture. En vivo se ven el marcador, el fixture y la tabla.
 
-## Mercados (25; cada uno tiene su bote)
+## Mercados (36; cada uno tiene su bote)
 
 | Sección | Mercados |
 |---|---|
-| ⚽ Goles (jugador) | Primer gol · Último gol · Pichichi · Primer cuartete (4) · Primer sextete (6) · Gol 15 · Gol 28 |
-| 🛡️ Equipos | Rey de la cancha (más ganados) · Racha más larga (número 1–10+) · Equipo que más sale · **Mejor equipo** · **Peor equipo** |
+| 🆚 Partidos (×6) | **Ganador** (gana uno / empate / gana el otro) · **Primer gol** del partido (jugador, acepta "Autogol") |
+| ⚽ Goles de la liga (jugador) | Primer gol · Último gol · Pichichi · Primer cuartete (4) · Primer sextete (6) · Gol 15 · Gol 28 |
+| 🏆 Liga (equipo) | **Campeón** (más puntos) · **Último de la tabla** · **Más goleador** · **Más goleado** |
 | 🟨 Tarjetas (jugador) | Primera amarilla · Última amarilla · El más amonestado · **Primera roja** |
 | 🎬 Show | **Primer blooper** · **Primer penal cometido** · **Primer penal fallado** · **Primer palo** · **Primer golazo** · **Primer piscinazo** (jugador) · **¿Cuántos palos habrá?** (número 0–5+) |
 | 🤡 Pichanga (jugador) | Primer autogol · Primera huacha |
 
-- **Mejor / peor equipo:** el de mayor / menor % de partiditos ganados (ganados ÷ jugados).
-  Desempate: el mejor es el que ganó más y el peor, el que salió más. Sin goles → se devuelve.
-- **"Primer X" del show:** gana el primer jugador con ese evento. Si no ocurre → se devuelve.
+- **Campeón / último / más goleador / más goleado:** si hay empate exacto (puntos, diferencia y goles) → se devuelve.
+- **Primer gol del partido:** si el partido termina 0-0 → se devuelve.
+- **"Primer X" del show:** gana el primer jugador con ese evento en la liga. Si no ocurre → se devuelve.
 - **¿Cuántos palos?:** siempre se resuelve (0 también es un resultado). 5 = "5 o más".
 - **Golazo:** después de registrar un gol, el admin toca **"✨ ¿Fue golazo?"** (o lo registra aparte).
 
@@ -176,7 +179,7 @@ Recuerda correr la migración `…_copa_alvaro.sql` en Supabase **antes** de pub
 |---|---|
 | **💸 Pagos** (`/admin/pagos`) | Recargas por Plin por confirmar, con aviso en tiempo real, captura, **Aceptar / Rechazar** y "Deshacer". |
 | Tickets | Ver los tickets y **anularlos** (el monto vuelve al saldo). |
-| Eventos | Cancha (quién juega y quién espera), ⚽ Gol, 🙈 Autogol, 🟨 Amarilla, 🟥 Roja, ✨ Golazo, 🥅 Palo, 🚨 Penal, 🙅 Falla penal, 🤦 Blooper, 🏊 Piscinazo, 🥜 Huacha y 🔄 Rotación. Todo se edita o borra. |
+| Eventos | Partido en juego (marcador, fixture y tabla; "Terminar y pasar al siguiente"), ⚽ Gol, 🙈 Autogol, 🟨 Amarilla, 🟥 Roja, ✨ Golazo, 🥅 Palo, 🚨 Penal, 🙅 Falla penal, 🤦 Blooper, 🏊 Piscinazo, y 🥜 Huacha. Cada evento queda en el partido en juego. Todo se edita o borra. |
 | Liquidación | Ganador por mercado, reparto por persona, lo que queda para el organizador, "pagado" y resumen para WhatsApp. |
 | Jugadores | Ya vienen los 20; se pueden agregar, renombrar o quitar. |
 | Mercados | Activar, ordenar, renombrar, N, arrastre y pozo inicial. |

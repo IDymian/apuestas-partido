@@ -1,6 +1,7 @@
 import { AdminMatchData, betSelection, MatchEvent, MarketTarget, Player, PublicMatchData, Team } from '../core/models';
 import { numberMaxOption, SettleInput, SettleMarket } from './settlement';
 import { sortEvents, TimelineEvent } from './timeline';
+import { fixture } from './league';
 
 export function toTimelineEvents(events: MatchEvent[]): TimelineEvent[] {
   return sortEvents(
@@ -13,6 +14,7 @@ export function toTimelineEvents(events: MatchEvent[]): TimelineEvent[] {
       teamOutId: e.team_out_id,
       minute: e.minute,
       seq: e.seq,
+      game: e.game ?? null,
     })),
   );
 }
@@ -43,6 +45,8 @@ export function publicToSettleInput(d: PublicMatchData): SettleInput {
     teamIds: teamOrder(d.teams),
     startingTeamIds: d.match.starting_team_ids ?? [],
     ownGoalOptionId: d.players.find((p) => p.is_own_goal)?.id ?? null,
+    currentGame: d.match.current_game ?? 1,
+    finished: d.match.status === 'finished',
     bets: d.bets.map((b) => ({
       ticketId: b.ticket_id,
       ticketStatus: 'approved',
@@ -63,6 +67,8 @@ export function adminToSettleInput(d: AdminMatchData): SettleInput {
     teamIds: teamOrder(d.teams),
     startingTeamIds: d.match.starting_team_ids ?? [],
     ownGoalOptionId: d.players.find((p) => p.is_own_goal)?.id ?? null,
+    currentGame: d.match.current_game ?? 1,
+    finished: d.match.status === 'finished',
     bets: tickets.flatMap((t) =>
       t.bets.map((b) => ({
         ticketId: t.id,
@@ -76,13 +82,20 @@ export function adminToSettleInput(d: AdminMatchData): SettleInput {
   };
 }
 
-/** Nombre legible de una selección: jugador, equipo o número ("racha de 3"). */
+/** Nombre legible de una selección: jugador, equipo, número ("racha de 3") o resultado de un partido. */
 export function makeSelectionLabel(players: Player[], teams: Team[]) {
   const p = new Map(players.map((x) => [x.id, x.name]));
   const t = new Map(teams.map((x) => [x.id, x.name]));
-  return (target: MarketTarget | undefined, selection: string | null, type?: string): string => {
+  const games = fixture(teamOrder(teams));
+  return (target: MarketTarget | undefined, selection: string | null, type?: string, param?: number | null): string => {
     if (selection == null) return '¿?';
     if (target === 'team') return t.get(selection) ?? '¿?';
+    if (type === 'game_winner') {
+      const g = games.find((x) => x.number === param);
+      if (selection === '0') return 'Empate';
+      const team = g && (selection === '1' ? g.home : g.away);
+      return team ? `Gana ${t.get(team) ?? '¿?'}` : '¿?';
+    }
     if (target === 'number') {
       const n = Number(selection);
       const max = numberMaxOption(type);

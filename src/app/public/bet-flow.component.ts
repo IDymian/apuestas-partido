@@ -21,6 +21,7 @@ interface Choice {
 const MARKET_ICON: Record<string, string> = {
   first_goal: '⚽', last_goal: '🏁', top_scorer: '👟', first_to_n_goals: '🎯', nth_goal: '🔢',
   most_wins: '👑', longest_streak: '🔥', most_exits: '🚪', best_team: '🏆', worst_team: '🐢',
+  top_scoring_team: '💥', most_conceded_team: '🥅', game_winner: '🆚', game_first_goal: '⚽',
   first_yellow: '🟨', last_yellow: '🟨', most_yellows: '😤', first_red: '🟥',
   first_blooper: '🤦', first_penalty_conceded: '🚨', first_penalty_missed: '🙅', first_post: '🥅',
   first_golazo: '✨', first_dive: '🏊', total_posts: '🧮', first_own_goal: '🙈', first_nutmeg_victim: '🥜',
@@ -336,6 +337,9 @@ export class BetFlowComponent {
 
   protected choices(m: Market): Choice[] {
     if (m.target === 'team') return this.teamChoices();
+    if (m.type === 'game_winner') {
+      return ['1', '0', '2'].map((s) => ({ selection: s, label: this.labeler()('number', s, 'game_winner', m.param) }));
+    }
     if (m.target === 'number') {
       const min = m.option_min ?? 1;
       const max = m.option_max ?? numberMaxOption(m.type);
@@ -348,6 +352,8 @@ export class BetFlowComponent {
   }
 
   protected hint(m: Market): string {
+    if (m.type === 'game_winner') return `Partido ${m.param} · 1X2`;
+    if (m.type === 'game_first_goal') return `Partido ${m.param} · a un jugador`;
     if (m.target === 'team') return 'A un equipo';
     if (m.target === 'number') return 'A un número';
     return 'A un jugador';
@@ -355,7 +361,7 @@ export class BetFlowComponent {
 
   protected choiceLabel(b: BetDraft): string {
     const m = this.marketById().get(b.marketId);
-    return this.labeler()(m?.target, b.selection, m?.type);
+    return this.labeler()(m?.target, b.selection, m?.type, m?.param);
   }
 
   protected countFor(marketId: string) {

@@ -35,6 +35,8 @@ export interface TimelineEvent {
   minute: number;
   /** Orden de registro; desempata eventos del mismo minuto. */
   seq: number;
+  /** Partido de la liga (1–6) en el que pasó; null en jornadas antiguas. */
+  game?: number | null;
 }
 
 export interface TeamStats {

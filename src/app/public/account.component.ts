@@ -334,7 +334,7 @@ export class AccountComponent {
 
   protected label(b: MyTicket['bets'][number]) {
     const m = this.markets().get(b.market_id);
-    return this.labeler()(m?.target, betSelection(b), m?.type);
+    return this.labeler()(m?.target, betSelection(b), m?.type, m?.param);
   }
   protected marketName(id: string) {
     return this.markets().get(id)?.name ?? 'Mercado';

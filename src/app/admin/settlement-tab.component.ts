@@ -142,6 +142,9 @@ export class SettlementTabComponent {
   private markets = computed(() => new Map(this.data().markets.map((m) => [m.id, m])));
   private types = computed(() => new Map(this.data().marketTypes.map((t) => [t.type, t])));
   private labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams));
+  private paramOf(marketId: string) {
+    return this.data().markets.find((x) => x.id === marketId)?.param ?? null;
+  }
   protected sections = computed(() =>
     SECTIONS.map((s) => ({ ...s, markets: this.result().markets.filter((m) => this.types().get(m.type)?.section === s.id) })).filter(
       (s) => s.markets.length,
@@ -156,14 +159,14 @@ export class SettlementTabComponent {
   protected summary = computed(() =>
     whatsappSummary(this.result(), {
       title: this.data().match.title,
-      selectionLabel: (m, s) => this.labeler()(this.types().get(m.type)?.target, s, m.type),
+      selectionLabel: (m, s) => this.labeler()(this.types().get(m.type)?.target, s, m.type, this.paramOf(m.marketId)),
       marketName: (id) => this.marketName(id),
       paidKeys: this.paid(),
     }),
   );
 
   label(m: MarketResult) {
-    return this.labeler()(this.types().get(m.type)?.target, m.winnerSelection, m.type);
+    return this.labeler()(this.types().get(m.type)?.target, m.winnerSelection, m.type, this.paramOf(m.marketId));
   }
   marketName(id: string) {
     return this.markets().get(id)?.name ?? '¿?';

@@ -1,6 +1,6 @@
 export type MatchStatus = 'open' | 'closed' | 'finished';
 export type MarketTarget = 'player' | 'team' | 'number';
-export type MarketSection = 'goles' | 'equipos' | 'amarillas' | 'pichanga' | 'show';
+export type MarketSection = 'partidos' | 'goles' | 'equipos' | 'amarillas' | 'pichanga' | 'show';
 /** Eventos de un solo jugador (se registran con dos toques). */
 export type PlayerEventType = 'yellow' | 'red' | 'nutmeg' | 'blooper' | 'penalty' | 'penalty_miss' | 'post' | 'golazo' | 'dive';
 export type EventType = 'goal' | 'rotation' | PlayerEventType;
@@ -14,6 +14,8 @@ export interface PublicMatch {
   status: MatchStatus;
   closed_at: string | null;
   starting_team_ids: string[] | null;
+  /** Partido de la liga que se está jugando (1–6). */
+  current_game: number;
   pay_method: string;
   pay_number: string | null;
   pay_holder: string | null;
@@ -59,6 +61,8 @@ export interface MatchEvent {
   team_out_id: string | null;
   minute: number;
   seq: number;
+  /** Partido de la liga (1–6). */
+  game: number | null;
 }
 
 export interface PublicBet {
@@ -99,8 +103,9 @@ export const STATUS_LABEL: Record<MatchStatus, string> = {
 };
 
 export const SECTIONS: { id: MarketSection; label: string; icon: string; blurb: string }[] = [
-  { id: 'goles', label: 'Goles', icon: '⚽', blurb: 'Quién la mete y cuándo' },
-  { id: 'equipos', label: 'Equipos', icon: '🛡️', blurb: 'Rey de la cancha, mejor y peor equipo' },
+  { id: 'partidos', label: 'Partidos', icon: '🆚', blurb: 'Ganador y primer gol de cada partido' },
+  { id: 'goles', label: 'Goles', icon: '⚽', blurb: 'Quién la mete y cuándo (toda la liga)' },
+  { id: 'equipos', label: 'Liga', icon: '🏆', blurb: 'Campeón, último, más goleador y más goleado' },
   { id: 'amarillas', label: 'Tarjetas', icon: '🟨', blurb: 'Amarillas y rojas' },
   { id: 'show', label: 'Show', icon: '🎬', blurb: 'Palos, golazos, penales y bloopers' },
   { id: 'pichanga', label: 'Pichanga', icon: '🤡', blurb: 'Autogoles y huachas' },

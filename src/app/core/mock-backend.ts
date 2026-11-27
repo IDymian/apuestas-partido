@@ -8,6 +8,7 @@
 import { inject, Injectable } from '@angular/core';
 import { AdminApi, EventPatch, NewEvent } from './admin-api';
 import { AuthApi } from './auth';
+import { fixture } from '../domain/league';
 import { uuid } from './uid';
 import {
   AdminMatchData,
@@ -43,16 +44,17 @@ export const MARKET_TYPES: MarketType[] = [
   { type: 'top_scorer', label: 'Pichichi (más goles)', target: 'player', section: 'goles', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_to_n_goals', label: 'Primero en llegar a N goles', target: 'player', section: 'goles', has_param: true, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'nth_goal', label: 'Gol número N', target: 'player', section: 'goles', has_param: true, option_min: null, option_max: null, allows_own_goal: true },
-  { type: 'most_wins', label: 'Rey de la cancha', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
-  { type: 'longest_streak', label: 'Racha más larga', target: 'number', section: 'equipos', has_param: false, option_min: 1, option_max: 10, allows_own_goal: false },
-  { type: 'most_exits', label: 'Equipo que más sale', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_yellow', label: 'Primera amarilla', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'last_yellow', label: 'Última amarilla', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'most_yellows', label: 'El más amonestado', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_own_goal', label: 'Primer autogol', target: 'player', section: 'pichanga', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_nutmeg_victim', label: 'Primera huacha', target: 'player', section: 'pichanga', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
-  { type: 'best_team', label: 'Mejor equipo (% de ganados)', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
-  { type: 'worst_team', label: 'Peor equipo (% de ganados)', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'best_team', label: 'Campeón de la liga', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'worst_team', label: 'Último de la tabla', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'top_scoring_team', label: 'Equipo más goleador', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'most_conceded_team', label: 'Equipo más goleado', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'game_first_goal', label: 'Primer gol del partido N', target: 'player', section: 'partidos', has_param: true, option_min: null, option_max: null, allows_own_goal: true },
+  { type: 'game_winner', label: 'Ganador del partido N', target: 'number', section: 'partidos', has_param: true, option_min: 0, option_max: 2, allows_own_goal: false },
   { type: 'first_red', label: 'Primera roja', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_blooper', label: 'Primer blooper', target: 'player', section: 'show', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_penalty_conceded', label: 'Primer penal cometido', target: 'player', section: 'show', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
@@ -63,7 +65,7 @@ export const MARKET_TYPES: MarketType[] = [
   { type: 'total_posts', label: '¿Cuántos palos?', target: 'number', section: 'show', has_param: false, option_min: 0, option_max: 5, allows_own_goal: false },
 ];
 
-/** Igual que los triggers de la BD: nombre, tipo y parámetro de los 25 mercados. */
+/** Igual que los triggers de la BD: los mercados de toda la jornada (los de cada partido se agregan aparte). */
 const DEFAULT_MARKETS: [string, string, number | null][] = [
   ['Primer gol de la noche', 'first_goal', null],
   ['Último gol de la noche', 'last_goal', null],
@@ -72,16 +74,15 @@ const DEFAULT_MARKETS: [string, string, number | null][] = [
   ['Primer sextete', 'first_to_n_goals', 6],
   ['Gol número 15', 'nth_goal', 15],
   ['Gol número 28', 'nth_goal', 28],
-  ['Rey de la cancha', 'most_wins', null],
-  ['Racha más larga', 'longest_streak', null],
-  ['Equipo que más sale', 'most_exits', null],
   ['Primera amarilla', 'first_yellow', null],
   ['Última amarilla', 'last_yellow', null],
   ['El más amonestado', 'most_yellows', null],
   ['Primer autogol', 'first_own_goal', null],
   ['Primera huacha', 'first_nutmeg_victim', null],
-  ['Mejor equipo', 'best_team', null],
-  ['Peor equipo', 'worst_team', null],
+  ['Campeón de la liga', 'best_team', null],
+  ['Último de la tabla', 'worst_team', null],
+  ['Equipo más goleador', 'top_scoring_team', null],
+  ['Equipo más goleado', 'most_conceded_team', null],
   ['Primera roja', 'first_red', null],
   ['Primer blooper', 'first_blooper', null],
   ['Primer penal cometido', 'first_penalty_conceded', null],
@@ -189,6 +190,7 @@ export class MockStore {
       status,
       closed_at: null,
       starting_team_ids: [teamIds[0], teamIds[1]],
+      current_game: 1,
       pay_method: input.pay_method || DEFAULT_PAY_METHOD,
       pay_number: input.pay_number,
       pay_holder: input.pay_holder,
@@ -202,6 +204,14 @@ export class MockStore {
     DEFAULT_MARKETS.forEach(([name, type, param], i) =>
       this.markets.push({ id: `${id}-m${i + 1}`, match_id: id, name, type, param, sort_order: i + 1, is_active: true, rollover_to_market_id: null, initial_pot: 0 }),
     );
+    // Igual que copa_extra_markets(): ganador y primer gol de cada partido.
+    const names = teamIds.map((_, i) => `Equipo ${i + 1}`);
+    fixture(teamIds).forEach((g) => {
+      const vs = `${names[teamIds.indexOf(g.home)]} vs ${names[teamIds.indexOf(g.away)]}`;
+      const base = { match_id: id, is_active: true, rollover_to_market_id: null, initial_pot: 0, param: g.number };
+      this.markets.push({ ...base, id: `${id}-gw${g.number}`, name: `Ganador · ${vs}`, type: 'game_winner', sort_order: 30 + g.number * 2 });
+      this.markets.push({ ...base, id: `${id}-gf${g.number}`, name: `Primer gol · ${vs}`, type: 'game_first_goal', sort_order: 31 + g.number * 2 });
+    });
     return m;
   }
 
@@ -244,7 +254,7 @@ export class MockStore {
     const scenarios: [string, string, MatchStatus, number][] = [
       ['FINAL', 'Copa Álvaro · Ensayo', 'finished', 99],
       ['ABIERTA', 'Copa Álvaro', 'open', 0],
-      ['DEMO26', 'Copa Álvaro · En vivo', 'closed', 13],
+      ['DEMO26', 'Copa Álvaro · En vivo', 'closed', 11],
     ];
     for (const [code, title, status, nEvents] of scenarios) {
       const id = `demo-${code}`;
@@ -257,14 +267,14 @@ export class MockStore {
 
       this.addTicket(id, 'Ana', [
         { market: 'Primer gol de la noche', player: 'Victor Manuel Espino', amount: 4 },
-        { market: 'Rey de la cancha', team: '1', amount: 3 },
+        { market: 'Campeón de la liga', team: '1', amount: 3 },
         { market: 'Primera amarilla', player: 'Diego Guevara', amount: 2 },
-        { market: 'Racha más larga', option: 3, amount: 2 },
+        { market: 'Ganador · Equipo 1 vs Equipo 2', option: 1, amount: 2 },
       ], 'approved', 180);
       this.addTicket(id, 'Luis', [
         { market: 'Primer gol de la noche', player: 'Adrian Ruiz', amount: 2 },
         { market: 'Pichichi de la noche', player: 'Victor Manuel Espino', amount: 5 },
-        { market: 'Equipo que más sale', team: '3', amount: 3 },
+        { market: 'Equipo más goleado', team: '4', amount: 3 },
         { market: 'Primer autogol', player: 'Nestor Rojas', amount: 1 },
       ], 'approved', 170);
       this.addTicket(id, 'Rosa', [
@@ -273,53 +283,59 @@ export class MockStore {
         { market: 'Gol número 15', player: 'Autogol', amount: 1 },
         { market: 'Primera huacha', player: 'Paul Espinoza', amount: 4 },
         { market: 'Primer palo', player: 'Adrian Ruiz', amount: 2 },
-        { market: 'Mejor equipo', team: '1', amount: 3 },
+        { market: 'Primer gol · Equipo 3 vs Equipo 4', player: 'David Málaga', amount: 3 },
       ], 'approved', 160);
       this.addTicket(id, 'Fabri', [
         { market: 'Primer golazo', player: 'Victor Manuel Espino', amount: 5 },
         { market: 'Primer blooper', player: 'Manuel Tumi', amount: 2 },
         { market: '¿Cuántos palos habrá?', option: 2, amount: 3 },
-        { market: 'Peor equipo', team: '3', amount: 2 },
+        { market: 'Último de la tabla', team: '2', amount: 2 },
         { market: 'Primera roja', player: 'Diego Guevara', amount: 4 },
       ], 'approved', 155);
       this.addTicket(id, 'Beto', [
-        { market: 'Rey de la cancha', team: '2', amount: 5 },
-        { market: 'Racha más larga', option: 2, amount: 3 },
+        { market: 'Campeón de la liga', team: '2', amount: 5 },
+        { market: 'Ganador · Equipo 1 vs Equipo 3', option: 0, amount: 3 },
         { market: 'El más amonestado', player: 'Diego Guevara', amount: 2 },
         { market: 'Última amarilla', player: 'Manuel Tumi', amount: 1 },
         { market: 'Primer sextete', player: 'Adrian Ruiz', amount: 1 },
         { market: 'Gol número 28', player: 'David Málaga', amount: 1 },
       ], 'approved', 150);
       this.addTicket(id, 'Carla', [{ market: 'Primer gol de la noche', player: 'Paul Espinoza', amount: 5 }], 'pending', 140);
-      this.addTicket(id, 'Dani', [{ market: 'Rey de la cancha', team: '3', amount: 5 }], 'rejected', 135, 'No llegó el Plin');
+      this.addTicket(id, 'Dani', [{ market: 'Campeón de la liga', team: '3', amount: 5 }], 'rejected', 135, 'Apuesta repetida');
 
       const T = (l: string) => `${id}-team-${l}`;
       const P = (n: string) => this.playerId(id, n);
+      /** Evento de un jugador en el partido `game` (gol si se pasa el equipo). */
+      const E = (type: EventRow['type'], player: string, game: number, minute: number, team?: string, own = false): Omit<EventRow, 'id' | 'match_id' | 'seq'> => ({
+        type, player_id: P(player), team_id: team ? T(team) : null, is_own_goal: own, team_out_id: null, minute, game,
+      });
+      // Liga: P1 E1 v E2 · P2 E3 v E4 · P3 E1 v E3 · P4 E2 v E4 · P5 E1 v E4 · P6 E2 v E3
       const script: Omit<EventRow, 'id' | 'match_id' | 'seq'>[] = [
-        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('1'), is_own_goal: false, team_out_id: null, minute: 5 },
-        { type: 'golazo', player_id: P('Victor Manuel Espino'), team_id: null, is_own_goal: false, team_out_id: null, minute: 5 },
-        { type: 'post', player_id: P('Adrian Ruiz'), team_id: null, is_own_goal: false, team_out_id: null, minute: 7 },
-        { type: 'yellow', player_id: P('Diego Guevara'), team_id: null, is_own_goal: false, team_out_id: null, minute: 8 },
-        { type: 'goal', player_id: P('Adrian Ruiz'), team_id: T('1'), is_own_goal: false, team_out_id: null, minute: 12 },
-        { type: 'nutmeg', player_id: P('Paul Espinoza'), team_id: null, is_own_goal: false, team_out_id: null, minute: 15 },
-        { type: 'blooper', player_id: P('Manuel Tumi'), team_id: null, is_own_goal: false, team_out_id: null, minute: 17 },
-        { type: 'goal', player_id: P('Nestor Rojas'), team_id: T('2'), is_own_goal: true, team_out_id: null, minute: 20 },
-        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('2'), is_own_goal: false, team_out_id: null, minute: 26 },
-        { type: 'yellow', player_id: P('Diego Guevara'), team_id: null, is_own_goal: false, team_out_id: null, minute: 30 },
-        { type: 'rotation', player_id: null, team_id: null, is_own_goal: false, team_out_id: T('2'), minute: 35 },
-        { type: 'goal', player_id: P('David Málaga'), team_id: T('3'), is_own_goal: false, team_out_id: null, minute: 41 },
-        { type: 'yellow', player_id: P('Manuel Tumi'), team_id: null, is_own_goal: false, team_out_id: null, minute: 44 },
+        E('goal', 'Victor Manuel Espino', 1, 5, '1'),
+        E('golazo', 'Victor Manuel Espino', 1, 5),
+        E('post', 'Adrian Ruiz', 1, 7),
+        E('yellow', 'Diego Guevara', 1, 8),
+        E('goal', 'Adrian Ruiz', 1, 12, '1'),
+        E('goal', 'Nestor Rojas', 1, 20, '2', true), // P1: Equipo 1 2-1 Equipo 2
+        E('nutmeg', 'Paul Espinoza', 2, 24),
+        E('blooper', 'Manuel Tumi', 2, 27),
+        E('goal', 'David Málaga', 2, 31, '3'), // P2: Equipo 3 1-0 Equipo 4
+        E('yellow', 'Diego Guevara', 3, 44),
+        E('yellow', 'Manuel Tumi', 3, 47),
         // Solo en FINAL:
-        { type: 'penalty', player_id: P('Bryan Eduardo Barba'), team_id: null, is_own_goal: false, team_out_id: null, minute: 47 },
-        { type: 'penalty_miss', player_id: P('Alvaro Fabrizzio Salazar'), team_id: null, is_own_goal: false, team_out_id: null, minute: 48 },
-        { type: 'red', player_id: P('Diego Guevara'), team_id: null, is_own_goal: false, team_out_id: null, minute: 49 },
-        { type: 'dive', player_id: P('Oscar Fernando Vara'), team_id: null, is_own_goal: false, team_out_id: null, minute: 55 },
-        { type: 'post', player_id: P('David Málaga'), team_id: null, is_own_goal: false, team_out_id: null, minute: 66 },
-        { type: 'goal', player_id: P('David Málaga'), team_id: T('3'), is_own_goal: false, team_out_id: null, minute: 52 },
-        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('2'), is_own_goal: false, team_out_id: null, minute: 60 },
-        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('2'), is_own_goal: false, team_out_id: null, minute: 71 },
-        { type: 'goal', player_id: P('Victor Manuel Espino'), team_id: T('2'), is_own_goal: false, team_out_id: null, minute: 80 },
+        E('goal', 'Victor Manuel Espino', 3, 52, '1'), // P3: Equipo 1 1-0 Equipo 3
+        E('penalty', 'Bryan Eduardo Barba', 3, 55),
+        E('penalty_miss', 'Alvaro Fabrizzio Salazar', 3, 56),
+        E('goal', 'Lorenzo Balicco', 4, 61, '2'),
+        E('red', 'Diego Guevara', 4, 63),
+        E('goal', 'Lorenzo Balicco', 4, 66, '2'), // P4: Equipo 2 2-0 Equipo 4
+        E('dive', 'Oscar Fernando Vara', 5, 70),
+        E('goal', 'Iker Gabriel Barturen', 5, 74, '4'), // P5: Equipo 1 0-1 Equipo 4
+        E('post', 'David Málaga', 6, 80),
+        E('goal', 'David Málaga', 6, 84, '3'),
+        E('goal', 'Braden García', 6, 88, '2'), // P6: Equipo 2 1-1 Equipo 3
       ];
+      this.matches.find((m) => m.id === id)!.current_game = status === 'finished' ? 6 : status === 'closed' ? 3 : 1;
       for (const e of script.slice(0, nEvents)) this.events.push({ ...e, id: uid(), match_id: id, seq: this.nextSeq() });
 
       const ago = (min: number) => new Date(Date.now() - min * 60_000).toISOString();
@@ -556,6 +572,11 @@ export class MockAdminApi extends AdminApi {
     const m = this.s.matches.find((x) => x.id === matchId)!;
     if (status === 'closed' && m.status === 'open' && !m.closed_at) m.closed_at = new Date().toISOString();
     m.status = status;
+    this.s.notify(matchId);
+  }
+
+  async setCurrentGame(matchId: string, game: number) {
+    this.s.matches.find((x) => x.id === matchId)!.current_game = game;
     this.s.notify(matchId);
   }
 

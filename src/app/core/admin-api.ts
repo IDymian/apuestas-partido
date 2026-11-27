@@ -17,8 +17,8 @@ import { SupabaseService } from './supabase.service';
 import { uuid } from './uid';
 
 
-export type NewEvent = Pick<EventRow, 'match_id' | 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute'>;
-export type EventPatch = Partial<Pick<EventRow, 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute'>>;
+export type NewEvent = Pick<EventRow, 'match_id' | 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute' | 'game'>;
+export type EventPatch = Partial<Pick<EventRow, 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute' | 'game'>>;
 
 /** Operaciones del organizador (requieren login de admin). */
 export abstract class AdminApi {
@@ -34,6 +34,8 @@ export abstract class AdminApi {
   abstract saveMatch(m: MatchInput): Promise<MatchRow>;
   abstract setStatus(matchId: string, status: MatchStatus): Promise<void>;
   abstract setStartingTeams(matchId: string, teamIds: [string, string]): Promise<void>;
+  /** Partido de la liga que se está jugando. */
+  abstract setCurrentGame(matchId: string, game: number): Promise<void>;
   abstract uploadQr(matchId: string, file: Blob): Promise<void>;
   abstract removeQr(matchId: string): Promise<void>;
 
@@ -166,6 +168,11 @@ export class SupabaseAdminApi extends AdminApi {
 
   async setStatus(matchId: string, status: MatchStatus) {
     const { error } = await this.db.from('matches').update({ status }).eq('id', matchId);
+    if (error) throw error;
+  }
+
+  async setCurrentGame(matchId: string, game: number) {
+    const { error } = await this.db.from('matches').update({ current_game: game }).eq('id', matchId);
     if (error) throw error;
   }
 

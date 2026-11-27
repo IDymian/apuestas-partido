@@ -8,6 +8,7 @@
  * o un número (como texto), según el `target` del tipo de mercado.
  */
 import { courtTimeline, CourtTimeline, leaderFirstToReach, sortEvents, TimelineEvent } from './timeline';
+import { champion, lastPlace, league, League, uniqueMax } from './league';
 
 export type TicketStatus = 'pending' | 'approved' | 'rejected';
 export type MarketTarget = 'player' | 'team' | 'number';
@@ -46,6 +47,10 @@ export interface SettleInput {
   ownGoalOptionId: string | null;
   /** Deben venir en orden de creación del ticket: el último ganador absorbe el redondeo. */
   bets: SettleBet[];
+  /** Partido de la liga que se está jugando (por defecto: todos jugados). */
+  currentGame?: number;
+  /** La jornada terminó: el partido actual cuenta como jugado. */
+  finished?: boolean;
 }
 
 export interface ResolveContext {
@@ -54,6 +59,8 @@ export interface ResolveContext {
   timeline: CourtTimeline;
   param: number | null;
   ownGoalOptionId: string | null;
+  /** Liga todos contra todos: partidos, marcadores y tabla. */
+  league: League;
 }
 
 /** Lo que decide un resolver a partir de los eventos. */
@@ -111,6 +118,7 @@ export interface SettlementResult {
   /** Total que se queda el organizador. */
   houseCents: number;
   timeline: CourtTimeline;
+  league: League;
 }
 
 // ---------------------------------------------------------------------------
@@ -144,6 +152,7 @@ export const POSTS_MAX_OPTION = 5;
 
 /** Opción máxima ("N o más") de cada mercado a número. */
 export function numberMaxOption(type: string | undefined): number {
+  if (type === 'game_winner') return 2;
   return type === 'total_posts' ? POSTS_MAX_OPTION : STREAK_MAX_OPTION;
 }
 
@@ -187,6 +196,14 @@ function teamByWinRate(c: ResolveContext, mode: 'best' | 'worst'): Resolution {
   return { kind: 'winner', selection: rows[0].id };
 }
 
+const NOT_PLAYED = 'Aún no se juega';
+const NO_GAMES = 'No se jugó ningún partido';
+const TIED = 'Empate en la tabla';
+const leagueWinner = (c: ResolveContext, pick: string | null): Resolution =>
+  pick ? { kind: 'winner', selection: pick } : c.league.table.every((r) => r.played === 0) ? { kind: 'refund', reason: NO_GAMES } : { kind: 'refund', reason: TIED };
+/** Partido N de la liga (param). */
+const gameOf = (c: ResolveContext) => c.league.games.find((g) => g.number === c.param);
+
 /** Registro de tipos de mercado. Para un tipo nuevo, agrega aquí su resolver. */
 export const RESOLVERS: Record<string, Resolver> = {
   // ⚽ Goles (a jugador)
@@ -224,8 +241,30 @@ export const RESOLVERS: Record<string, Resolver> = {
       ? { kind: 'winner', selection: String(Math.min(c.timeline.maxStreak, STREAK_MAX_OPTION)) }
       : { kind: 'refund', reason: NO_GOALS },
   most_exits: (c) => winner(c.timeline.mostExitsTeamId, NO_GOALS),
-  best_team: (c) => teamByWinRate(c, 'best'),
-  worst_team: (c) => teamByWinRate(c, 'worst'),
+  // Liga: campeón y último por puntos (desempate: diferencia de gol y goles a favor).
+  best_team: (c) => leagueWinner(c, champion(c.league)),
+  worst_team: (c) => leagueWinner(c, lastPlace(c.league)),
+  top_scoring_team: (c) => leagueWinner(c, uniqueMax(c.league, 'gf')),
+  most_conceded_team: (c) => leagueWinner(c, uniqueMax(c.league, 'ga')),
+  /** @deprecated formato "ganador se queda": por % de partiditos ganados. */
+  best_win_rate: (c) => teamByWinRate(c, 'best'),
+
+  // 🆚 Por partido (param = número de partido)
+  game_first_goal: (c) => {
+    const g = gameOf(c);
+    if (!g) return { kind: 'unresolved', reason: 'Falta el número de partido' };
+    if (g.status === 'pending') return { kind: 'unresolved', reason: NOT_PLAYED };
+    const e = c.events.find((x) => x.id === g.goalEventIds[0]);
+    if (e) return goalSelection(c, e);
+    return g.status === 'played' ? { kind: 'refund', reason: 'Terminó 0-0' } : { kind: 'unresolved', reason: 'Sin goles todavía' };
+  },
+  game_winner: (c) => {
+    const g = gameOf(c);
+    if (!g) return { kind: 'unresolved', reason: 'Falta el número de partido' };
+    if (g.status === 'pending') return { kind: 'unresolved', reason: NOT_PLAYED };
+    // 1 = gana el primero, 0 = empate, 2 = gana el segundo
+    return { kind: 'winner', selection: g.homeGoals > g.awayGoals ? '1' : g.homeGoals < g.awayGoals ? '2' : '0' };
+  },
 
   // 🟨 Amarillas (a jugador)
   first_yellow: (c) => winner(ofType(c, 'yellow')[0]?.playerId, NO_YELLOWS),
@@ -329,6 +368,7 @@ function processingOrder(markets: SettleMarket[]): { order: SettleMarket[]; targ
 export function settle(input: SettleInput, resolvers: Record<string, Resolver> = RESOLVERS): SettlementResult {
   const events = sortEvents(input.events);
   const timeline = courtTimeline(events, input.teamIds, input.startingTeamIds);
+  const lg = league(events, input.teamIds, input.currentGame ?? Number.MAX_SAFE_INTEGER, input.finished ?? true);
   const active = input.markets.filter((m) => m.isActive);
   const approved = input.bets.filter((b) => b.ticketStatus === 'approved');
   const { order, target } = processingOrder(active);
@@ -363,7 +403,7 @@ export function settle(input: SettleInput, resolvers: Record<string, Resolver> =
 
     const resolver = resolvers[m.type];
     const res: Resolution = resolver
-      ? resolver({ events, timeline, param: m.param, ownGoalOptionId: input.ownGoalOptionId })
+      ? resolver({ events, timeline, param: m.param, ownGoalOptionId: input.ownGoalOptionId, league: lg })
       : { kind: 'unresolved', reason: `Tipo de mercado desconocido: ${m.type}` };
 
     if (res.kind === 'unresolved') {
@@ -425,5 +465,6 @@ export function settle(input: SettleInput, resolvers: Record<string, Resolver> =
     people: [...people.values()].sort((a, b) => b.totalCents - a.totalCents || a.bettorName.localeCompare(b.bettorName)),
     houseCents: markets.reduce((s, r) => s + r.houseCents, 0),
     timeline,
+    league: lg,
   };
 }

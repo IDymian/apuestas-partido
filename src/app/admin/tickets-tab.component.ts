@@ -139,7 +139,7 @@ export class TicketsTabComponent {
   }
   choice(b: BetRow) {
     const t = this.marketTarget().get(b.market_id);
-    return this.labeler()(t?.target, betSelection(b), t?.type);
+    return this.labeler()(t?.target, betSelection(b), t?.type, this.data().markets.find((x) => x.id === b.market_id)?.param);
   }
   market(id: string) {
     return this.markets().get(id) ?? '¿?';

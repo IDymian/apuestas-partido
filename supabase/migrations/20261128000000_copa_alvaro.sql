@@ -9,6 +9,9 @@
 --   * Mercados nuevos: roja, blooper, penal cometido / fallado, palo, golazo,
 --     piscinazo, cuántos palos, mejor y peor equipo.
 --   * 4 equipos (Equipo 1, 2, 3 y 4) y los 20 jugadores de siempre por defecto.
+--   * Liga todos contra todos: 6 partidos uno por uno (1v2, 3v4, 1v3, 2v4, 1v4, 2v3).
+--     `matches.current_game` es el partido en juego y cada evento guarda su `game`.
+--     Mercados por partido (primer gol y ganador) y de la liga (campeón, último…).
 --   * Billetera: cada usuario recarga saldo plineando al QR (`deposits`). El
 --     organizador acepta el depósito en su vista de Pagos y recién ahí se suma
 --     al saldo. Con el saldo se apuesta: cada ticket se descuenta al instante.
@@ -30,13 +33,59 @@ alter table public.events add constraint events_shape check (
   or (type = 'rotation' and team_out_id is not null and player_id is null and team_id is null and not is_own_goal)
 );
 
+alter table public.events add column if not exists game int check (game is null or game between 1 and 20);
+alter table public.matches add column if not exists current_game int not null default 1 check (current_game between 1 and 20);
+
+-- Equipos de un partido de la liga (orden de los equipos: sort_order, nombre). Null si no son 4 equipos.
+create or replace function public.fixture_pair(p_match uuid, p_game int)
+returns uuid[]
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  with t as (
+    select array_agg(id order by sort_order, name) ids from teams where match_id = p_match
+  ), f(game, h, a) as (
+    values (1, 1, 2), (2, 3, 4), (3, 1, 3), (4, 2, 4), (5, 1, 4), (6, 2, 3)
+  )
+  select array[t.ids[f.h], t.ids[f.a]] from t, f
+  where f.game = p_game and cardinality(t.ids) = 4;
+$$;
+revoke execute on function public.fixture_pair(uuid, int) from public, anon, authenticated;
+
+-- Un gol de la liga debe ser de uno de los dos equipos de ese partido.
+create or replace function public.tg_event_game_check()
+returns trigger
+language plpgsql
+as $$
+declare
+  v_pair uuid[];
+begin
+  if new.type = 'goal' and new.game is not null then
+    v_pair := public.fixture_pair(new.match_id, new.game);
+    if v_pair is not null and not (new.team_id = any (v_pair)) then
+      raise exception 'Ese equipo no juega el partido %', new.game;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+create trigger events_game_check
+before insert or update on public.events
+for each row execute function public.tg_event_game_check();
+
 alter table public.market_types drop constraint if exists market_types_section_check;
 alter table public.market_types add constraint market_types_section_check
-  check (section in ('goles', 'equipos', 'amarillas', 'pichanga', 'show'));
+  check (section in ('goles', 'equipos', 'amarillas', 'pichanga', 'show', 'partidos'));
 
 insert into public.market_types (type, label, target, section, has_param, option_min, option_max, allows_own_goal) values
-  ('best_team',              'Mejor equipo (% de ganados)', 'team',   'equipos',   false, null, null, false),
-  ('worst_team',             'Peor equipo (% de ganados)',  'team',   'equipos',   false, null, null, false),
+  ('best_team',              'Campeón de la liga',          'team',   'equipos',   false, null, null, false),
+  ('worst_team',             'Último de la tabla',          'team',   'equipos',   false, null, null, false),
+  ('top_scoring_team',       'Equipo más goleador',         'team',   'equipos',   false, null, null, false),
+  ('most_conceded_team',     'Equipo más goleado',          'team',   'equipos',   false, null, null, false),
+  ('game_first_goal',        'Primer gol del partido N',    'player', 'partidos',  true,  null, null, true),
+  ('game_winner',            'Ganador del partido N',       'number', 'partidos',  true,  0,    2,    false),
   ('first_red',              'Primera roja',                'player', 'amarillas', false, null, null, false),
   ('first_blooper',          'Primer blooper',              'player', 'show',      false, null, null, false),
   ('first_penalty_conceded', 'Primer penal cometido',       'player', 'show',      false, null, null, false),
@@ -50,25 +99,47 @@ on conflict (type) do nothing;
 -- Mercados que se agregan a cada jornada (nuevas y las que aún no terminan).
 create or replace function public.copa_extra_markets(p_match uuid)
 returns void
-language sql
+language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  v_teams text[];
+  v_h int[] := array[1, 3, 1, 2, 1, 2];
+  v_a int[] := array[2, 4, 3, 4, 4, 3];
+  i int;
+begin
   insert into markets (match_id, name, type, param, sort_order)
   select p_match, x.name, x.type, null, x.ord
   from (values
-    ('Mejor equipo',           'best_team',              16),
-    ('Peor equipo',            'worst_team',             17),
-    ('Primera roja',           'first_red',              18),
-    ('Primer blooper',         'first_blooper',          19),
-    ('Primer penal cometido',  'first_penalty_conceded', 20),
-    ('Primer penal fallado',   'first_penalty_missed',   21),
-    ('Primer palo',            'first_post',             22),
-    ('Primer golazo',          'first_golazo',           23),
-    ('Primer piscinazo',       'first_dive',             24),
-    ('¿Cuántos palos habrá?',  'total_posts',            25)
+    ('Campeón de la liga',     'best_team',              16),
+    ('Último de la tabla',     'worst_team',             17),
+    ('Equipo más goleador',    'top_scoring_team',       18),
+    ('Equipo más goleado',     'most_conceded_team',     19),
+    ('Primera roja',           'first_red',              20),
+    ('Primer blooper',         'first_blooper',          21),
+    ('Primer penal cometido',  'first_penalty_conceded', 22),
+    ('Primer penal fallado',   'first_penalty_missed',   23),
+    ('Primer palo',            'first_post',             24),
+    ('Primer golazo',          'first_golazo',           25),
+    ('Primer piscinazo',       'first_dive',             26),
+    ('¿Cuántos palos habrá?',  'total_posts',            27)
   ) as x(name, type, ord)
   where not exists (select 1 from markets k where k.match_id = p_match and k.type = x.type);
+
+  -- Por partido: primer gol y ganador (1 / empate / 2).
+  select array_agg(name order by sort_order, name) into v_teams from teams where match_id = p_match;
+  if coalesce(cardinality(v_teams), 0) = 4 then
+    for i in 1 .. 6 loop
+      insert into markets (match_id, name, type, param, sort_order)
+      select p_match, 'Ganador · ' || v_teams[v_h[i]] || ' vs ' || v_teams[v_a[i]], 'game_winner', i, 30 + i * 2
+      where not exists (select 1 from markets k where k.match_id = p_match and k.type = 'game_winner' and k.param = i);
+      insert into markets (match_id, name, type, param, sort_order)
+      select p_match, 'Primer gol · ' || v_teams[v_h[i]] || ' vs ' || v_teams[v_a[i]], 'game_first_goal', i, 31 + i * 2
+      where not exists (select 1 from markets k where k.match_id = p_match and k.type = 'game_first_goal' and k.param = i);
+    end loop;
+  end if;
+end;
 $$;
 revoke execute on function public.copa_extra_markets(uuid) from public, anon, authenticated;
 
@@ -90,7 +161,6 @@ create trigger matches_extra_markets
 after insert on public.matches
 for each row execute function public.tg_match_extra_markets();
 
-select public.copa_extra_markets(id) from public.matches where status <> 'finished';
 
 -- -----------------------------------------------------------------------------
 -- 2. Jornada por defecto: 4 equipos, 20 jugadores, 15 mercados base y pago por Plin
@@ -132,9 +202,6 @@ begin
     (new.id, 'Primer sextete',          'first_to_n_goals',    6,    5),
     (new.id, 'Gol número 15',           'nth_goal',            15,   6),
     (new.id, 'Gol número 28',           'nth_goal',            28,   7),
-    (new.id, 'Rey de la cancha',        'most_wins',           null, 8),
-    (new.id, 'Racha más larga',         'longest_streak',      null, 9),
-    (new.id, 'Equipo que más sale',     'most_exits',          null, 10),
     (new.id, 'Primera amarilla',        'first_yellow',        null, 11),
     (new.id, 'Última amarilla',         'last_yellow',         null, 12),
     (new.id, 'El más amonestado',       'most_yellows',        null, 13),
@@ -152,6 +219,68 @@ where m.id = t.match_id and m.status <> 'finished' and t.name in ('Equipo A', 'E
 insert into public.teams (match_id, name, sort_order)
 select m.id, 'Equipo 4', 4 from public.matches m
 where m.status <> 'finished' and not exists (select 1 from public.teams t where t.match_id = m.id and t.name = 'Equipo 4');
+
+-- Mercados de liga y por partido; los de "ganador se queda" se apagan si nadie apostó.
+select public.copa_extra_markets(id) from public.matches where status <> 'finished';
+update public.markets k set is_active = false
+from public.matches m
+where m.id = k.match_id and m.status <> 'finished'
+  and k.type in ('most_wins', 'longest_streak', 'most_exits')
+  and not exists (select 1 from public.bets b where b.market_id = k.id);
+
+-- Lo público incluye el partido en juego y el partido de cada evento.
+create or replace function public.get_public_match(p_code text)
+returns jsonb
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'match', jsonb_build_object(
+      'id', m.id, 'title', m.title, 'starts_at', m.starts_at, 'access_code', m.access_code,
+      'status', m.status, 'closed_at', m.closed_at, 'starting_team_ids', to_jsonb(m.starting_team_ids),
+      'current_game', m.current_game,
+      'pay_method', m.pay_method, 'pay_number', m.pay_number, 'pay_holder', m.pay_holder, 'pay_qr_path', m.pay_qr_path
+    ),
+    'teams', coalesce((
+      select jsonb_agg(jsonb_build_object('id', t.id, 'name', t.name, 'sort_order', t.sort_order, 'color', t.color) order by t.sort_order, t.name)
+      from teams t where t.match_id = m.id
+    ), '[]'::jsonb),
+    'players', coalesce((
+      select jsonb_agg(jsonb_build_object('id', p.id, 'name', p.name, 'is_own_goal', p.is_own_goal, 'sort_order', p.sort_order)
+                       order by p.is_own_goal, p.sort_order, p.name)
+      from players p where p.match_id = m.id
+    ), '[]'::jsonb),
+    'markets', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', k.id, 'name', k.name, 'type', k.type, 'param', k.param, 'sort_order', k.sort_order,
+        'is_active', k.is_active, 'rollover_to_market_id', k.rollover_to_market_id, 'initial_pot', k.initial_pot,
+        'target', mt.target, 'section', mt.section, 'option_min', mt.option_min, 'option_max', mt.option_max,
+        'allows_own_goal', mt.allows_own_goal
+      ) order by k.sort_order, k.created_at)
+      from markets k join market_types mt on mt.type = k.type
+      where k.match_id = m.id and k.is_active
+    ), '[]'::jsonb),
+    'events', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', e.id, 'type', e.type, 'player_id', e.player_id, 'team_id', e.team_id,
+        'is_own_goal', e.is_own_goal, 'team_out_id', e.team_out_id, 'minute', e.minute, 'seq', e.seq, 'game', e.game
+      ) order by e.minute, e.seq)
+      from events e where e.match_id = m.id
+    ), '[]'::jsonb),
+    'bets', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', b.id, 'ticket_id', b.ticket_id, 'bettor_name', b.bettor_name, 'market_id', b.market_id,
+        'player_id', b.player_id, 'team_id', b.team_id, 'option_value', b.option_value,
+        'amount', b.amount, 'created_at', b.ticket_created_at
+      ) order by b.ticket_created_at, b.ticket_id, b.id)
+      from public_bets b where b.match_id = m.id
+    ), '[]'::jsonb)
+  )
+  from matches m
+  where m.access_code = upper(btrim(p_code));
+$$;
 
 -- -----------------------------------------------------------------------------
 -- 3. Cuentas: perfiles con usuario único

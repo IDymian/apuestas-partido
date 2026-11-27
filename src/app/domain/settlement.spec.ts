@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatSoles, personKey, SettleBet, SettleInput, SettleMarket, settle, splitProportional, TicketStatus } from './settlement';
 import { courtTimeline, TimelineEvent } from './timeline';
+import { fixture, league } from './league';
 
 // ---- Fixtures --------------------------------------------------------------
 
@@ -311,8 +312,6 @@ describe('mercados de show y de equipos nuevos', () => {
     ['first_golazo', 'Primer golazo'],
     ['first_dive', 'Primer piscinazo'],
     ['total_posts', 'Cuántos palos'],
-    ['best_team', 'Mejor equipo'],
-    ['worst_team', 'Peor equipo'],
   ];
   const showMarkets = (): SettleMarket[] =>
     SHOW_DEFS.map(([type, name], i) => ({ id: name, name, type, param: null, sortOrder: i + 1, isActive: true, rolloverToMarketId: null, initialPot: 0 }));
@@ -346,21 +345,97 @@ describe('mercados de show y de equipos nuevos', () => {
     const r = run(Array.from({ length: 7 }, () => p('post', 'pepe')));
     expect(market(r, 'Cuántos palos').winnerSelection).toBe('5');
   });
+});
 
-  it('mejor y peor equipo por % de partiditos ganados', () => {
-    // R-A en cancha. Azul gana 2 (sale R, luego V), Rojo gana 1 de 2, Verde pierde su único.
-    // Rojo: 1G 1S (50%) · Azul: 2G 1S (67%) · Verde: 0G 1S (0%)
-    const r = run([goal('pepe', A), goal('lucho', A), goal('juan', R), goal('pepe', A)]);
-    const t = r.timeline.stats;
-    expect([t[R].wins, t[A].wins, t[V].wins]).toEqual([1, 2, 0]);
-    expect(market(r, 'Mejor equipo').winnerSelection).toBe(A);
-    expect(market(r, 'Peor equipo').winnerSelection).toBe(V);
+// ---- Liga todos contra todos (4 equipos, 6 partidos) ------------------------
+
+describe('liga todos contra todos', () => {
+  const T1 = 'e1', T2 = 'e2', T3 = 'e3', T4 = 'e4';
+  const TEAMS4 = [T1, T2, T3, T4];
+  const DEFS: [string, string, number | null][] = [
+    ['best_team', 'Campeón', null],
+    ['worst_team', 'Último', null],
+    ['top_scoring_team', 'Más goleador', null],
+    ['most_conceded_team', 'Más goleado', null],
+    ['game_first_goal', 'Primer gol P1', 1],
+    ['game_winner', 'Ganador P1', 1],
+    ['game_first_goal', 'Primer gol P2', 2],
+    ['game_winner', 'Ganador P2', 2],
+    ['game_winner', 'Ganador P6', 6],
+    ['first_goal', 'Primer gol de la noche', null],
+  ];
+  const mk = (): SettleMarket[] =>
+    DEFS.map(([type, name, param], i) => ({ id: name, name, type, param, sortOrder: i + 1, isActive: true, rolloverToMarketId: null, initialPot: 0 }));
+  const g = (game: number, player: string, team: string, own = false) => ev({ type: 'goal', playerId: player, teamId: team, isOwnGoal: own, game });
+  const run = (events: TimelineEvent[], currentGame: number, finished = false, bets: SettleBet[] = []) =>
+    settle({ markets: mk(), events, bets, teamIds: TEAMS4, startingTeamIds: [], ownGoalOptionId: OG, currentGame, finished });
+  const w = (r: ReturnType<typeof settle>, id: string) => market(r, id);
+
+  it('fixture: 1v2, 3v4, 1v3, 2v4, 1v4, 2v3', () => {
+    expect(fixture(TEAMS4).map((x) => `${x.home}-${x.away}`)).toEqual(['e1-e2', 'e3-e4', 'e1-e3', 'e2-e4', 'e1-e4', 'e2-e3']);
   });
 
-  it('mejor/peor equipo sin goles → devolución', () => {
-    const r = run([p('red', 'juan')]);
-    expect(market(r, 'Mejor equipo').outcome).toBe('refund');
-    expect(market(r, 'Peor equipo').outcome).toBe('refund');
+  it('tabla: 3 por ganar, 1 por empatar, desempate por diferencia y goles', () => {
+    // P1: E1 2-1 E2 · P2: E3 0-0 E4 · P3 (en juego): E1 0-1 E3
+    const l = league([g(1, 'a', T1), g(1, 'b', T2), g(1, 'c', T1), g(3, 'd', T3)], TEAMS4, 3, false);
+    expect(l.games.map((x) => x.status)).toEqual(['played', 'played', 'live', 'pending', 'pending', 'pending']);
+    const row = (t: string) => l.table.find((r) => r.teamId === t)!;
+    expect([row(T1).points, row(T2).points, row(T3).points, row(T4).points]).toEqual([3, 0, 4, 1]);
+    expect(l.table.map((r) => r.teamId)).toEqual([T3, T1, T4, T2]);
+    expect(row(T1).gd).toBe(0);
+  });
+
+  it('gol en un partido que no es el suyo o sin partido → se ignora', () => {
+    const l = league([g(1, 'a', T3), ev({ type: 'goal', playerId: 'b', teamId: T1 })], TEAMS4, 1, false);
+    expect(l.invalidEventIds.length).toBe(2);
+    expect(l.games[0].homeGoals + l.games[0].awayGoals).toBe(0);
+  });
+
+  it('primer gol y ganador por partido (1 = primero, 0 = empate, 2 = segundo)', () => {
+    const r = run([g(1, 'pepe', T2), g(1, 'juan', T1, true), g(1, 'lucho', T2)], 2);
+    expect(w(r, 'Primer gol P1').winnerSelection).toBe('pepe');
+    expect(w(r, 'Ganador P1').winnerSelection).toBe('2');
+    // P2 en juego sin goles: aún nada; P6 pendiente
+    expect(w(r, 'Primer gol P2').outcome).toBe('unresolved');
+    expect(w(r, 'Ganador P2').winnerSelection).toBe('0');
+    expect(w(r, 'Ganador P6').outcome).toBe('unresolved');
+    expect(w(r, 'Primer gol de la noche').winnerSelection).toBe('pepe');
+  });
+
+  it('autogol como primer gol del partido → gana la opción "Autogol"', () => {
+    const r = run([g(1, 'juan', T2, true)], 1);
+    expect(w(r, 'Primer gol P1').winnerSelection).toBe(OG);
+  });
+
+  it('partido terminado 0-0 → primer gol se devuelve y el ganador es empate', () => {
+    const r = run([], 2);
+    expect(w(r, 'Primer gol P1').outcome).toBe('refund');
+    expect(w(r, 'Ganador P1').winnerSelection).toBe('0');
+  });
+
+  it('campeón, último, más goleador y más goleado al final', () => {
+    // E1 gana todo; E4 pierde todo; E2 mete muchos goles; E3 recibe muchos
+    const ev6 = [
+      g(1, 'a', T1), g(1, 'a', T1), g(1, 'b', T2), // E1 2-1 E2
+      g(2, 'c', T3), g(2, 'c', T3), g(2, 'd', T4), // E3 2-1 E4
+      g(3, 'a', T1), // E1 1-0 E3
+      g(4, 'b', T2), g(4, 'b', T2), g(4, 'b', T2), // E2 3-0 E4
+      g(5, 'a', T1), // E1 1-0 E4
+      g(6, 'b', T2), g(6, 'b', T2), g(6, 'b', T2), g(6, 'c', T3), // E2 3-1 E3
+    ];
+    const r = run(ev6, 6, true, [bet('Ana', 'Campeón', T1, 5), bet('Beto', 'Último', T4, 2)]);
+    expect(w(r, 'Campeón').winnerSelection).toBe(T1);
+    expect(w(r, 'Campeón').payouts[0].bettorName).toBe('Ana');
+    expect(w(r, 'Último').winnerSelection).toBe(T4);
+    expect(w(r, 'Más goleador').winnerSelection).toBe(T2);
+    expect(w(r, 'Más goleado').winnerSelection).toBe(T4);
+    expect(w(r, 'Ganador P6').winnerSelection).toBe('1');
+  });
+
+  it('empate total en la tabla → se devuelve', () => {
+    const r = run([], 6, true, [bet('Ana', 'Campeón', T1, 5)]);
+    expect(w(r, 'Campeón').outcome).toBe('refund');
+    expect(w(r, 'Campeón').refunds[0].amountCents).toBe(500);
   });
 });
 

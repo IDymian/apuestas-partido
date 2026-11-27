@@ -134,11 +134,16 @@ test('saldo: recarga por Plin, el admin la acredita y se apuesta con el saldo', 
   await shot(page, '06-monto');
   await page.getByRole('button', { name: 'S/ 3', exact: true }).click();
 
-  // Mejor equipo → Equipo 4, S/ 2
-  await page.getByRole('button', { name: /Mejor equipo/ }).click();
+  // Campeón de la liga → Equipo 4, S/ 2
+  await page.getByRole('button', { name: /Campeón de la liga/ }).click();
   for (const n of [1, 2, 3, 4]) await expect(page.getByRole('button', { name: `Equipo ${n}`, exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Equipo 4', exact: true }).click();
   await page.getByRole('button', { name: 'S/ 2', exact: true }).click();
+
+  // Por partido: ganador de Equipo 1 vs Equipo 2 → empate (no suma al total; se quita luego)
+  await page.getByRole('button', { name: /Ganador · Equipo 1 vs Equipo 2/ }).click();
+  await expect(page.getByRole('button', { name: 'Gana Equipo 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Empate', exact: true })).toBeVisible();
 
   // ¿Cuántos palos? → 0
   await page.getByRole('button', { name: /Cuántos palos/ }).click();
@@ -217,6 +222,9 @@ test('en vivo: 4 equipos, eventos de show y estadísticas', async ({ page }) => 
   await page.goto('/p/DEMO26');
   await expect(page.getByText('Minuto a minuto')).toBeVisible();
   await expect(page.getByText('Equipo 4').first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Fixture/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Tabla/ })).toBeVisible();
+  await expect(page.getByText(/Partido 3 de 6/)).toBeVisible();
   await expect(page.getByText('Golazo de Victor Manuel Espino')).toBeVisible();
   await expect(page.getByText('Palo de Adrian Ruiz')).toBeVisible();
   await expect(page.getByText('Blooper de Manuel Tumi')).toBeVisible();

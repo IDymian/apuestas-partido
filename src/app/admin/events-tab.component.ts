@@ -5,46 +5,82 @@ import { AdminApi } from '../core/admin-api';
 import { AdminMatchData, elapsedMinutes, EventRow, EventType, isPlayerEvent, PLAYER_EVENT_TYPES, PLAYER_EVENTS, PlayerEventType, PlayerRow } from '../core/models';
 import { friendlyError } from '../core/public-api';
 import { teamOrder, toTimelineEvents } from '../domain/adapt';
-import { courtTimeline } from '../domain/timeline';
+import { league } from '../domain/league';
 
-type Action = 'goal' | 'own_goal' | 'rotation' | PlayerEventType;
+type Action = 'goal' | 'own_goal' | PlayerEventType;
 
 const ACTIONS: { id: Action; label: string; icon: string }[] = [
   { id: 'goal', label: 'Gol', icon: '⚽' },
   { id: 'own_goal', label: 'Autogol', icon: '🙈' },
   ...PLAYER_EVENT_TYPES.map((t) => ({ id: t, label: PLAYER_EVENTS[t].label, icon: PLAYER_EVENTS[t].icon })),
-  { id: 'rotation', label: 'Rotación', icon: '🔄' },
 ];
 
-/** Registro rápido de la jornada: cancha, goles por equipo, tarjetas, show (palo, golazo, penal, blooper…) y rotaciones. */
+/** Registro de la liga: partido en juego, goles por equipo, tarjetas y show (palo, golazo, penal, blooper…). */
 @Component({
   selector: 'app-events-tab',
   imports: [FormsModule, NgTemplateOutlet],
   template: `
-    <!-- Cancha -->
+    @let lg = liga();
+    @let cur = currentGame();
+
+    <!-- Partido en juego -->
     <section class="card">
-      @if (data().events.length === 0) {
-        <p class="label">¿Quiénes arrancan en cancha?</p>
-        <div class="mt-2 flex flex-wrap gap-2">
-          @for (t of teams(); track t.id) {
-            <button type="button" class="chip" [class.chip-on]="starting().includes(t.id)" (click)="toggleStarting(t.id)">{{ t.name }}</button>
-          }
-        </div>
-        <p class="mt-1 text-xs text-slate-500">Toca dos equipos. Se puede cambiar hasta el primer evento.</p>
-      }
-      <div class="mt-2 flex items-center justify-between gap-2 rounded-xl bg-emerald-50 p-3">
-        <div class="min-w-0">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-emerald-700">En cancha</p>
-          <p class="truncate font-bold text-emerald-950">{{ teamName(court().onCourt[0]) }} vs {{ teamName(court().onCourt[1]) }}</p>
-        </div>
-        <div class="shrink-0 text-right">
-          <p class="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Espera</p>
-          <p class="font-semibold text-slate-700">{{ waitingNames() }}</p>
-        </div>
+      <div class="flex items-center justify-between">
+        <p class="label">Partido en juego · {{ cur?.number }} de {{ lg.games.length }}</p>
+        <span class="rounded-full px-2 py-0.5 text-xs font-bold" [class]="cur?.status === 'played' ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800'">
+          {{ cur?.status === 'played' ? 'Terminado' : 'En juego' }}
+        </span>
       </div>
-      @if (court().invalidEventIds.length) {
+      @if (cur) {
+        <div class="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 rounded-2xl bg-emerald-50 p-3 text-center">
+          <p class="truncate font-bold text-emerald-950">{{ teamName(cur.home) }}</p>
+          <p class="font-mono text-3xl font-extrabold text-emerald-900">{{ cur.homeGoals }} - {{ cur.awayGoals }}</p>
+          <p class="truncate font-bold text-emerald-950">{{ teamName(cur.away) }}</p>
+        </div>
+      }
+      <div class="mt-2 grid grid-cols-2 gap-2">
+        <button type="button" class="btn-secondary h-11" [disabled]="busy() || data().match.current_game <= 1" (click)="setGame(data().match.current_game - 1)">◀ Partido anterior</button>
+        <button type="button" class="btn-primary h-11 text-sm" [disabled]="busy() || data().match.current_game >= lg.games.length" (click)="nextGame()">Terminar y pasar al siguiente ▶</button>
+      </div>
+
+      <ul class="mt-3 divide-y divide-slate-100 text-sm">
+        @for (g of lg.games; track g.number) {
+          <li>
+            <button type="button" class="flex w-full items-center gap-2 py-2 text-left" [class.font-bold]="g.number === data().match.current_game" (click)="setGame(g.number)">
+              <span class="w-6 shrink-0 text-xs text-slate-400">P{{ g.number }}</span>
+              <span class="min-w-0 flex-1 truncate">{{ teamName(g.home) }} vs {{ teamName(g.away) }}</span>
+              <span class="shrink-0 font-mono">{{ g.status === 'pending' ? '—' : g.homeGoals + ' - ' + g.awayGoals }}</span>
+              <span class="w-16 shrink-0 text-right text-[11px]" [class]="g.status === 'live' ? 'text-emerald-700' : 'text-slate-400'">
+                {{ g.status === 'live' ? '● en juego' : g.status === 'played' ? 'final' : 'pendiente' }}
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+
+      <table class="mt-3 w-full text-xs">
+        <thead>
+          <tr class="text-left text-slate-500">
+            <th class="py-1 font-medium">Tabla</th>
+            <th class="py-1 text-center font-medium">PJ</th>
+            <th class="py-1 text-center font-medium">DG</th>
+            <th class="py-1 text-center font-medium">Pts</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (r of lg.table; track r.teamId; let i = $index) {
+            <tr class="border-t border-slate-100">
+              <td class="py-1 font-semibold">{{ i + 1 }}. {{ teamName(r.teamId) }}</td>
+              <td class="py-1 text-center">{{ r.played }}</td>
+              <td class="py-1 text-center">{{ r.gd > 0 ? '+' + r.gd : r.gd }}</td>
+              <td class="py-1 text-center font-bold">{{ r.points }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      @if (lg.invalidEventIds.length) {
         <p class="mt-2 rounded-lg bg-red-50 p-2 text-sm text-red-700">
-          ⚠️ Hay {{ court().invalidEventIds.length }} evento(s) con un equipo que no estaba en cancha. Corrígelos abajo (en rojo).
+          ⚠️ Hay {{ lg.invalidEventIds.length }} gol(es) sin partido o con un equipo que no jugaba ese partido. Corrígelos abajo (en rojo).
         </p>
       }
     </section>
@@ -77,16 +113,6 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
       </div>
 
       @switch (action()) {
-        @case ('rotation') {
-          <p class="mt-3 text-sm text-slate-600">¿Qué equipo sale sin gol? (no cuenta como partidito ganado ni como salida)</p>
-          <div class="mt-2 grid grid-cols-2 gap-2">
-            @for (t of court().onCourt; track t) {
-              <button type="button" class="h-14 rounded-2xl bg-slate-800 font-bold text-white disabled:opacity-50" [disabled]="busy()" (click)="addRotation(t)">
-                Sale {{ teamName(t) }}
-              </button>
-            }
-          </div>
-        }
         @case ('goal') {
           <ng-container *ngTemplateOutlet="goalSteps" />
         }
@@ -94,7 +120,7 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
           <ng-container *ngTemplateOutlet="goalSteps" />
         }
         @default {
-          <p class="mt-3 text-sm text-slate-600">{{ askFor(action()) }} (minuto {{ minute ?? 0 }}):</p>
+          <p class="mt-3 text-sm text-slate-600">{{ askFor(action()) }} (partido {{ data().match.current_game }}, minuto {{ minute ?? 0 }}):</p>
           <div class="mt-2 flex flex-wrap gap-2">
             @for (p of players(); track p.id) {
               <button type="button" class="chip" [disabled]="busy()" (click)="addPlayerEvent(p)">{{ p.name }}</button>
@@ -104,9 +130,9 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
       }
 
       <ng-template #goalSteps>
-        <p class="mt-3 text-sm text-slate-600">1. ¿Para qué equipo cuenta el {{ action() === 'own_goal' ? 'autogol' : 'gol' }}?</p>
+        <p class="mt-3 text-sm text-slate-600">1. ¿Para qué equipo cuenta el {{ action() === 'own_goal' ? 'autogol' : 'gol' }}? (partido {{ cur?.number }})</p>
         <div class="mt-2 grid grid-cols-2 gap-2">
-          @for (t of court().onCourt; track t) {
+          @for (t of curTeams(); track t) {
             <button
               type="button"
               class="h-14 rounded-2xl border-2 font-bold"
@@ -132,9 +158,9 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
       @if (flash()) {
         <p class="mt-3 rounded-lg bg-emerald-50 p-2 text-center text-sm font-semibold text-emerald-800">{{ flash() }}</p>
       }
-      @if (lastGoal(); as lg) {
-        <button type="button" class="btn-secondary mt-2 w-full bg-amber-50 text-amber-800" [disabled]="busy()" (click)="markGolazo(lg)">
-          ✨ ¿Fue golazo? Marcar golazo de {{ lg.name }}
+      @if (lastGoal(); as lg2) {
+        <button type="button" class="btn-secondary mt-2 w-full bg-amber-50 text-amber-800" [disabled]="busy()" (click)="markGolazo(lg2)">
+          ✨ ¿Fue golazo? Marcar golazo de {{ lg2.name }}
         </button>
       }
       @if (error()) {
@@ -156,26 +182,22 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
                     @for (t of playerEventTypes; track t) {
                       <option [value]="t">{{ playerEvents[t].icon }} {{ playerEvents[t].label }}</option>
                     }
-                    <option value="rotation">🔄 Rotación</option>
                   </select>
-                  <input class="input w-24 text-center" type="number" min="0" max="300" [(ngModel)]="edit.minute" name="emin" />
+                  <input class="input w-20 text-center" type="number" min="0" max="300" [(ngModel)]="edit.minute" name="emin" aria-label="Minuto" />
                 </div>
-                @if (edit.type === 'rotation') {
-                  <select class="input" [(ngModel)]="edit.team_out_id" name="eout">
-                    @for (t of teams(); track t.id) {
-                      <option [value]="t.id">Sale {{ t.name }}</option>
-                    }
-                  </select>
-                } @else {
-                  <select class="input" [(ngModel)]="edit.player_id" name="eplayer">
-                    @for (p of players(); track p.id) {
-                      <option [value]="p.id">{{ p.name }}</option>
-                    }
-                  </select>
-                }
+                <select class="input" [(ngModel)]="edit.game" name="egame" aria-label="Partido">
+                  @for (g of lg.games; track g.number) {
+                    <option [ngValue]="g.number">Partido {{ g.number }}: {{ teamName(g.home) }} vs {{ teamName(g.away) }}</option>
+                  }
+                </select>
+                <select class="input" [(ngModel)]="edit.player_id" name="eplayer" aria-label="Jugador">
+                  @for (p of players(); track p.id) {
+                    <option [value]="p.id">{{ p.name }}</option>
+                  }
+                </select>
                 @if (edit.type === 'goal') {
                   <div class="flex items-center gap-2">
-                    <select class="input" [(ngModel)]="edit.team_id" name="eteam">
+                    <select class="input" [(ngModel)]="edit.team_id" name="eteam" aria-label="Equipo">
                       @for (t of teams(); track t.id) {
                         <option [value]="t.id">Para {{ t.name }}</option>
                       }
@@ -192,14 +214,12 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
               </div>
             } @else {
               <div class="flex items-center gap-2">
-                <span class="w-10 shrink-0 font-mono text-sm text-slate-500">{{ e.minute }}'</span>
+                <span class="w-9 shrink-0 font-mono text-sm text-slate-500">{{ e.minute }}'</span>
+                <span class="shrink-0 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-bold text-slate-600">{{ e.game ? 'P' + e.game : '—' }}</span>
                 <span class="min-w-0 flex-1">
                   <span class="block truncate text-sm font-semibold">{{ describe(e) }}</span>
-                  @if (gameNote(e); as note) {
-                    <span class="block truncate text-xs text-slate-500">{{ note }}</span>
-                  }
                   @if (isInvalid(e)) {
-                    <span class="block text-xs font-semibold text-red-700">⚠️ Ese equipo no estaba en cancha</span>
+                    <span class="block text-xs font-semibold text-red-700">⚠️ Ese equipo no jugaba ese partido</span>
                   }
                 </span>
                 <button type="button" class="btn-secondary h-9" (click)="startEdit(e)" aria-label="Editar evento">✎</button>
@@ -211,7 +231,7 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
           <li class="py-4 text-center text-sm text-slate-500">Sin eventos todavía.</li>
         }
       </ul>
-      <p class="mt-2 text-xs text-slate-400">Orden: por minuto y, si empatan, por orden de registro. La liquidación se recalcula sola.</p>
+      <p class="mt-2 text-xs text-slate-400">Cada evento queda en el partido en juego. La tabla y la liquidación se recalculan solas.</p>
     </section>
   `,
 })
@@ -223,8 +243,6 @@ export class EventsTabComponent {
   protected actions = ACTIONS;
   protected playerEvents = PLAYER_EVENTS;
   protected playerEventTypes = PLAYER_EVENT_TYPES;
-  /** Último gol registrado desde aquí (para marcarlo como golazo con un toque). */
-  protected lastGoal = signal<{ playerId: string; name: string; minute: number } | null>(null);
   protected minute: number | null = null;
   protected action = signal<Action>('goal');
   protected goalTeam = signal<string | null>(null);
@@ -232,19 +250,24 @@ export class EventsTabComponent {
   protected error = signal<string | null>(null);
   protected flash = signal<string | null>(null);
   protected editing = signal<string | null>(null);
-  protected edit = { type: 'goal' as EventType, minute: 0, player_id: '', team_id: '', is_own_goal: false, team_out_id: '' };
+  /** Último gol registrado desde aquí (para marcarlo como golazo con un toque). */
+  protected lastGoal = signal<{ playerId: string; name: string; minute: number; game: number } | null>(null);
+  protected edit = { type: 'goal' as EventType, minute: 0, game: 1, player_id: '', team_id: '', is_own_goal: false };
 
   protected teams = computed(() => [...this.data().teams].sort((a, b) => a.sort_order - b.sort_order));
   protected players = computed(() => this.data().players.filter((p) => !p.is_own_goal).sort((a, b) => a.sort_order - b.sort_order));
   private playerMap = computed(() => new Map(this.data().players.map((p) => [p.id, p.name])));
   private teamMap = computed(() => new Map(this.data().teams.map((t) => [t.id, t.name])));
-  protected starting = computed(() => this.data().match.starting_team_ids ?? []);
   protected sorted = computed(() => [...this.data().events].sort((a, b) => a.minute - b.minute || a.seq - b.seq));
-  protected court = computed(() => courtTimeline(toTimelineEvents(this.data().events), teamOrder(this.data().teams), this.starting()));
-  protected waitingNames = computed(() => this.court().waiting.map((t) => this.teamName(t)).join(', ') || '—');
-  private gamesByEvent = computed(() => new Map(this.court().games.map((g) => [g.eventId, g])));
-  private invalid = computed(() => new Set(this.court().invalidEventIds));
-  private pendingStart: string[] = [];
+  protected liga = computed(() =>
+    league(toTimelineEvents(this.data().events), teamOrder(this.data().teams), this.data().match.current_game ?? 1, this.data().match.status === 'finished'),
+  );
+  protected currentGame = computed(() => this.liga().games.find((g) => g.number === (this.data().match.current_game ?? 1)) ?? null);
+  protected curTeams = computed(() => {
+    const g = this.currentGame();
+    return g ? [g.home, g.away] : [];
+  });
+  private invalid = computed(() => new Set(this.liga().invalidEventIds));
 
   constructor() {
     // Minuto inicial = tiempo desde que se cerraron las apuestas.
@@ -281,11 +304,6 @@ export class EventsTabComponent {
     return isPlayerEvent(a as EventType) ? PLAYER_EVENTS[a as PlayerEventType].ask : '';
   }
 
-  gameNote(e: EventRow): string | null {
-    const g = this.gamesByEvent().get(e.id);
-    return g ? `Partidito ${g.number}: gana ${this.teamName(g.winnerTeamId)}, sale ${this.teamName(g.loserTeamId)}, entra ${this.teamName(g.enteringTeamId)}` : null;
-  }
-
   pick(a: Action) {
     this.action.set(a);
     this.lastGoal.set(null);
@@ -301,14 +319,18 @@ export class EventsTabComponent {
     this.minute = elapsedMinutes(this.data().match.closed_at);
   }
 
-  async toggleStarting(teamId: string) {
-    const cur = this.pendingStart.length ? this.pendingStart : [...this.starting()];
-    const next = cur.includes(teamId) ? cur.filter((t) => t !== teamId) : [...cur, teamId].slice(-2);
-    this.pendingStart = next;
-    if (next.length === 2) {
-      await this.run(() => this.api.setStartingTeams(this.data().match.id, [next[0], next[1]]), `Arrancan ${this.teamName(next[0])} y ${this.teamName(next[1])}`);
-      this.pendingStart = [];
-    }
+  async setGame(n: number) {
+    if (n < 1 || n > this.liga().games.length || n === this.data().match.current_game) return;
+    const g = this.liga().games.find((x) => x.number === n)!;
+    await this.run(() => this.api.setCurrentGame(this.data().match.id, n), `Partido ${n}: ${this.teamName(g.home)} vs ${this.teamName(g.away)}`);
+    this.goalTeam.set(null);
+    this.lastGoal.set(null);
+  }
+
+  async nextGame() {
+    const g = this.currentGame();
+    if (g && !confirm(`¿Terminar el partido ${g.number} (${this.teamName(g.home)} ${g.homeGoals} - ${g.awayGoals} ${this.teamName(g.away)}) y pasar al siguiente?`)) return;
+    await this.setGame((this.data().match.current_game ?? 1) + 1);
   }
 
   private validMinute(): number | null {
@@ -323,19 +345,20 @@ export class EventsTabComponent {
   async addGoal(p: PlayerRow) {
     const team = this.goalTeam();
     const minute = this.validMinute();
+    const game = this.data().match.current_game ?? 1;
     if (!team || minute === null) return;
     const own = this.action() === 'own_goal';
     await this.run(
-      () => this.api.addEvent({ match_id: this.data().match.id, type: 'goal', player_id: p.id, team_id: team, is_own_goal: own, team_out_id: null, minute }),
-      `${own ? '🙈 Autogol de' : '⚽ Gol de'} ${p.name} para ${this.teamName(team)} (${minute}')`,
+      () => this.api.addEvent({ match_id: this.data().match.id, type: 'goal', player_id: p.id, team_id: team, is_own_goal: own, team_out_id: null, minute, game }),
+      `${own ? '🙈 Autogol de' : '⚽ Gol de'} ${p.name} para ${this.teamName(team)} (P${game}, ${minute}')`,
     );
     this.goalTeam.set(null);
-    this.lastGoal.set(own ? null : { playerId: p.id, name: p.name, minute });
+    this.lastGoal.set(own ? null : { playerId: p.id, name: p.name, minute, game });
   }
 
-  async markGolazo(g: { playerId: string; name: string; minute: number }) {
+  async markGolazo(g: { playerId: string; name: string; minute: number; game: number }) {
     await this.run(
-      () => this.api.addEvent({ match_id: this.data().match.id, type: 'golazo', player_id: g.playerId, team_id: null, is_own_goal: false, team_out_id: null, minute: g.minute }),
+      () => this.api.addEvent({ match_id: this.data().match.id, type: 'golazo', player_id: g.playerId, team_id: null, is_own_goal: false, team_out_id: null, minute: g.minute, game: g.game }),
       `✨ Golazo de ${g.name} (${g.minute}')`,
     );
     this.lastGoal.set(null);
@@ -344,31 +367,22 @@ export class EventsTabComponent {
   async addPlayerEvent(p: PlayerRow) {
     const minute = this.validMinute();
     const type = this.action() as PlayerEventType;
+    const game = this.data().match.current_game ?? 1;
     if (minute === null || !isPlayerEvent(type)) return;
     await this.run(
-      () => this.api.addEvent({ match_id: this.data().match.id, type, player_id: p.id, team_id: null, is_own_goal: false, team_out_id: null, minute }),
-      `${PLAYER_EVENTS[type].icon} ${PLAYER_EVENTS[type].text(p.name)} (${minute}')`,
-    );
-  }
-
-  async addRotation(teamOut: string) {
-    const minute = this.validMinute();
-    if (minute === null) return;
-    if (!confirm(`¿Rotación sin gol? Sale ${this.teamName(teamOut)} y entra ${this.waitingNames()}.`)) return;
-    await this.run(
-      () => this.api.addEvent({ match_id: this.data().match.id, type: 'rotation', player_id: null, team_id: null, is_own_goal: false, team_out_id: teamOut, minute }),
-      `🔄 Sale ${this.teamName(teamOut)} (${minute}')`,
+      () => this.api.addEvent({ match_id: this.data().match.id, type, player_id: p.id, team_id: null, is_own_goal: false, team_out_id: null, minute, game }),
+      `${PLAYER_EVENTS[type].icon} ${PLAYER_EVENTS[type].text(p.name)} (P${game}, ${minute}')`,
     );
   }
 
   startEdit(e: EventRow) {
     this.edit = {
-      type: e.type,
+      type: e.type === 'rotation' ? 'goal' : e.type,
       minute: e.minute,
+      game: e.game ?? this.data().match.current_game ?? 1,
       player_id: e.player_id ?? this.players()[0]?.id ?? '',
       team_id: e.team_id ?? this.teams()[0]?.id ?? '',
       is_own_goal: e.is_own_goal,
-      team_out_id: e.team_out_id ?? this.teams()[0]?.id ?? '',
     };
     this.editing.set(e.id);
   }
@@ -381,10 +395,11 @@ export class EventsTabComponent {
       this.api.updateEvent(e.id, {
         type: t,
         minute,
-        player_id: t === 'rotation' ? null : this.edit.player_id,
+        game: Number(this.edit.game),
+        player_id: this.edit.player_id,
         team_id: t === 'goal' ? this.edit.team_id : null,
         is_own_goal: t === 'goal' ? this.edit.is_own_goal : false,
-        team_out_id: t === 'rotation' ? this.edit.team_out_id : null,
+        team_out_id: null,
       }),
     );
     this.editing.set(null);

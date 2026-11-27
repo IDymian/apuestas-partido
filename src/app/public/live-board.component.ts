@@ -15,7 +15,6 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
   template: `
     @let d = data();
     @let finished = d.match.status === 'finished';
-    @let t = result().timeline;
 
     <!-- Bote total -->
     <section class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff8a1f] via-lime to-[#d13f00] p-5 text-white shadow-[0_24px_50px_-20px_rgb(242_98_0/0.7)] anim-in">
@@ -39,42 +38,83 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
     </section>
 
     @if (d.match.status !== 'open') {
-      <!-- Cancha -->
-      <section class="glass mt-4 anim-in" style="--i: 1">
-        @if (!finished) {
-          <p class="eyebrow">En cancha ahora</p>
+      <!-- Partido en juego -->
+      @let lg = result().league;
+      @let cur = currentGame();
+      @if (cur) {
+        <section class="glass mt-4 anim-in" style="--i: 1">
+          <p class="eyebrow flex items-center gap-2">
+            @if (cur.status === 'live') {
+              <span class="live-dot"></span> Partido {{ cur.number }} de {{ lg.games.length }} · en juego
+            } @else {
+              🏁 Partido {{ cur.number }} de {{ lg.games.length }} · final
+            }
+          </p>
           <div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-            <div class="rounded-2xl bg-gradient-to-br p-3 text-center font-display text-lg font-extrabold" [class]="teamTone(t.onCourt[0])">{{ team(t.onCourt[0]) }}</div>
-            <span class="font-display text-sm font-extrabold text-faint">VS</span>
-            <div class="rounded-2xl bg-gradient-to-br p-3 text-center font-display text-lg font-extrabold" [class]="teamTone(t.onCourt[1])">{{ team(t.onCourt[1]) }}</div>
+            <div class="rounded-2xl bg-gradient-to-br p-3 text-center font-display text-lg font-extrabold" [class]="teamTone(cur.home)">{{ team(cur.home) }}</div>
+            <p class="px-1 font-display text-4xl font-extrabold tabular-nums">{{ cur.homeGoals }}<span class="text-faint">-</span>{{ cur.awayGoals }}</p>
+            <div class="rounded-2xl bg-gradient-to-br p-3 text-center font-display text-lg font-extrabold" [class]="teamTone(cur.away)">{{ team(cur.away) }}</div>
           </div>
-          <p class="mt-2 text-center text-xs text-mute">Esperando: <b class="text-ink">{{ waiting() }}</b> · partidito a un gol</p>
-        }
-        @if (stats().nextMilestone; as nm) {
-          <div class="mt-4">
-            <div class="flex justify-between text-xs font-bold text-mute">
-              <span>Hacia el gol {{ nm.n }}</span><span>faltan {{ nm.remaining }}</span>
-            </div>
-            <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-ink/[0.06]">
-              <div class="h-full rounded-full bg-gradient-to-r from-lime to-gold transition-[width] duration-700" [style.width.%]="(stats().totalGoals / nm.n) * 100"></div>
-            </div>
-          </div>
-        }
-
-        <div class="mt-4 space-y-2">
-          @for (id of teamIds(); track id; let i = $index) {
-            @let s = t.stats[id];
-            <div class="flex items-center gap-3">
-              <span class="w-20 shrink-0 truncate text-sm font-bold">{{ team(id) }}</span>
-              <div class="h-7 flex-1 overflow-hidden rounded-xl bg-ink/[0.05]">
-                <div class="flex h-full items-center rounded-xl bg-gradient-to-r px-2 text-xs font-extrabold transition-[width] duration-700" [class]="teamTone(id)" [style.width.%]="maxWins() ? Math.max(12, (s.wins / maxWins()) * 100) : 12">
-                  {{ s.wins }}
-                </div>
+          @if (stats().nextMilestone; as nm) {
+            <div class="mt-4">
+              <div class="flex justify-between text-xs font-bold text-mute">
+                <span>{{ stats().totalGoals }} goles en la liga · hacia el gol {{ nm.n }}</span><span>faltan {{ nm.remaining }}</span>
               </div>
-              <span class="w-24 shrink-0 text-right text-[11px] text-mute">sale {{ s.exits }} · racha {{ s.currentStreak }}/{{ s.maxStreak }}</span>
+              <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-ink/[0.06]">
+                <div class="h-full rounded-full bg-gradient-to-r from-lime to-gold transition-[width] duration-700" [style.width.%]="(stats().totalGoals / nm.n) * 100"></div>
+              </div>
             </div>
           }
-        </div>
+        </section>
+      }
+
+      <!-- Fixture -->
+      <section class="glass mt-4 anim-in" style="--i: 2">
+        <h2 class="font-display text-xl font-extrabold">🆚 Fixture</h2>
+        <ol class="mt-2 divide-y divide-ink/[0.06]">
+          @for (g of lg.games; track g.number) {
+            <li class="flex items-center gap-2 py-2.5 text-sm" [class.font-bold]="g.status === 'live'">
+              <span class="w-7 shrink-0 text-xs font-bold text-faint">P{{ g.number }}</span>
+              <span class="min-w-0 flex-1 truncate text-right">{{ team(g.home) }}</span>
+              <span class="w-14 shrink-0 rounded-lg py-0.5 text-center font-display font-extrabold tabular-nums" [class]="g.status === 'live' ? 'bg-lime text-white' : g.status === 'played' ? 'bg-ink/[0.06]' : 'text-faint'">
+                {{ g.status === 'pending' ? 'vs' : g.homeGoals + '-' + g.awayGoals }}
+              </span>
+              <span class="min-w-0 flex-1 truncate">{{ team(g.away) }}</span>
+            </li>
+          }
+        </ol>
+      </section>
+
+      <!-- Tabla -->
+      <section class="glass mt-4 anim-in" style="--i: 3">
+        <h2 class="font-display text-xl font-extrabold">🏆 Tabla</h2>
+        <table class="mt-2 w-full text-sm">
+          <thead>
+            <tr class="text-left text-[11px] text-mute uppercase">
+              <th class="py-1 font-bold">Equipo</th>
+              <th class="py-1 text-center font-bold">PJ</th>
+              <th class="py-1 text-center font-bold">G</th>
+              <th class="py-1 text-center font-bold">E</th>
+              <th class="py-1 text-center font-bold">P</th>
+              <th class="py-1 text-center font-bold">DG</th>
+              <th class="py-1 text-center font-bold">Pts</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of lg.table; track r.teamId; let i = $index) {
+              <tr class="border-t border-ink/[0.06]" [class.bg-lime/10]="i === 0 && r.played > 0">
+                <td class="py-2 font-bold"><span class="mr-1 text-faint">{{ i + 1 }}</span> {{ team(r.teamId) }}</td>
+                <td class="py-2 text-center">{{ r.played }}</td>
+                <td class="py-2 text-center">{{ r.won }}</td>
+                <td class="py-2 text-center">{{ r.drawn }}</td>
+                <td class="py-2 text-center">{{ r.lost }}</td>
+                <td class="py-2 text-center">{{ r.gd > 0 ? '+' + r.gd : r.gd }}</td>
+                <td class="py-2 text-center font-display text-base font-extrabold">{{ r.points }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <p class="mt-2 text-[11px] text-faint">3 puntos por ganar, 1 por empatar. Desempate: diferencia de gol y goles a favor.</p>
       </section>
 
       <!-- Estadísticas de jugadores -->
@@ -180,7 +220,7 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
             <li class="relative flex items-center gap-3 anim-in" [style.--i]="i % 8">
               <span class="z-10 grid h-11 w-11 shrink-0 place-items-center rounded-2xl border border-ink/10 bg-night-3 text-xl">{{ e.icon }}</span>
               <span class="min-w-0 flex-1 text-sm">{{ e.text }}</span>
-              <span class="shrink-0 font-mono text-xs font-bold text-faint">{{ e.minute }}'</span>
+              <span class="shrink-0 text-right font-mono text-xs font-bold text-faint">{{ e.game ? 'P' + e.game + ' · ' : '' }}{{ e.minute }}'</span>
             </li>
           }
         </ol>
@@ -233,8 +273,7 @@ export class LiveBoardComponent {
   private readonly teams = computed(() => new Map(this.data().teams.map((t) => [t.id, t.name])));
   private readonly markets = computed(() => new Map(this.data().markets.map((m) => [m.id, m])));
   private readonly labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams));
-  protected readonly waiting = computed(() => this.result().timeline.waiting.map((t) => this.team(t)).join(', ') || '—');
-  protected readonly maxWins = computed(() => Math.max(0, ...Object.values(this.result().timeline.stats).map((s) => s.wins)));
+  protected readonly currentGame = computed(() => this.result().league.games.find((g) => g.number === (this.data().match.current_game ?? 1)) ?? null);
   protected readonly totalPot = computed(() => this.result().markets.reduce((s, r) => s + r.totalPotCents, 0));
 
   protected readonly statBoxes = computed((): { title: string; rows: PlayerCount[] }[] => {
@@ -267,7 +306,7 @@ export class LiveBoardComponent {
   protected readonly events = computed(() =>
     [...this.data().events]
       .sort((a, b) => b.minute - a.minute || b.seq - a.seq)
-      .map((e) => ({ id: e.id, minute: e.minute, icon: e.is_own_goal ? '🙈' : EVENT_ICON[e.type], text: this.describe(e) })),
+      .map((e) => ({ id: e.id, minute: e.minute, game: e.game, icon: e.is_own_goal ? '🙈' : EVENT_ICON[e.type], text: this.describe(e) })),
   );
 
   protected readonly byPerson = computed(() => {
@@ -280,7 +319,7 @@ export class LiveBoardComponent {
       entry.bets.push({
         id: b.id,
         market: m?.name ?? '',
-        choice: this.labeler()(m?.target, b.player_id ?? b.team_id ?? String(b.option_value), m?.type),
+        choice: this.labeler()(m?.target, b.player_id ?? b.team_id ?? String(b.option_value), m?.type, m?.param),
         amount: b.amount,
       });
       map.set(key, entry);
@@ -303,7 +342,7 @@ export class LiveBoardComponent {
   }
   protected label(r: MarketResult) {
     const m = this.markets().get(r.marketId);
-    return this.labeler()(m?.target, r.winnerSelection, r.type);
+    return this.labeler()(m?.target, r.winnerSelection, r.type, m?.param);
   }
   protected marketName(id: string) {
     return this.markets().get(id)?.name ?? '';
