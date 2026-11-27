@@ -41,8 +41,9 @@ const MARQUEE = [
         </p>
       </div>
 
-      @if (last; as l) {
-        <a [routerLink]="['/p', l.code]" class="glass mt-6 flex items-center gap-3 transition hover:border-lime/40 active:scale-[0.99] anim-in" style="--i: 4">
+      @if (last && last.code !== activeCode()) {
+        @let l = last;
+        <a [routerLink]="['/p', l.code]" class="glass mt-4 flex items-center gap-3 transition hover:border-lime/40 active:scale-[0.99] anim-in" style="--i: 4">
           <span class="grid h-11 w-11 place-items-center rounded-2xl bg-lime/15 text-lime"><app-icon name="live" /></span>
           <span class="min-w-0 flex-1">
             <span class="block text-xs font-bold text-mute">Volver a</span>
@@ -52,8 +53,14 @@ const MARQUEE = [
         </a>
       }
 
+      @if (activeCode(); as ac) {
+        <a [routerLink]="['/p', ac]" class="btn mt-6 h-14 w-full text-lg anim-in" style="--i: 4">
+          Entrar a la Copa <app-icon name="next" />
+        </a>
+      }
+
       <form class="glass mt-4 anim-in" style="--i: 5" (submit)="$event.preventDefault(); go()">
-        <label for="code" class="field-label">Código de la jornada</label>
+        <label for="code" class="field-label">¿Tienes un código de otra jornada?</label>
         <input
           id="code"
           class="field h-16 text-center font-display text-3xl font-extrabold tracking-[0.35em] uppercase"
@@ -113,16 +120,17 @@ export class HomePage implements OnInit {
   protected readonly last = lastMatch();
   protected readonly marquee = [...MARQUEE, ...MARQUEE];
   protected readonly steps = [
-    { title: 'Crea tu cuenta', text: 'Correo, usuario y contraseña. Te llega un correo para confirmarla.', tone: 'bg-lime text-white' },
+    { title: 'Crea tu cuenta', text: 'Correo, usuario y contraseña. Entras al toque, sin esperar ningún correo.', tone: 'bg-lime text-white' },
     { title: 'Recarga saldo por Plin', text: 'Plineas al QR y subes la captura. Cuando el organizador lo confirma, el saldo aparece en tu cuenta.', tone: 'bg-candy text-white' },
     { title: 'Apuesta y vive el partido', text: '25 apuestas: goles, rojas, palos, golazos, bloopers… Se descuentan de tu saldo. El bote sube en vivo y en Social comentan todos.', tone: 'bg-gold text-white' },
   ];
 
-  /** Si hay una jornada activa, la app abre directo en ella. */
+  /** Jornada activa: se muestra el botón "Entrar a la Copa" (la portada ya no salta sola a ella). */
+  protected readonly activeCode = signal<string | null>(null);
+
   async ngOnInit() {
     try {
-      const code = await this.api.activeMatchCode();
-      if (code) this.router.navigate(['/p', code], { replaceUrl: true });
+      this.activeCode.set((await this.api.activeMatchCode()) ?? null);
     } catch {
       /* sin conexión: queda el inicio con el código */
     }
