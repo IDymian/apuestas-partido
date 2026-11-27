@@ -55,7 +55,7 @@ test('inicio: portada, entra a la jornada con los 6 partidos y "En vivo" vacío'
   await shot(page, '00-portada');
   await page.getByRole('link', { name: /Entrar a la Copa/ }).click();
   await expect(page).toHaveURL(/\/p\/COPA/);
-  await expect(page.getByText('La esférica no se mancha').first()).toBeVisible();
+  await expect(page.getByText('6 partidos · 138 mercados')).toBeVisible();
   for (const n of [1, 2, 3, 4, 5, 6]) await expect(page.getByText(`Partido ${n} · Próximo`)).toBeVisible();
   // Todo es por bote: cada opción muestra lo apostado, no "cuotas"
   await expect(page.getByRole('button', { name: /^Gana Equipo 1 · apostado S\/ 0/ }).first()).toBeVisible();

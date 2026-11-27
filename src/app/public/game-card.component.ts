@@ -13,7 +13,7 @@ import { IconComponent } from '../ui/icon.component';
   template: `
     @let g = game();
     <article class="glass p-0" [class.border-lime/50]="g.status === 'live'">
-      <button type="button" class="flex w-full items-center gap-3 px-4 pt-3.5 pb-2 text-left" (click)="open.emit()" [attr.aria-label]="'Ver mercados del partido ' + g.number">
+      <button type="button" class="flex w-full items-center gap-2.5 px-3.5 pt-2 pb-1 text-left" (click)="open.emit()" [attr.aria-label]="'Ver mercados del partido ' + g.number">
         <div class="min-w-0 flex-1">
           <p class="flex items-center gap-1.5 text-[11px] font-extrabold tracking-wide uppercase" [class]="tone()">
             @if (g.status === 'live') {
@@ -21,30 +21,30 @@ import { IconComponent } from '../ui/icon.component';
             }
             Partido {{ g.number }} · {{ statusText() }}
           </p>
-          <div class="mt-1.5 space-y-1">
-            <p class="flex items-center justify-between gap-2 font-bold">
+          <div class="mt-1 space-y-0.5">
+            <p class="flex items-center justify-between gap-2 leading-tight font-bold">
               <span class="flex min-w-0 items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" [class]="dot(0)"></span><span class="truncate">{{ ctx.team(g.home) }}</span></span>
               @if (g.status !== 'pending') {
-                <span class="font-display text-lg font-extrabold tabular-nums">{{ g.homeGoals }}</span>
+                <span class="font-display text-base font-extrabold tabular-nums">{{ g.homeGoals }}</span>
               }
             </p>
-            <p class="flex items-center justify-between gap-2 font-bold">
+            <p class="flex items-center justify-between gap-2 leading-tight font-bold">
               <span class="flex min-w-0 items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" [class]="dot(1)"></span><span class="truncate">{{ ctx.team(g.away) }}</span></span>
               @if (g.status !== 'pending') {
-                <span class="font-display text-lg font-extrabold tabular-nums">{{ g.awayGoals }}</span>
+                <span class="font-display text-base font-extrabold tabular-nums">{{ g.awayGoals }}</span>
               }
             </p>
           </div>
         </div>
         <span class="flex shrink-0 flex-col items-end gap-1">
-          <span class="flex items-center gap-0.5 rounded-lg bg-lime/10 px-2 py-1 text-xs font-extrabold text-lime">
+          <span class="flex items-center gap-0.5 rounded-lg bg-lime/10 px-1.5 py-0.5 text-[11px] font-extrabold text-lime">
             +{{ ctx.gameMarkets(g).length }} mercados <app-icon name="chevron" [size]="14" class="-rotate-90" />
           </span>
           <span class="text-[11px] font-semibold text-mute">bote {{ gamePot() }}</span>
         </span>
       </button>
       @if (winner(); as w) {
-        <div class="px-3 pb-3">
+        <div class="px-2.5 pb-2">
           <app-market-options [market]="w" [compact]="true" (full)="full.emit()" />
         </div>
       }

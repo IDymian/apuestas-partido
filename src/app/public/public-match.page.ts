@@ -57,7 +57,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
       </div>
     } @else {
       @let d = ctx.data()!;
-      <header class="sticky top-0 z-30 border-b border-ink/[0.06] bg-white/90 backdrop-blur-xl">
+      <header class="sticky top-0 z-30 border-b border-ink/[0.06] bg-white backdrop-blur-xl">
         <div class="mx-auto flex max-w-md items-center justify-between gap-2 px-4 pt-[max(0.6rem,env(safe-area-inset-top))] pb-2.5 md:max-w-2xl">
           <app-brand [size]="34" [showName]="!auth.user()" [slogan]="false" />
           @if (auth.user()) {
