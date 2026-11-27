@@ -31,7 +31,7 @@ import { IconComponent } from '../ui/icon.component';
               @if (g.status !== 'pending') {
                 <p class="font-display text-3xl font-extrabold text-lime tabular-nums">{{ g.homeGoals }} - {{ g.awayGoals }}</p>
               }
-              <p class="mt-1 text-xs text-mute">{{ count() }} apuestas de este partido · todo es por bote</p>
+              <p class="mt-1 text-xs text-mute">{{ count() }} mercados de este partido · todo es por bote</p>
             </div>
             <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink/[0.05]" (click)="closed.emit()" aria-label="Cerrar">
               <app-icon name="x" [size]="18" />

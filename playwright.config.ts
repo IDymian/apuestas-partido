@@ -9,7 +9,10 @@ export default defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
   expect: { timeout: 8_000 },
-  fullyParallel: true,
+  // El backend de pruebas vive en memoria dentro de cada página y la app es pesada:
+  // 18 navegadores a la vez saturan la máquina y hacen fallar tests por timeout, no por código.
+  fullyParallel: false,
+  workers: 1,
   reporter: [['list']],
   use: {
     baseURL: 'http://localhost:4300',

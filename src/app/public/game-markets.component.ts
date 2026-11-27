@@ -13,7 +13,7 @@ import { IconComponent } from '../ui/icon.component';
   imports: [MarketOptionsComponent, IconComponent],
   template: `
     @for (grp of groups(); track grp.id) {
-      <h4 class="mt-4 mb-2 px-1 text-xs font-extrabold tracking-wider text-mute uppercase first:mt-0">{{ grp.icon }} {{ grp.label }}</h4>
+      <h4 class="mt-4 mb-2 px-1 text-xs font-extrabold tracking-wider text-mute uppercase first:mt-0">{{ grp.label }}</h4>
       <div class="space-y-2">
         @for (m of grp.markets; track m.id) {
           @let isOpen = expanded().has(m.id);

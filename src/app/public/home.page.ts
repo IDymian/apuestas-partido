@@ -59,22 +59,38 @@ const MARQUEE = [
         </a>
       }
 
-      <form class="glass mt-4 anim-in" style="--i: 5" (submit)="$event.preventDefault(); go()">
-        <label for="code" class="field-label">¿Tienes un código de otra jornada?</label>
-        <input
-          id="code"
-          class="field h-16 text-center font-display text-3xl font-extrabold tracking-[0.35em] uppercase"
-          placeholder="COPA26"
-          autocomplete="off"
-          autocapitalize="characters"
-          maxlength="20"
-          [value]="code()"
-          (input)="code.set($any($event.target).value)"
-        />
-        <button type="submit" class="btn mt-3 w-full" [disabled]="code().trim().length < 4">
-          Entrar a la jornada <app-icon name="next" />
+      @if (showCode() || !activeCode()) {
+        <form class="glass mt-4 anim-in" style="--i: 5" (submit)="$event.preventDefault(); go()">
+          <label for="code" class="field-label">Código de la jornada</label>
+          <input
+            id="code"
+            class="field h-14 text-center font-display text-2xl font-extrabold tracking-[0.3em] uppercase"
+            placeholder="COPA26"
+            autocomplete="off"
+            autocapitalize="characters"
+            maxlength="20"
+            [value]="code()"
+            (input)="code.set($any($event.target).value)"
+          />
+          <div class="mt-3 flex gap-2">
+            @if (activeCode()) {
+              <button type="button" class="btn-ghost h-12 flex-1" (click)="showCode.set(false)">Cancelar</button>
+            }
+            <button type="submit" class="btn h-12 flex-1 text-[15px]" [disabled]="code().trim().length < 4">
+              Entrar <app-icon name="next" [size]="18" />
+            </button>
+          </div>
+        </form>
+      } @else {
+        <button
+          type="button"
+          class="anim-in mt-4 w-full rounded-2xl py-3 text-center text-sm font-bold text-mute transition hover:text-ink"
+          style="--i: 5"
+          (click)="showCode.set(true)"
+        >
+          ¿Tienes un código de otra jornada?
         </button>
-      </form>
+      }
       </div>
       </div>
 
@@ -127,6 +143,8 @@ export class HomePage implements OnInit {
 
   /** Jornada activa: se muestra el botón "Entrar a la Copa" (la portada ya no salta sola a ella). */
   protected readonly activeCode = signal<string | null>(null);
+  /** El campo de código queda plegado: un solo CTA primario en la portada. */
+  protected readonly showCode = signal(false);
 
   async ngOnInit() {
     try {

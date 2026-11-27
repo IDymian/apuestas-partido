@@ -76,7 +76,7 @@ export function potsOf(d: PublicMatchData): Map<string, { pot: number; bySel: Ma
 /** Ícono de cada mercado. */
 export const MARKET_ICON: Record<string, string> = {
   first_goal: '⚽', last_goal: '🏁', top_scorer: '👟', first_to_n_goals: '🎯', nth_goal: '🔢',
-  best_team: '🏆', worst_team: '🐢', top_scoring_team: '💥', most_conceded_team: '🥅', game_winner: '🆚', game_first_goal: '⚽',
+  best_team: '🏆', worst_team: '🐢', top_scoring_team: '💥', most_conceded_team: '🥅', game_winner: '🥇', game_first_goal: '⚽',
   game_goals: '🔢', game_last_goal: '🏁', game_first_own_goal: '🙈', game_first_yellow: '🟨', game_first_red: '🟥', game_first_post: '🥅',
   game_first_golazo: '✨', game_first_penalty: '🚨', game_first_penalty_miss: '🙅', game_first_blooper: '🤦', game_first_dive: '🏊',
   game_first_nutmeg: '🥜', game_has_post: '🥅', game_has_penalty: '🚨', game_has_red: '🟥', game_has_golazo: '✨', game_has_own_goal: '🙈',

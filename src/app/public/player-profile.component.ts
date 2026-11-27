@@ -26,7 +26,7 @@ const STATE: Record<BetState, { label: string; tone: string }> = {
 
     <h3 class="mt-5 mb-2 px-1 font-display text-lg font-extrabold">Apuestas</h3>
     @if (s.rows.length === 0) {
-      <p class="glass py-6 text-center text-sm text-mute">Todavía no tiene apuestas en esta jornada.</p>
+      <p class="glass py-6 text-center text-sm text-mute">Todavía no hay apuestas en esta jornada.</p>
     } @else {
       <ul class="space-y-2">
         @for (r of s.rows; track r.id) {

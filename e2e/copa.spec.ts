@@ -47,8 +47,13 @@ test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());
 });
 
-test('inicio: abre la jornada con los 6 partidos y "En vivo" vacío', async ({ page }) => {
+test('inicio: portada, entra a la jornada con los 6 partidos y "En vivo" vacío', async ({ page }) => {
   await page.goto('/');
+  // La portada es la landing (no salta sola); se entra con el botón.
+  await expect(page.getByRole('heading', { name: 'La esférica no se mancha' })).toBeVisible();
+  await expectNoHorizontalScroll(page);
+  await shot(page, '00-portada');
+  await page.getByRole('link', { name: /Entrar a la Copa/ }).click();
   await expect(page).toHaveURL(/\/p\/COPA/);
   await expect(page.getByText('La esférica no se mancha').first()).toBeVisible();
   for (const n of [1, 2, 3, 4, 5, 6]) await expect(page.getByText(`Partido ${n} · Próximo`)).toBeVisible();

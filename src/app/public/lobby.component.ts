@@ -23,7 +23,7 @@ type View = 'games' | 'specials' | 'table';
       <div class="relative z-10 max-w-[62%] p-4 pr-0">
         <p class="text-[10px] font-extrabold tracking-[0.2em] text-white/80 uppercase">Copa Álvaro</p>
         <h2 class="mt-1 font-display text-[22px] leading-tight font-extrabold">La esférica no se mancha</h2>
-        <p class="mt-1 text-xs text-white/85">{{ ctx.league()?.games?.length ?? 6 }} partidos · {{ marketsCount() }} apuestas · bote total {{ totalPot() }}</p>
+        <p class="mt-1 text-xs text-white/85">{{ ctx.league()?.games?.length ?? 6 }} partidos · {{ marketsCount() }} mercados · bote total {{ totalPot() }}</p>
         @if (!auth.user()) {
           <p class="mt-2 inline-flex rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-bold">Entra para apostar</p>
         }

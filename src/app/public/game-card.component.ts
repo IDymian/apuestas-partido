@@ -38,7 +38,7 @@ import { IconComponent } from '../ui/icon.component';
         </div>
         <span class="flex shrink-0 flex-col items-end gap-1">
           <span class="flex items-center gap-0.5 rounded-lg bg-lime/10 px-2 py-1 text-xs font-extrabold text-lime">
-            +{{ ctx.gameMarkets(g).length }} apuestas <app-icon name="chevron" [size]="14" class="-rotate-90" />
+            +{{ ctx.gameMarkets(g).length }} mercados <app-icon name="chevron" [size]="14" class="-rotate-90" />
           </span>
           <span class="text-[11px] font-semibold text-mute">bote {{ gamePot() }}</span>
         </span>

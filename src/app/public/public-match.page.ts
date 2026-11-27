@@ -129,8 +129,8 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
         }
       </main>
 
-      <!-- Cupón flotante -->
-      @if (slip.count() > 0 && tab() !== 'slip') {
+      <!-- Cupón flotante: solo donde hay apuestas a la vista (en Social y Mi perfil taparía el composer / el menú) -->
+      @if (slip.count() > 0 && (tab() === 'games' || tab() === 'live')) {
         <button
           type="button"
           class="fixed inset-x-3 bottom-[calc(5.6rem+env(safe-area-inset-bottom))] z-30 mx-auto flex max-w-[26rem] items-center gap-3 rounded-2xl bg-ink px-4 py-3 text-left text-white shadow-[0_18px_40px_-12px_rgb(31_20_13/0.6)] anim-sheet"

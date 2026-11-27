@@ -54,10 +54,10 @@ export const isGameMarket = (type: string | undefined) => !!type && GAME_MARKET_
 /** Máximo de "Goles en el partido" (5 = "5 o más"). */
 export const GAME_GOALS_MAX = 5;
 
-export const GAME_GROUPS: { id: GameMarketGroup; label: string; icon: string }[] = [
-  { id: 'resultado', label: 'Resultado', icon: '🆚' },
-  { id: 'goles', label: 'Goles', icon: '⚽' },
-  { id: 'tarjetas', label: 'Tarjetas', icon: '🟨' },
-  { id: 'show', label: 'Show', icon: '🎬' },
-  { id: 'si_no', label: '¿Pasará?', icon: '❓' },
+export const GAME_GROUPS: { id: GameMarketGroup; label: string }[] = [
+  { id: 'resultado', label: 'Resultado' },
+  { id: 'goles', label: 'Goles' },
+  { id: 'tarjetas', label: 'Tarjetas' },
+  { id: 'show', label: 'Show' },
+  { id: 'si_no', label: '¿Pasará?' },
 ];
