@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject, input, output } from '@angular/core';
 import { LeagueGame } from '../domain/league';
+import { formatSoles } from '../domain/settlement';
 import { MatchContext } from './match-context';
 import { MarketOptionsComponent } from './market-options.component';
 import { IconComponent } from '../ui/icon.component';
@@ -35,8 +36,11 @@ import { IconComponent } from '../ui/icon.component';
             </p>
           </div>
         </div>
-        <span class="flex shrink-0 items-center gap-0.5 rounded-lg bg-ink/[0.05] px-2 py-1 text-xs font-extrabold text-mute">
-          +{{ ctx.gameMarkets(g).length }} <app-icon name="chevron" [size]="14" class="-rotate-90" />
+        <span class="flex shrink-0 flex-col items-end gap-1">
+          <span class="flex items-center gap-0.5 rounded-lg bg-lime/10 px-2 py-1 text-xs font-extrabold text-lime">
+            +{{ ctx.gameMarkets(g).length }} apuestas <app-icon name="chevron" [size]="14" class="-rotate-90" />
+          </span>
+          <span class="text-[11px] font-semibold text-mute">bote {{ gamePot() }}</span>
         </span>
       </button>
       @if (winner(); as w) {
@@ -53,6 +57,10 @@ export class GameCardComponent {
   readonly full = output<void>();
   protected readonly ctx = inject(MatchContext);
   protected readonly winner = computed(() => this.ctx.winnerMarket(this.game()));
+  /** Suma de los botes de todas las apuestas del partido. */
+  protected readonly gamePot = computed(() =>
+    formatSoles(this.ctx.gameMarkets(this.game()).reduce((s, m) => s + (this.ctx.pots().get(m.id)?.pot ?? 0), 0)),
+  );
   protected readonly statusText = computed(() => ({ pending: 'Próximo', live: 'En vivo', played: 'Finalizado' })[this.game().status]);
   protected readonly tone = computed(() => ({ pending: 'text-mute', live: 'text-candy', played: 'text-faint' })[this.game().status]);
   private readonly order = computed(() => (this.ctx.data()?.teams ?? []).slice().sort((a, b) => a.sort_order - b.sort_order).map((t) => t.id));

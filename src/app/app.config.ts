@@ -7,7 +7,7 @@ import { PublicApi, SupabasePublicApi } from './core/public-api';
 import { MockAdminApi, MockPublicApi } from './core/mock-backend';
 import { AdminApi, SupabaseAdminApi } from './core/admin-api';
 import { AuthApi, MockAuthApi, SupabaseAuthApi } from './core/auth';
-import { hasSupabaseConfig } from './core/supabase.service';
+import { useMockBackend } from './core/supabase.service';
 
 export const appConfig: ApplicationConfig = {
   providers: [
@@ -18,10 +18,10 @@ export const appConfig: ApplicationConfig = {
       withViewTransitions({ skipInitialTransition: true }),
       withInMemoryScrolling({ scrollPositionRestoration: 'top' }),
     ),
-    // Sin claves de Supabase en el .env, la app usa datos de prueba en memoria.
-    { provide: PublicApi, useClass: hasSupabaseConfig() ? SupabasePublicApi : MockPublicApi },
-    { provide: AdminApi, useClass: hasSupabaseConfig() ? SupabaseAdminApi : MockAdminApi },
-    { provide: AuthApi, useClass: hasSupabaseConfig() ? SupabaseAuthApi : MockAuthApi },
+    // Producción: Supabase. El backend en memoria solo existe en pruebas locales (npm run start:mock).
+    { provide: PublicApi, useClass: useMockBackend() ? MockPublicApi : SupabasePublicApi },
+    { provide: AdminApi, useClass: useMockBackend() ? MockAdminApi : SupabaseAdminApi },
+    { provide: AuthApi, useClass: useMockBackend() ? MockAuthApi : SupabaseAuthApi },
     // Lee la sesión (y el link del correo de confirmación/recuperación) antes de mostrar la app.
     provideAppInitializer(() => {
       const auth = inject(AuthApi);

@@ -20,7 +20,7 @@ import { formatSoles } from '../domain/settlement';
         <div class="flex min-w-0 items-center gap-3">
           <a routerLink="/admin" class="grid h-10 w-10 place-items-center rounded-xl bg-white/15" aria-label="Volver a jornadas">←</a>
           <div class="min-w-0">
-            <p class="text-xs text-white/80">Organizador{{ api.isDemo ? ' · demo' : '' }}</p>
+            <p class="text-xs text-white/80">Organizador</p>
             <h1 class="flex items-center gap-2 text-xl font-extrabold">
               Recargas por Plin
               @if (items().length) {

@@ -12,7 +12,7 @@ import { friendlyError } from '../core/public-api';
     <header class="bg-emerald-600 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 text-white">
       <div class="mx-auto flex max-w-2xl items-center justify-between gap-2">
         <div class="min-w-0">
-          <p class="text-xs text-white/80">Organizador{{ api.isDemo ? ' · demo' : '' }}</p>
+          <p class="text-xs text-white/80">Organizador</p>
           <h1 class="text-xl font-extrabold">Jornadas</h1>
         </div>
         <div class="flex shrink-0 items-center gap-2">

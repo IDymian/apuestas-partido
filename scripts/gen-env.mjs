@@ -11,13 +11,18 @@ if (existsSync('.env')) {
 }
 const get = (k) => process.env[k] ?? fromFile[k] ?? '';
 
+// --mock: backend en memoria SOLO para pruebas locales (npm run start:mock / test:e2e). Nunca en el despliegue.
+const mock = process.argv.includes('--mock');
 const env = {
-  supabaseUrl: get('SUPABASE_URL'),
-  supabaseAnonKey: get('SUPABASE_ANON_KEY'),
+  supabaseUrl: mock ? '' : get('SUPABASE_URL'),
+  supabaseAnonKey: mock ? '' : get('SUPABASE_ANON_KEY'),
+  mock,
 };
 
-if (!env.supabaseUrl || !env.supabaseAnonKey) {
-  console.warn('[gen-env] Falta SUPABASE_URL o SUPABASE_ANON_KEY (.env). La app arrancará en MODO DEMO (datos de prueba).');
+if (mock) {
+  console.warn('[gen-env] Backend de PRUEBAS en memoria (--mock). No usar para desplegar.');
+} else if (!env.supabaseUrl || !env.supabaseAnonKey) {
+  console.warn('[gen-env] Falta SUPABASE_URL o SUPABASE_ANON_KEY (.env o variables de entorno). La app no podrá conectarse.');
 }
 
 writeFileSync(

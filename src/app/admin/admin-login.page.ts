@@ -25,9 +25,6 @@ import { friendlyError } from '../core/public-api';
         }
         <button class="btn-primary w-full" [disabled]="busy()">{{ busy() ? 'Entrando…' : 'Entrar' }}</button>
       </form>
-      @if (api.isDemo) {
-        <p class="mt-3 text-center text-xs text-amber-800">Modo demo: entra con cualquier correo y contraseña.</p>
-      }
       <a routerLink="/" class="mt-8 text-center text-sm text-slate-500">← Volver</a>
     </main>
   `,

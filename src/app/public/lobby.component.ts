@@ -2,10 +2,8 @@ import { Component, computed, inject, output, signal } from '@angular/core';
 import { SECTIONS } from '../core/models';
 import { AuthApi } from '../core/auth';
 import { SlipService } from '../core/slip';
-import { LeagueGame } from '../domain/league';
 import { MatchContext } from './match-context';
 import { GameCardComponent } from './game-card.component';
-import { GameSheetComponent } from './game-sheet.component';
 import { MarketOptionsComponent } from './market-options.component';
 import { LiveBoardComponent } from './live-board.component';
 import { MARKET_ICON } from './market-utils';
@@ -18,14 +16,14 @@ type View = 'games' | 'specials' | 'table';
 /** Inicio de la jornada: partidos, especiales de la liga y tabla. */
 @Component({
   selector: 'app-lobby',
-  imports: [GameCardComponent, GameSheetComponent, MarketOptionsComponent, LiveBoardComponent, IconComponent, Ball3dComponent],
+  imports: [GameCardComponent, MarketOptionsComponent, LiveBoardComponent, IconComponent, Ball3dComponent],
   template: `
     <!-- Banner -->
     <section class="relative overflow-hidden rounded-[26px] bg-gradient-to-br from-[#ff8a1f] via-lime to-[#d13f00] text-white shadow-[0_20px_44px_-20px_rgb(242_98_0/0.8)] anim-in">
       <div class="relative z-10 max-w-[62%] p-4 pr-0">
         <p class="text-[10px] font-extrabold tracking-[0.2em] text-white/80 uppercase">Copa Álvaro</p>
         <h2 class="mt-1 font-display text-[22px] leading-tight font-extrabold">La esférica no se mancha</h2>
-        <p class="mt-1 text-xs text-white/85">{{ ctx.league()?.games?.length ?? 6 }} partidos · {{ marketsCount() }} apuestas · bote {{ totalPot() }}</p>
+        <p class="mt-1 text-xs text-white/85">{{ ctx.league()?.games?.length ?? 6 }} partidos · {{ marketsCount() }} apuestas · bote total {{ totalPot() }}</p>
         @if (!auth.user()) {
           <p class="mt-2 inline-flex rounded-full bg-white/20 px-2.5 py-1 text-[11px] font-bold">Entra para apostar</p>
         }
@@ -50,7 +48,7 @@ type View = 'games' | 'specials' | 'table';
           <h3 class="mt-3 mb-2 px-1 text-sm font-extrabold tracking-wide text-mute uppercase">{{ ctx.liveGame() ? 'En vivo y próximos' : 'Próximos partidos' }}</h3>
           <div class="space-y-2.5">
             @for (g of upcoming(); track g.number; let i = $index) {
-              <app-game-card class="block anim-in" [style.--i]="i" [game]="g" (open)="sheet.set(g)" (full)="full.emit()" />
+              <app-game-card class="block anim-in" [style.--i]="i" [game]="g" (open)="ctx.sheetGame.set(g.number)" (full)="full.emit()" />
             }
           </div>
         }
@@ -58,7 +56,7 @@ type View = 'games' | 'specials' | 'table';
           <h3 class="mt-6 mb-2 px-1 text-sm font-extrabold tracking-wide text-mute uppercase">Finalizados</h3>
           <div class="space-y-2.5">
             @for (g of played(); track g.number) {
-              <app-game-card class="block" [game]="g" (open)="sheet.set(g)" />
+              <app-game-card class="block" [game]="g" (open)="ctx.sheetGame.set(g.number)" />
             }
           </div>
         }
@@ -66,7 +64,7 @@ type View = 'games' | 'specials' | 'table';
           <span class="text-2xl">🏆</span>
           <span class="min-w-0 flex-1">
             <span class="block font-bold">Especiales de la liga</span>
-            <span class="block text-xs text-mute">Campeón, primera roja, primer palo, golazo, penales y más</span>
+            <span class="block text-xs text-mute">Toda la jornada: campeón, primera roja, primer palo, golazo, penales y más</span>
           </span>
           <app-icon name="next" class="text-lime" />
         </button>
@@ -110,9 +108,6 @@ type View = 'games' | 'specials' | 'table';
       }
     }
 
-    @if (sheet(); as g) {
-      <app-game-sheet [game]="sheetGame(g)" (closed)="sheet.set(null)" (full)="full.emit()" />
-    }
   `,
 })
 export class LobbyComponent {
@@ -127,7 +122,6 @@ export class LobbyComponent {
   ];
   protected readonly view = signal<View>('games');
   protected readonly open = signal<string | null>(null);
-  protected readonly sheet = signal<LeagueGame | null>(null);
 
   protected readonly upcoming = computed(() => (this.ctx.league()?.games ?? []).filter((g) => g.status !== 'played').sort((a, b) => (a.status === 'live' ? -1 : 0) - (b.status === 'live' ? -1 : 0) || a.number - b.number));
   protected readonly played = computed(() => (this.ctx.league()?.games ?? []).filter((g) => g.status === 'played'));
@@ -141,11 +135,6 @@ export class LobbyComponent {
       .map((s) => ({ ...s, markets: markets.filter((m) => m.section === s.id) }))
       .filter((s) => s.markets.length);
   });
-
-  /** El partido abierto en la hoja se actualiza con los datos en vivo. */
-  protected sheetGame(g: LeagueGame) {
-    return this.ctx.league()?.games.find((x) => x.number === g.number) ?? g;
-  }
 
   protected countFor(marketId: string) {
     return this.slip.bets().filter((b) => b.marketId === marketId).length;

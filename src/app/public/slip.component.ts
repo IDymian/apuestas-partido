@@ -63,7 +63,7 @@ import { confetti } from '../ui/confetti';
                   <p class="mt-1 text-xs font-bold text-candy">🔒 {{ st.reason }}: quítala para apostar</p>
                 }
               </div>
-              <span class="shrink-0 rounded-lg bg-ink/[0.05] px-2 py-1 text-xs font-extrabold" [title]="'Cuota estimada'">{{ ctx.odds(b.marketId, b.selection) }}</span>
+              <span class="shrink-0 rounded-lg bg-ink/[0.05] px-2 py-1 text-[11px] font-bold text-mute">bote {{ pot(b.marketId) }}</span>
               <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint hover:bg-candy/10 hover:text-candy" (click)="slip.remove(b.marketId, b.selection)" aria-label="Quitar del cupón">
                 <app-icon name="x" [size]="16" />
               </button>
@@ -92,7 +92,7 @@ import { confetti } from '../ui/confetti';
             <div class="flex justify-between"><dt class="text-mute">Tu saldo</dt><dd class="font-bold">{{ balanceText() }}</dd></div>
           }
         </dl>
-        <p class="mt-3 text-xs text-faint">{{ warning }} Cuota estimada = bote ÷ lo apostado a esa opción.</p>
+        <p class="mt-3 text-xs text-faint">Todo es por bote: lo que se apuesta a un mercado se reparte entre los que aciertan, en proporción a lo que apostaron. {{ warning }}</p>
       </section>
 
       @if (!auth.user()) {
@@ -140,6 +140,10 @@ export class SlipComponent {
   protected readonly shortfall = computed(() => Math.max(0, this.slip.totalCents() / 100 - (this.wallet.balance() ?? 0)));
   protected readonly hasClosed = computed(() => this.slip.bets().some((b) => !this.ctx.state(b.marketId).open));
   protected readonly balanceText = computed(() => (this.wallet.balance() === null ? '…' : formatSoles((this.wallet.balance() ?? 0) * 100)));
+
+  protected pot(marketId: string) {
+    return formatSoles(this.ctx.pots().get(marketId)?.pot ?? 0);
+  }
 
   protected icon(b: BetDraft) {
     return MARKET_ICON[this.ctx.marketById().get(b.marketId)?.type ?? ''] ?? '🎲';

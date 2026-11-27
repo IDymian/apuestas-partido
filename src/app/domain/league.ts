@@ -10,6 +10,7 @@
  * Función pura: la usan los resolvers, la pantalla pública y el admin.
  */
 import { TimelineEvent } from './timeline';
+import { GAME_MARKET_BY_TYPE } from './game-markets';
 
 /** Índices (en el orden de los equipos) de cada partido, para 4 equipos. */
 const FIXTURE_4: [number, number][] = [
@@ -45,6 +46,8 @@ export interface LeagueGame extends FixtureGame {
   awayGoals: number;
   /** Goles de este partido en orden. */
   goalEventIds: string[];
+  /** Tipos de evento que ya pasaron en el partido ("own_goal" = hubo autogol). */
+  happened: Set<string>;
 }
 
 export interface Standing {
@@ -85,11 +88,16 @@ export function league(events: TimelineEvent[], teamIds: string[], currentGame: 
     homeGoals: 0,
     awayGoals: 0,
     goalEventIds: [],
+    happened: new Set<string>(),
   }));
   const byNumber = new Map(games.map((g) => [g.number, g]));
 
   for (const e of events) {
-    if (e.type !== 'goal') continue;
+    if (e.type !== 'goal') {
+      const g = e.game != null ? byNumber.get(e.game) : undefined;
+      if (g && g.status !== 'pending') g.happened.add(e.type);
+      continue;
+    }
     const g = e.game != null ? byNumber.get(e.game) : undefined;
     if (!g || g.status === 'pending' || (e.teamId !== g.home && e.teamId !== g.away)) {
       invalid.push(e.id);
@@ -98,6 +106,8 @@ export function league(events: TimelineEvent[], teamIds: string[], currentGame: 
     if (e.teamId === g.home) g.homeGoals++;
     else g.awayGoals++;
     g.goalEventIds.push(e.id);
+    g.happened.add('goal');
+    if (e.isOwnGoal) g.happened.add('own_goal');
   }
 
   const rows = new Map<string, Standing>(
@@ -147,16 +157,24 @@ export function leagueStarted(l: League): boolean {
 
 /**
  * ¿Se puede apostar a este mercado ahora? Igual que la validación de submit_ticket:
- *  - Por partido: hasta que termina (en vivo se puede, salvo "primer gol" si ya hubo gol).
+ *  - Por partido: hasta que termina. En vivo, los "primer…" y "¿habrá…?" se cierran apenas pasa ese evento.
  *  - De toda la liga: solo antes de que empiece el primer partido.
  */
-export function marketOpen(m: { type: string; param: number | null; section?: string }, l: League, jornadaOpen: boolean): { open: boolean; reason: string | null } {
+export function marketOpen(
+  m: { type: string; param: number | null; section?: string; settled?: boolean },
+  l: League,
+  jornadaOpen: boolean,
+): { open: boolean; reason: string | null } {
+  if (m.settled) return { open: false, reason: 'Liquidado' };
   if (!jornadaOpen) return { open: false, reason: 'Apuestas cerradas' };
-  if (m.type === 'game_winner' || m.type === 'game_first_goal') {
+  const def = GAME_MARKET_BY_TYPE.get(m.type);
+  if (def) {
     const g = l.games.find((x) => x.number === m.param);
     if (!g) return { open: false, reason: 'Partido no encontrado' };
     if (g.status === 'played') return { open: false, reason: 'Finalizado' };
-    if (g.status === 'live' && m.type === 'game_first_goal' && g.goalEventIds.length) return { open: false, reason: 'Ya hubo gol' };
+    if (g.status === 'live' && (def.kind === 'first' || def.kind === 'has') && def.event && g.happened.has(def.event)) {
+      return { open: false, reason: 'Ya pasó' };
+    }
     return { open: true, reason: null };
   }
   return leagueStarted(l) ? { open: false, reason: 'La liga ya empezó' } : { open: true, reason: null };

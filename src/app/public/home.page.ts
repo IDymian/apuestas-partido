@@ -67,14 +67,6 @@ const MARQUEE = [
         <button type="submit" class="btn mt-3 w-full" [disabled]="code().trim().length < 4">
           Entrar a la jornada <app-icon name="next" />
         </button>
-        @if (isDemo) {
-          <p class="mt-3 text-center text-xs text-mute">
-            Modo demo · prueba
-            <a routerLink="/p/ABIERTA" class="font-bold text-lime underline-offset-2 hover:underline">ABIERTA</a>,
-            <a routerLink="/p/DEMO26" class="font-bold text-lime underline-offset-2 hover:underline">DEMO26</a> (en vivo) o
-            <a routerLink="/p/FINAL" class="font-bold text-lime underline-offset-2 hover:underline">FINAL</a>
-          </p>
-        }
       </form>
       </div>
       </div>
@@ -117,7 +109,6 @@ export class HomePage implements OnInit {
   private router = inject(Router);
   protected readonly auth = inject(AuthApi);
   private readonly api = inject(PublicApi);
-  protected readonly isDemo = this.api.isDemo;
   protected readonly code = signal('');
   protected readonly last = lastMatch();
   protected readonly marquee = [...MARQUEE, ...MARQUEE];

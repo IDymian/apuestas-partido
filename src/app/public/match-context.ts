@@ -2,7 +2,11 @@ import { computed, Injectable, signal } from '@angular/core';
 import { Market, PublicMatchData } from '../core/models';
 import { makeSelectionLabel } from '../domain/adapt';
 import { LeagueGame } from '../domain/league';
-import { choicesFor, leagueOf, marketStates, oddsOf, potsOf } from './market-utils';
+import { GAME_MARKETS, isGameMarket } from '../domain/game-markets';
+import { formatSoles } from '../domain/settlement';
+import { choicesFor, leagueOf, marketStates, potsOf } from './market-utils';
+
+const GAME_ORDER = new Map(GAME_MARKETS.map((d, i) => [d.type, i]));
 
 /** Datos de la jornada abierta y lo que se calcula de ellos (lo comparten todas las pestañas). */
 @Injectable()
@@ -30,12 +34,15 @@ export class MatchContext {
   readonly marketById = computed(() => new Map((this.data()?.markets ?? []).map((m) => [m.id, m])));
   readonly teamName = computed(() => new Map((this.data()?.teams ?? []).map((t) => [t.id, t.name])));
   readonly liveGame = computed(() => this.league()?.games.find((g) => g.status === 'live') ?? null);
+  /** Partido abierto en la hoja de apuestas (número). */
+  readonly sheetGame = signal<number | null>(null);
+  readonly openSheet = computed(() => this.league()?.games.find((g) => g.number === this.sheetGame()) ?? null);
 
-  /** Mercados de un partido (ganador primero). */
+  /** Mercados de un partido, en el orden del catálogo (ganador primero). */
   gameMarkets(g: LeagueGame): Market[] {
     return (this.data()?.markets ?? [])
-      .filter((m) => (m.type === 'game_winner' || m.type === 'game_first_goal') && m.param === g.number)
-      .sort((a, b) => (a.type === 'game_winner' ? -1 : 1) - (b.type === 'game_winner' ? -1 : 1));
+      .filter((m) => isGameMarket(m.type) && m.param === g.number)
+      .sort((a, b) => (GAME_ORDER.get(a.type) ?? 99) - (GAME_ORDER.get(b.type) ?? 99));
   }
 
   winnerMarket(g: LeagueGame): Market | undefined {
@@ -47,8 +54,13 @@ export class MatchContext {
     return d ? choicesFor(m, d, this.labeler()) : [];
   }
 
-  odds(marketId: string, selection: string) {
-    return oddsOf(this.pots(), marketId, selection);
+  /** Lo apostado a una opción (todo es por bote). */
+  staked(marketId: string, selection: string) {
+    return this.pots().get(marketId)?.bySel.get(selection) ?? 0;
+  }
+  stakedText(marketId: string, selection: string) {
+    const c = this.staked(marketId, selection);
+    return c ? formatSoles(c).replace('.00', '') : 'S/ 0';
   }
 
   state(marketId: string) {

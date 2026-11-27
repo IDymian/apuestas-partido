@@ -3,22 +3,21 @@
 > **La esférica no se mancha.**
 
 App web (PWA) para el partido de la Copa Álvaro: cada amigo crea su cuenta, **recarga saldo por Plin**,
-apuesta de S/ 1 a S/ 5 en **36 mercados** (por partido y de toda la liga: goles, rojas, palos, golazos, penales, bloopers, campeón…),
+apuesta de S/ 1 a S/ 5 en **138 mercados** (por partido y de toda la liga: goles, rojas, palos, golazos, penales, bloopers, campeón…),
 mira el **bote en vivo** y comenta en **Social**. Se usa sobre todo en el celular.
 
 - **Frontend:** Angular 21 (standalone + signals), Tailwind 4, three.js (escena 3D del inicio), PWA.
 - **Backend:** Supabase (Postgres + RLS, Auth con correo, Storage, Realtime).
 - **Diseño:** blanco y naranja. Ver [DESIGN.md](DESIGN.md).
 
-> **Modo demo:** sin claves de Supabase en el `.env`, la app usa datos de prueba en el navegador: una jornada
-> **COPA** con los 6 partidos por jugar (nada en vivo). Entra con la cuenta **usuario `demo` · contraseña `demo`**
-> (S/ 50 de saldo) o crea una cuenta; los "correos" se abren desde la misma pantalla (bandeja de prueba).
-> Organizador: `/admin` con cualquier correo y contraseña. Los datos se pierden al recargar la página.
+> La app necesita **Supabase** (ver "Supabase" más abajo). Para probar en tu PC sin Supabase existe
+> `npm run start:mock` (datos en memoria, solo para desarrollo y pruebas; nunca se despliega).
 
 ## Cómo se ve (estilo casa de apuestas)
 
 - **Partidos:** al abrir la app aparece la jornada activa con los 6 partidos como "Próximos", cada uno con botones
-  **1 · X · 2** y su **cuota estimada** (bote ÷ lo apostado a esa opción). Tocando el partido se ven todos sus mercados.
+  **1 · X · 2** que muestran **cuánto se le ha apostado** a cada opción. **Todo es por bote:** lo apostado a un mercado se
+  reparte entre los que aciertan, en proporción a lo que apostaron. Tocando el partido se abren sus **19 apuestas**.
 - **Especiales:** las apuestas de toda la liga (campeón, último, primera roja, palo, golazo, penales, bloopers…).
 - **Tabla:** marcadores, fixture, tabla de posiciones, botes y apuestas de todos.
 - **Cupón:** tocar una cuota la agrega (S/ 1); en el cupón eliges S/ 1–5 por selección y apuestas con tu saldo.
@@ -26,8 +25,12 @@ mira el **bote en vivo** y comenta en **Social**. Se usa sobre todo en el celula
   el marcador, las jugadas y las apuestas de ese partido que siguen abiertas.
 - Encabezado con **saldo** y botón **Depositar** (recarga por Plin) siempre a la vista.
 
-**Cuándo se cierra cada apuesta:** las de un partido, cuando termina (en vivo se puede apostar al ganador, y al primer gol
-solo mientras va 0-0). Las de toda la liga (especiales), cuando empieza el primer partido. Lo valida la base de datos.
+**Apuestas de cada partido (19):** ganador (1 · X · 2), goles en el partido (0–5+), primer gol, último gol, primer autogol,
+primera amarilla, primera roja, primer palo, primer golazo, primer penal cometido, primer penal fallado, primer blooper,
+primer piscinazo, primera huacha y ¿habrá palo / penal / roja / golazo / autogol? (Sí / No). Más las 24 generales de la jornada.
+
+**Cuándo se cierra cada apuesta:** las de un partido, cuando termina; en vivo, los "primer…" y "¿habrá…?" se cierran apenas
+pasa ese evento. Las de toda la jornada (especiales), cuando empieza el primer partido. Lo valida la base de datos.
 
 ---
 
@@ -77,11 +80,10 @@ Chat por jornada en tiempo real (canal `chat:<CODIGO>`), con reacciones rápidas
 - En **Eventos** el organizador ve el partido actual: **"▶ Poner en vivo"** cuando empieza y **"⏹ Terminar partido"**
   cuando acaba (pasa al siguiente). Cada gol, tarjeta, palo, etc. queda en ese partido.
 
-## Mercados (36; cada uno tiene su bote)
+## Mercados de toda la jornada (24; cada uno tiene su bote)
 
 | Sección | Mercados |
 |---|---|
-| 🆚 Partidos (×6) | **Ganador** (gana uno / empate / gana el otro) · **Primer gol** del partido (jugador, acepta "Autogol") |
 | ⚽ Goles de la liga (jugador) | Primer gol · Último gol · Pichichi · Primer cuartete (4) · Primer sextete (6) · Gol 15 · Gol 28 |
 | 🏆 Liga (equipo) | **Campeón** (más puntos) · **Último de la tabla** · **Más goleador** · **Más goleado** |
 | 🟨 Tarjetas (jugador) | Primera amarilla · Última amarilla · El más amonestado · **Primera roja** |
@@ -162,6 +164,7 @@ La anon key es pública por diseño; la seguridad la dan las políticas RLS. **N
 ```bash
 npm start                                  # http://localhost:4200
 npx ng serve --host 0.0.0.0 --port 4200    # para probar desde el celular en la misma red Wi-Fi
+npm run start:mock                         # sin Supabase: datos en memoria solo para desarrollo/pruebas
 ```
 
 Desde el celular abre `http://<IP-de-tu-PC>:4200` (la IP la ves con `ipconfig`). Si Windows pregunta, permite Node.js en redes privadas.
@@ -171,7 +174,7 @@ Desde el celular abre `http://<IP-de-tu-PC>:4200` (la IP la ves con `ipconfig`).
 ```bash
 npm test -- --watch=false   # lógica de mercados, cancha y reparto (Vitest)
 npm run test:db             # migraciones, RLS, billetera, chat y RPC en un Postgres embebido (PGlite)
-npm run test:e2e            # flujos completos en Chrome: celular Android, iPhone y escritorio (Playwright)
+npm run test:e2e            # flujos en Chrome (celular Android, iPhone y escritorio) con el backend de pruebas en memoria
 node e2e/visual.mjs         # capturas de diseño (celular y escritorio) en e2e/screenshots/visual
 npm run check:live          # seguridad del Supabase real como usuario anónimo
 ```

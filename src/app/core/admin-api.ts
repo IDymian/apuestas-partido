@@ -1,7 +1,9 @@
 import { inject, Injectable } from '@angular/core';
 import {
+  CreditRow,
   DEFAULT_PAY_METHOD,
   DepositRow,
+  SettlementRow,
   AdminMatchData,
   EventRow,
   MarketRow,
@@ -49,6 +51,10 @@ export abstract class AdminApi {
   abstract deleteMarket(id: string): Promise<void>;
 
   abstract setTicketStatus(id: string, status: TicketStatus, reason?: string | null): Promise<void>;
+  /** Liquida un mercado y acredita a cada ganador (o devuelve). Reemplaza una liquidación anterior. */
+  abstract settleMarket(marketId: string, outcome: SettlementRow['outcome'], winner: string | null, credits: Omit<CreditRow, 'market_id'>[]): Promise<void>;
+  /** Deshace la liquidación (los saldos vuelven a como estaban). */
+  abstract unsettleMarket(marketId: string): Promise<void>;
   /** Recargas de saldo por confirmar (más antiguas primero). */
   abstract pendingDeposits(): Promise<DepositRow[]>;
   abstract setDepositStatus(id: string, status: TicketStatus, reason?: string | null): Promise<void>;
@@ -91,6 +97,16 @@ export class SupabaseAdminApi extends AdminApi {
     return data === true;
   }
 
+  async settleMarket(marketId: string, outcome: SettlementRow['outcome'], winner: string | null, credits: Omit<CreditRow, 'market_id'>[]) {
+    const { error } = await this.db.rpc('admin_settle_market', { p_market: marketId, p_outcome: outcome, p_winner: winner, p_credits: credits });
+    if (error) throw error;
+  }
+
+  async unsettleMarket(marketId: string) {
+    const { error } = await this.db.rpc('admin_unsettle_market', { p_market: marketId });
+    if (error) throw error;
+  }
+
   async pendingDeposits(): Promise<DepositRow[]> {
     const { data, error } = await this.db.from('deposits').select('*').eq('status', 'pending').order('created_at');
     if (error) throw error;
@@ -127,7 +143,7 @@ export class SupabaseAdminApi extends AdminApi {
   }
 
   async getMatch(id: string): Promise<AdminMatchData | null> {
-    const [match, teams, players, markets, types, tickets, events, paid] = await Promise.all([
+    const [match, teams, players, markets, types, tickets, events, paid, settlements, credits] = await Promise.all([
       this.db.from('matches').select('*').eq('id', id).maybeSingle(),
       this.db.from('teams').select('*').eq('match_id', id).order('sort_order'),
       this.db.from('players').select('*').eq('match_id', id).order('sort_order').order('name'),
@@ -136,8 +152,10 @@ export class SupabaseAdminApi extends AdminApi {
       this.db.from('tickets').select('*, bets(*)').eq('match_id', id).order('created_at').order('id'),
       this.db.from('events').select('*').eq('match_id', id).order('minute').order('seq'),
       this.db.from('payouts_paid').select('*').eq('match_id', id),
+      this.db.from('market_settlements').select('*').eq('match_id', id),
+      this.db.from('credits').select('market_id, user_id, username, kind, amount_cents').eq('match_id', id),
     ]);
-    for (const r of [match, teams, players, markets, types, tickets, events, paid]) if (r.error) throw r.error;
+    for (const r of [match, teams, players, markets, types, tickets, events, paid, settlements, credits]) if (r.error) throw r.error;
     if (!match.data) return null;
     return {
       match: match.data as MatchRow,
@@ -148,6 +166,8 @@ export class SupabaseAdminApi extends AdminApi {
       tickets: tickets.data!,
       events: events.data!,
       paid: paid.data as PaidRow[],
+      settlements: settlements.data as SettlementRow[],
+      credits: credits.data as CreditRow[],
     };
   }
 

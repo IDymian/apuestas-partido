@@ -12,7 +12,8 @@
     "pretest": "node scripts/gen-env.mjs",
     "test:db": "node supabase/tests/db-check.mjs",
     "check:live": "node scripts/check-live.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "start:mock": "node scripts/gen-env.mjs --mock && ng serve --host 0.0.0.0"
   },
   "private": true,
   "packageManager": "npm@10.9.3",

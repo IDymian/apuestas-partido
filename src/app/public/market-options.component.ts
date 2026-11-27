@@ -25,11 +25,11 @@ import { IconComponent } from '../ui/icon.component';
           [class.odd-on]="on"
           [disabled]="!st.open"
           [attr.aria-pressed]="on"
-          [attr.aria-label]="c.label + ' · cuota ' + ctx.odds(market().id, c.selection)"
+          [attr.aria-label]="c.label + ' · apostado ' + ctx.stakedText(market().id, c.selection)"
           (click)="pick(c.selection)"
         >
           <span class="odd-label">{{ compact() && c.short ? c.short : c.label }}</span>
-          <span class="odd-value">{{ ctx.odds(market().id, c.selection) }}</span>
+          <span class="odd-value" [class.opacity-40]="!ctx.staked(market().id, c.selection)">{{ ctx.stakedText(market().id, c.selection) }}</span>
         </button>
       }
     </div>

@@ -9,14 +9,18 @@ import { inject, Injectable } from '@angular/core';
 import { AdminApi, EventPatch, NewEvent } from './admin-api';
 import { AuthApi } from './auth';
 import { fixture, league, marketOpen } from '../domain/league';
+import { GAME_MARKETS } from '../domain/game-markets';
+import { numberMaxOption } from '../domain/settlement';
 import { teamOrder, toTimelineEvents } from '../domain/adapt';
 import { uuid } from './uid';
 import {
   AdminMatchData,
   ChatMessage,
   DEFAULT_PAY_HOLDER,
+  CreditRow,
   DEFAULT_PAY_METHOD,
   DepositRow,
+  SettlementRow,
   MyTicket,
   Wallet,
   EventRow,
@@ -54,8 +58,10 @@ export const MARKET_TYPES: MarketType[] = [
   { type: 'worst_team', label: 'Último de la tabla', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'top_scoring_team', label: 'Equipo más goleador', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'most_conceded_team', label: 'Equipo más goleado', target: 'team', section: 'equipos', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
-  { type: 'game_first_goal', label: 'Primer gol del partido N', target: 'player', section: 'partidos', has_param: true, option_min: null, option_max: null, allows_own_goal: true },
-  { type: 'game_winner', label: 'Ganador del partido N', target: 'number', section: 'partidos', has_param: true, option_min: 0, option_max: 2, allows_own_goal: false },
+  ...GAME_MARKETS.map((d) => ({
+    type: d.type, label: `${d.label} (partido N)`, target: d.target, section: 'partidos' as const, has_param: true,
+    option_min: d.target === 'number' ? 0 : null, option_max: d.target === 'number' ? numberMaxOption(d.type) : null, allows_own_goal: !!d.allowsOwnGoal,
+  })),
   { type: 'first_red', label: 'Primera roja', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_blooper', label: 'Primer blooper', target: 'player', section: 'show', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_penalty_conceded', label: 'Primer penal cometido', target: 'player', section: 'show', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
@@ -120,6 +126,8 @@ export class MockStore {
   ticketOwner = new Map<string, string>();
   messages = new Map<string, ChatMessage[]>();
   deposits: DepositRow[] = [];
+  settlements: (SettlementRow & { match_id: string })[] = [];
+  credits: (CreditRow & { match_id: string; created_at: string })[] = [];
   private bus = new Map<string, Set<() => void>>();
   private chatListeners = new Map<string, Set<() => void>>();
   qrs = new Map<string, string>();
@@ -160,7 +168,8 @@ export class MockStore {
     const spent = this.tickets
       .filter((t) => this.ticketOwner.get(t.id) === userId && t.status !== 'rejected')
       .reduce((s, t) => s + t.total, 0);
-    return dep - spent;
+    const won = this.credits.filter((c) => c.user_id === userId).reduce((s, c) => s + c.amount_cents, 0);
+    return Math.round(dep * 100 - spent * 100 + won) / 100;
   }
 
   subscribeChat(code: string, fn: () => void) {
@@ -214,9 +223,12 @@ export class MockStore {
     const names = teamIds.map((_, i) => `Equipo ${i + 1}`);
     fixture(teamIds).forEach((g) => {
       const vs = `${names[teamIds.indexOf(g.home)]} vs ${names[teamIds.indexOf(g.away)]}`;
-      const base = { match_id: id, is_active: true, rollover_to_market_id: null, initial_pot: 0, param: g.number };
-      this.markets.push({ ...base, id: `${id}-gw${g.number}`, name: `Ganador · ${vs}`, type: 'game_winner', sort_order: 30 + g.number * 2 });
-      this.markets.push({ ...base, id: `${id}-gf${g.number}`, name: `Primer gol · ${vs}`, type: 'game_first_goal', sort_order: 31 + g.number * 2 });
+      GAME_MARKETS.forEach((d, i) =>
+        this.markets.push({
+          id: `${id}-${d.type}-${g.number}`, match_id: id, name: `${d.label} · ${vs}`, type: d.type, param: g.number,
+          sort_order: 100 + g.number * 30 + i, is_active: true, rollover_to_market_id: null, initial_pot: 0,
+        }),
+      );
     });
     return m;
   }
@@ -343,7 +355,10 @@ export class MockPublicApi extends PublicApi {
         .sort((a, b) => a.sort_order - b.sort_order)
         .map((k) => {
           const t = types.get(k.type)!;
-          return { ...k, target: t.target, section: t.section, option_min: t.option_min, option_max: t.option_max, allows_own_goal: t.allows_own_goal };
+          return {
+            ...k, target: t.target, section: t.section, option_min: t.option_min, option_max: t.option_max, allows_own_goal: t.allows_own_goal,
+            settled: this.s.settlements.some((x) => x.market_id === k.id),
+          };
         }),
       events: this.s.events.filter((e) => e.match_id === m.id).sort((a, b) => a.minute - b.minute || a.seq - b.seq),
       bets: approved.flatMap((t) =>
@@ -374,6 +389,8 @@ export class MockPublicApi extends PublicApi {
     for (const b of bets) {
       const mk = this.s.markets.find((x) => x.id === b.marketId);
       const st = mk && marketOpen(mk, lg, true);
+      const settled = !!mk && this.s.settlements.some((x) => x.market_id === mk.id);
+      if (settled) throw new Error(`${mk!.name} ya se liquidó`);
       if (!mk || !st?.open) throw new Error(`${mk?.name ?? 'Mercado'}: ${st?.reason ?? 'no recibe apuestas'}`);
     }
     const total = bets.reduce((s, b) => s + b.amount, 0);
@@ -406,6 +423,10 @@ export class MockPublicApi extends PublicApi {
         .filter((d) => d.user_id === user.id)
         .sort((a, b) => b.created_at.localeCompare(a.created_at))
         .map(({ id, amount, status, reject_reason, created_at, reviewed_at }) => ({ id, amount, status, reject_reason, created_at, reviewed_at })),
+      credits: this.s.credits
+        .filter((c) => c.user_id === user.id)
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .map((c, i) => ({ id: `${c.market_id}-${i}`, kind: c.kind, amount_cents: c.amount_cents, market_name: this.s.markets.find((m) => m.id === c.market_id)?.name ?? '', created_at: c.created_at })),
     });
   }
 
@@ -522,9 +543,14 @@ export class MockAdminApi extends AdminApi {
       players: this.s.players.filter((p) => p.match_id === id).sort((a, b) => a.sort_order - b.sort_order),
       markets: this.s.markets.filter((m) => m.match_id === id).sort((a, b) => a.sort_order - b.sort_order),
       marketTypes: MARKET_TYPES,
-      tickets: this.s.tickets.filter((t) => t.match_id === id).sort((a, b) => a.created_at.localeCompare(b.created_at)),
+      tickets: this.s.tickets
+        .filter((t) => t.match_id === id)
+        .sort((a, b) => a.created_at.localeCompare(b.created_at))
+        .map((t) => ({ ...t, user_id: this.s.ticketOwner.get(t.id) ?? null })),
       events: this.s.events.filter((e) => e.match_id === id).sort((a, b) => a.minute - b.minute || a.seq - b.seq),
       paid: this.s.paid.filter((p) => p.match_id === id),
+      settlements: this.s.settlements.filter((x) => x.match_id === id),
+      credits: this.s.credits.filter((c) => c.match_id === id),
     });
   }
 
@@ -635,6 +661,31 @@ export class MockAdminApi extends AdminApi {
     this.s.notify(t.match_id);
     const owner = this.s.ticketOwner.get(t.id);
     if (owner) this.s.emit('wallet:' + owner);
+  }
+
+  async settleMarket(marketId: string, outcome: SettlementRow['outcome'], winner: string | null, credits: Omit<CreditRow, 'market_id'>[]) {
+    await delay(120);
+    const m = this.s.markets.find((x) => x.id === marketId)!;
+    const touched = new Set(this.s.credits.filter((c) => c.market_id === marketId).map((c) => c.user_id));
+    this.s.credits = this.s.credits.filter((c) => c.market_id !== marketId);
+    this.s.settlements = this.s.settlements.filter((x) => x.market_id !== marketId);
+    this.s.settlements.push({ market_id: marketId, match_id: m.match_id, outcome, winner_selection: winner, settled_at: new Date().toISOString() });
+    for (const c of credits) {
+      if (!c.user_id || c.amount_cents <= 0) continue;
+      this.s.credits.push({ ...c, market_id: marketId, match_id: m.match_id, created_at: new Date().toISOString() });
+      touched.add(c.user_id);
+    }
+    touched.forEach((u) => this.s.emit('wallet:' + u));
+    this.s.notify(m.match_id);
+  }
+
+  async unsettleMarket(marketId: string) {
+    const m = this.s.markets.find((x) => x.id === marketId)!;
+    const touched = new Set(this.s.credits.filter((c) => c.market_id === marketId).map((c) => c.user_id));
+    this.s.credits = this.s.credits.filter((c) => c.market_id !== marketId);
+    this.s.settlements = this.s.settlements.filter((x) => x.market_id !== marketId);
+    touched.forEach((u) => this.s.emit('wallet:' + u));
+    this.s.notify(m.match_id);
   }
 
   async pendingDeposits(): Promise<DepositRow[]> {

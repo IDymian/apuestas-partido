@@ -92,6 +92,11 @@ export function makeSelectionLabel(players: Player[], teams: Team[]) {
   return (target: MarketTarget | undefined, selection: string | null, type?: string, param?: number | null): string => {
     if (selection == null) return '¿?';
     if (target === 'team') return t.get(selection) ?? '¿?';
+    if (type?.startsWith('game_has_')) return selection === '1' ? 'Sí' : 'No';
+    if (type === 'game_goals') {
+      const n = Number(selection);
+      return n >= 5 ? '5 o más goles' : n === 1 ? '1 gol' : `${n} goles`;
+    }
     if (type === 'game_winner') {
       const g = games.find((x) => x.number === param);
       if (selection === '0') return 'Empate';

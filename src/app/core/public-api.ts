@@ -60,7 +60,7 @@ export class SupabasePublicApi extends PublicApi {
   async getWallet(): Promise<Wallet> {
     const { data, error } = await this.sb.client.rpc('get_wallet');
     if (error) throw error;
-    return (data as Wallet | null) ?? { balance: 0, deposits: [] };
+    return (data as Wallet | null) ?? { balance: 0, deposits: [], credits: [] };
   }
 
   async requestDeposit(userId: string, amount: number, image: Blob): Promise<void> {

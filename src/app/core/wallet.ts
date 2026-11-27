@@ -1,5 +1,5 @@
 import { effect, inject, Injectable, signal, untracked } from '@angular/core';
-import { Deposit } from './models';
+import { Credit, Deposit } from './models';
 import { friendlyError, PublicApi } from './public-api';
 import { AuthApi } from './auth';
 
@@ -16,6 +16,7 @@ export class WalletService {
   /** Saldo en soles enteros (null = aún no se cargó). */
   readonly balance = signal<number | null>(null);
   readonly deposits = signal<Deposit[]>([]);
+  readonly credits = signal<Credit[]>([]);
   readonly error = signal<string | null>(null);
   private off: (() => void) | null = null;
 
@@ -27,6 +28,7 @@ export class WalletService {
         this.off = null;
         this.balance.set(null);
         this.deposits.set([]);
+        this.credits.set([]);
         if (!user) return;
         this.refresh();
         this.off = this.api.subscribeWallet(user.id, () => this.refresh());
@@ -38,8 +40,9 @@ export class WalletService {
     if (!this.auth.user()) return;
     try {
       const w = await this.api.getWallet();
-      this.balance.set(w.balance);
+      this.balance.set(Number(w.balance));
       this.deposits.set(w.deposits);
+      this.credits.set(w.credits ?? []);
       this.error.set(null);
     } catch (e) {
       this.error.set(friendlyError(e));

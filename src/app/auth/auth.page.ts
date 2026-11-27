@@ -59,7 +59,7 @@ function takeNext(): string | null {
 
             @if (auth.isDemo) {
               <div class="mt-5 rounded-2xl border border-dashed border-gold/50 bg-gold/10 p-4 text-left">
-                <p class="text-xs font-extrabold tracking-wider text-gold uppercase">📬 Bandeja de prueba (modo demo)</p>
+                <p class="text-xs font-extrabold tracking-wider text-gold uppercase">📬 Bandeja de prueba (pruebas locales)</p>
                 @if (s.demoToken) {
                   <p class="mt-1 text-sm text-ink">
                     {{ s.kind === 'confirm' ? 'Copa Álvaro: confirma tu cuenta' : 'Copa Álvaro: crea tu nueva contraseña' }}
@@ -96,13 +96,6 @@ function takeNext(): string | null {
                 <h1 class="mt-1 font-display text-4xl font-extrabold">Entrar</h1>
                 <p class="mt-1 text-mute">Para apostar, ver tus tickets y escribir en Social.</p>
               </section>
-              @if (auth.isDemo) {
-                <section class="mt-5 rounded-3xl border border-lime/30 bg-lime/5 p-4 anim-in">
-                  <p class="text-sm font-bold">Cuenta de prueba</p>
-                  <p class="mt-0.5 text-sm text-mute">Usuario <b class="text-ink">demo</b> · contraseña <b class="text-ink">demo</b> · S/ 50 de saldo</p>
-                  <button type="button" class="btn mt-3 h-11 w-full text-[15px]" [disabled]="busy()" (click)="loginDemo()">Entrar con la cuenta demo</button>
-                </section>
-              }
               <form class="glass mt-5 space-y-4 anim-in" style="--i: 1" (ngSubmit)="login()">
                 <label class="block">
                   <span class="field-label">{{ auth.loginWithUsername ? 'Correo o usuario' : 'Correo' }}</span>
@@ -115,7 +108,7 @@ function takeNext(): string | null {
                     [attr.inputmode]="auth.loginWithUsername ? null : 'email'"
                     required
                     [(ngModel)]="email"
-                    [placeholder]="auth.loginWithUsername ? 'demo o tucorreo@gmail.com' : 'tucorreo@gmail.com'"
+                    placeholder="tucorreo@gmail.com"
                   />
                 </label>
                 <label class="block">
@@ -394,12 +387,6 @@ export class AuthPage implements OnDestroy {
     }, 400);
   }
 
-  async loginDemo() {
-    this.email = 'demo';
-    this.password = 'demo';
-    await this.login();
-  }
-
   async login() {
     this.handoff = true;
     await this.run(async () => {
@@ -458,7 +445,7 @@ export class AuthPage implements OnDestroy {
     });
   }
 
-  /** Solo demo: simula abrir el correo. */
+  /** Solo pruebas locales: simula abrir el correo. */
   protected openDemoMail(s: NonNullable<Sent>) {
     const mock = this.auth as MockAuthApi;
     if (!s.demoToken) return;

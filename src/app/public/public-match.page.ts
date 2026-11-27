@@ -6,7 +6,8 @@ import { SlipComponent } from './slip.component';
 import { SocialComponent } from './social.component';
 import { AccountComponent } from './account.component';
 import { MatchContext } from './match-context';
-import { STATUS_LABEL } from '../core/models';
+import { GameSheetComponent } from './game-sheet.component';
+import { balanceLabel, STATUS_LABEL } from '../core/models';
 import { friendlyError, PublicApi } from '../core/public-api';
 import { AuthApi } from '../core/auth';
 import { WalletService } from '../core/wallet';
@@ -28,7 +29,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
 @Component({
   selector: 'app-public-match-page',
   providers: [MatchContext],
-  imports: [LobbyComponent, LiveTabComponent, SlipComponent, SocialComponent, AccountComponent, RouterLink, BrandComponent, IconComponent, AccountChipComponent],
+  imports: [GameSheetComponent, LobbyComponent, LiveTabComponent, SlipComponent, SocialComponent, AccountComponent, RouterLink, BrandComponent, IconComponent, AccountChipComponent],
   template: `
     @if (loading() && !ctx.data()) {
       <div class="mx-auto max-w-md px-4 pt-6" aria-busy="true" aria-label="Cargando">
@@ -60,7 +61,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
             <div class="flex items-center gap-1.5">
               <button type="button" class="flex h-10 flex-col items-end justify-center rounded-xl px-2 leading-none" (click)="setTab('mine')" aria-label="Mi saldo">
                 <span class="text-[10px] font-bold text-mute uppercase">Saldo</span>
-                <span class="font-display text-[17px] font-extrabold tabular-nums">{{ wallet.balance() === null ? '…' : 'S/ ' + wallet.balance() }}</span>
+                <span class="font-display text-[17px] font-extrabold tabular-nums">{{ balanceLabel(wallet.balance()) }}</span>
               </button>
               <button type="button" class="inline-flex h-10 items-center gap-1 rounded-xl bg-lime px-3 text-sm font-extrabold text-white shadow-[0_8px_20px_-8px_rgb(242_98_0/0.7)] active:scale-95" (click)="openRecharge(null)">
                 <app-icon name="wallet" [size]="16" /> Depositar
@@ -76,11 +77,6 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
         </div>
       </header>
 
-      @if (isDemo) {
-        <p class="mx-auto mt-2 max-w-md px-4 text-center text-[11px] font-semibold text-gold md:max-w-2xl">
-          Modo demo · entra con usuario <b>demo</b> y contraseña <b>demo</b> (tiene S/ 50 de saldo)
-        </p>
-      }
       @if (d.match.status !== 'open') {
         <p class="mx-auto mt-2 max-w-md px-4 text-center text-xs font-bold text-candy md:max-w-2xl">{{ statusLabel() }}: las apuestas están cerradas.</p>
       }
@@ -169,6 +165,10 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
         </div>
       </nav>
 
+      @if (ctx.openSheet(); as g) {
+        <app-game-sheet [game]="g" (closed)="ctx.sheetGame.set(null)" (full)="flash('Máximo 20 apuestas por cupón')" />
+      }
+
       @if (toast()) {
         <div class="fixed inset-x-4 bottom-44 z-50 mx-auto max-w-sm rounded-2xl bg-ink px-4 py-3 text-center text-sm font-bold text-white shadow-lg anim-pop" role="status">{{ toast() }}</div>
       }
@@ -187,8 +187,8 @@ export class PublicMatchPage implements OnDestroy {
   protected readonly auth = inject(AuthApi);
   protected readonly wallet = inject(WalletService);
   protected readonly slip = inject(SlipService);
-  protected readonly isDemo = this.api.isDemo;
   protected readonly tabs = TABS;
+  protected readonly balanceLabel = balanceLabel;
   protected readonly loading = signal(true);
   protected readonly loadError = signal<string | null>(null);
   protected readonly tab = signal<Tab>('games');

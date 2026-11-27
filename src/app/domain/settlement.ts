@@ -9,6 +9,7 @@
  */
 import { courtTimeline, CourtTimeline, leaderFirstToReach, sortEvents, TimelineEvent } from './timeline';
 import { champion, lastPlace, league, League, uniqueMax } from './league';
+import { GAME_GOALS_MAX, GAME_MARKETS, GameMarketDef } from './game-markets';
 
 export type TicketStatus = 'pending' | 'approved' | 'rejected';
 export type MarketTarget = 'player' | 'team' | 'number';
@@ -155,6 +156,8 @@ export const POSTS_MAX_OPTION = 5;
 /** Opción máxima ("N o más") de cada mercado a número. */
 export function numberMaxOption(type: string | undefined): number {
   if (type === 'game_winner') return 2;
+  if (type === 'game_goals') return GAME_GOALS_MAX;
+  if (type?.startsWith('game_has_')) return 1;
   return type === 'total_posts' ? POSTS_MAX_OPTION : STREAK_MAX_OPTION;
 }
 
@@ -206,6 +209,40 @@ const leagueWinner = (c: ResolveContext, pick: string | null): Resolution =>
 /** Partido N de la liga (param). */
 const gameOf = (c: ResolveContext) => c.league.games.find((g) => g.number === c.param);
 
+/** Resolver de una apuesta de partido (ganador, goles, primer…, último gol, ¿habrá…?). */
+function gameResolver(def: GameMarketDef): Resolver {
+  return (c) => {
+    const g = gameOf(c);
+    if (!g) return { kind: 'unresolved', reason: 'Falta el número de partido' };
+    if (g.status === 'pending') return { kind: 'unresolved', reason: NOT_PLAYED };
+    const played = g.status === 'played';
+    const goals = g.goalEventIds.map((id) => c.events.find((x) => x.id === id)!).filter(Boolean);
+    const matches = (e: TimelineEvent) =>
+      def.event === 'own_goal' ? e.type === 'goal' && e.isOwnGoal : def.event === 'goal' ? e.type === 'goal' : e.type === def.event;
+    const pool = def.event === 'goal' || def.event === 'own_goal' ? goals : c.events.filter((e) => e.game === g.number && e.playerId);
+    switch (def.kind) {
+      case 'winner':
+        // 1 = gana el primero, 0 = empate, 2 = gana el segundo
+        return { kind: 'winner', selection: g.homeGoals > g.awayGoals ? '1' : g.homeGoals < g.awayGoals ? '2' : '0' };
+      case 'goals':
+        return { kind: 'winner', selection: String(Math.min(g.homeGoals + g.awayGoals, GAME_GOALS_MAX)) };
+      case 'first': {
+        const e = pool.find(matches);
+        if (e) return def.event === 'goal' ? goalSelection(c, e) : { kind: 'winner', selection: e.playerId! };
+        return played ? { kind: 'refund', reason: `No hubo ${def.label.toLowerCase().replace(/^primer[a]? /, '')}` } : { kind: 'unresolved', reason: 'Todavía no' };
+      }
+      case 'last_goal': {
+        const e = goals.at(-1);
+        if (e) return goalSelection(c, e);
+        return played ? { kind: 'refund', reason: 'Terminó 0-0' } : { kind: 'unresolved', reason: 'Sin goles todavía' };
+      }
+      case 'has':
+        if (pool.some(matches)) return { kind: 'winner', selection: '1' };
+        return played ? { kind: 'winner', selection: '0' } : { kind: 'unresolved', reason: 'Todavía no' };
+    }
+  };
+}
+
 /** Registro de tipos de mercado. Para un tipo nuevo, agrega aquí su resolver. */
 export const RESOLVERS: Record<string, Resolver> = {
   // ⚽ Goles (a jugador)
@@ -251,22 +288,8 @@ export const RESOLVERS: Record<string, Resolver> = {
   /** @deprecated formato "ganador se queda": por % de partiditos ganados. */
   best_win_rate: (c) => teamByWinRate(c, 'best'),
 
-  // 🆚 Por partido (param = número de partido)
-  game_first_goal: (c) => {
-    const g = gameOf(c);
-    if (!g) return { kind: 'unresolved', reason: 'Falta el número de partido' };
-    if (g.status === 'pending') return { kind: 'unresolved', reason: NOT_PLAYED };
-    const e = c.events.find((x) => x.id === g.goalEventIds[0]);
-    if (e) return goalSelection(c, e);
-    return g.status === 'played' ? { kind: 'refund', reason: 'Terminó 0-0' } : { kind: 'unresolved', reason: 'Sin goles todavía' };
-  },
-  game_winner: (c) => {
-    const g = gameOf(c);
-    if (!g) return { kind: 'unresolved', reason: 'Falta el número de partido' };
-    if (g.status === 'pending') return { kind: 'unresolved', reason: NOT_PLAYED };
-    // 1 = gana el primero, 0 = empate, 2 = gana el segundo
-    return { kind: 'winner', selection: g.homeGoals > g.awayGoals ? '1' : g.homeGoals < g.awayGoals ? '2' : '0' };
-  },
+  // 🆚 Por partido (param = número de partido): ver GAME_MARKETS
+  ...Object.fromEntries(GAME_MARKETS.map((d) => [d.type, gameResolver(d)])),
 
   // 🟨 Amarillas (a jugador)
   first_yellow: (c) => winner(ofType(c, 'yellow')[0]?.playerId, NO_YELLOWS),

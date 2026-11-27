@@ -52,6 +52,8 @@ export interface Market {
   option_min: number | null;
   option_max: number | null;
   allows_own_goal: boolean;
+  /** El organizador ya liquidó este mercado (no recibe más apuestas). */
+  settled?: boolean;
 }
 
 export interface MatchEvent {
@@ -185,10 +187,43 @@ export interface DepositRow extends Deposit {
   receipt_path: string | null;
 }
 
+/** Ganancia o devolución acreditada al saldo al liquidar un mercado. */
+export interface Credit {
+  id: string;
+  kind: 'win' | 'refund';
+  amount_cents: number;
+  market_name: string;
+  created_at: string;
+}
+
 export interface Wallet {
-  /** Saldo en soles: depósitos aceptados − tickets no rechazados. */
+  /** Saldo en soles (con céntimos): recargas aceptadas − tickets no anulados + ganancias acreditadas. */
   balance: number;
   deposits: Deposit[];
+  credits: Credit[];
+}
+
+/** Liquidación guardada de un mercado (admin). */
+export interface SettlementRow {
+  market_id: string;
+  outcome: 'winners' | 'refund' | 'no_winner';
+  winner_selection: string | null;
+  settled_at: string;
+}
+
+/** Lo acreditado a una persona en un mercado (admin). */
+export interface CreditRow {
+  market_id: string;
+  user_id: string;
+  username: string;
+  kind: 'win' | 'refund';
+  amount_cents: number;
+}
+
+/** Saldo para mostrar: "S/ 14" o "S/ 14.50". */
+export function balanceLabel(soles: number | null): string {
+  if (soles === null) return '…';
+  return Number.isInteger(soles) ? `S/ ${soles}` : `S/ ${soles.toFixed(2)}`;
 }
 
 /** Montos rápidos para recargar. */
@@ -295,6 +330,8 @@ export interface TicketRow {
   reject_reason: string | null;
   created_at: string;
   reviewed_at: string | null;
+  /** Dueño (cuenta) del ticket; null en tickets antiguos sin cuenta. */
+  user_id?: string | null;
   bets: BetRow[];
 }
 
@@ -314,6 +351,8 @@ export interface AdminMatchData {
   tickets: TicketRow[];
   events: EventRow[];
   paid: PaidRow[];
+  settlements: SettlementRow[];
+  credits: CreditRow[];
 }
 
 export type MatchInput = Pick<MatchRow, 'title' | 'starts_at' | 'access_code' | 'pay_method' | 'pay_number' | 'pay_holder'> & {

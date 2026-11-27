@@ -34,7 +34,7 @@ const TICKET_STATUS: Record<TicketStatus, { label: string; icon: IconName; tone:
         @if (wallet.balance() === null) {
           …
         } @else {
-          <app-count-up [cents]="(wallet.balance() ?? 0) * 100" />
+          <app-count-up [cents]="Math.round((wallet.balance() ?? 0) * 100)" />
         }
       </p>
       @if (pending() > 0) {
@@ -142,6 +142,25 @@ const TICKET_STATUS: Record<TicketStatus, { label: string; icon: IconName; tone:
       </div>
     </div>
 
+    <!-- Ganancias acreditadas -->
+    @if (wallet.credits().length) {
+      <section class="glass mt-4 border-lime/30">
+        <h2 class="font-display text-lg font-extrabold">🏆 Mis ganancias</h2>
+        <ul class="mt-2 divide-y divide-ink/[0.06]">
+          @for (c of wallet.credits(); track c.id) {
+            <li class="flex items-center gap-3 py-2.5">
+              <span class="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-lg" [class]="c.kind === 'win' ? 'bg-lime/15' : 'bg-ink/[0.05]'">{{ c.kind === 'win' ? '🏆' : '↩️' }}</span>
+              <span class="min-w-0 flex-1">
+                <span class="block text-sm font-bold">{{ c.kind === 'win' ? 'Ganaste' : 'Devolución' }}</span>
+                <span class="block truncate text-xs text-mute">{{ c.market_name }}</span>
+              </span>
+              <span class="font-display text-lg font-extrabold text-lime">+ {{ soles(c.amount_cents) }}</span>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
     <!-- Recargas -->
     @if (wallet.deposits().length) {
       <section class="glass mt-4">
@@ -218,6 +237,7 @@ export class AccountComponent {
   protected readonly amounts = DEPOSIT_AMOUNTS;
   protected readonly maxDeposit = MAX_DEPOSIT;
   protected readonly soles = formatSoles;
+  protected readonly Math = Math;
 
   protected readonly tickets = signal<MyTicket[]>([]);
   protected readonly loading = signal(true);

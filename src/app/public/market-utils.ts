@@ -27,6 +27,12 @@ export type Labeler = ReturnType<typeof makeSelectionLabel>;
 
 /** Opciones de un mercado: jugadores (nombre completo), equipos, 1/X/2 o números. */
 export function choicesFor(m: Market, d: PublicMatchData, label: Labeler): Choice[] {
+  if (m.type.startsWith('game_has_')) {
+    return [
+      { selection: '1', label: 'Sí' },
+      { selection: '0', label: 'No' },
+    ];
+  }
   if (m.type === 'game_winner') {
     return [
       { selection: '1', label: label('number', '1', m.type, m.param), short: '1' },
@@ -67,21 +73,13 @@ export function potsOf(d: PublicMatchData): Map<string, { pot: number; bySel: Ma
   return map;
 }
 
-/**
- * "Cuota" estimada de bote compartido: cuánto multiplicarías lo apostado si
- * ganara esa opción con los botes de ahora (bote ÷ apostado a esa opción).
- */
-export function oddsOf(pots: ReturnType<typeof potsOf>, marketId: string, selection: string): string {
-  const e = pots.get(marketId);
-  const on = e?.bySel.get(selection) ?? 0;
-  if (!e || on === 0) return '—';
-  return (e.pot / on).toFixed(2);
-}
-
 /** Ícono de cada mercado. */
 export const MARKET_ICON: Record<string, string> = {
   first_goal: '⚽', last_goal: '🏁', top_scorer: '👟', first_to_n_goals: '🎯', nth_goal: '🔢',
   best_team: '🏆', worst_team: '🐢', top_scoring_team: '💥', most_conceded_team: '🥅', game_winner: '🆚', game_first_goal: '⚽',
+  game_goals: '🔢', game_last_goal: '🏁', game_first_own_goal: '🙈', game_first_yellow: '🟨', game_first_red: '🟥', game_first_post: '🥅',
+  game_first_golazo: '✨', game_first_penalty: '🚨', game_first_penalty_miss: '🙅', game_first_blooper: '🤦', game_first_dive: '🏊',
+  game_first_nutmeg: '🥜', game_has_post: '🥅', game_has_penalty: '🚨', game_has_red: '🟥', game_has_golazo: '✨', game_has_own_goal: '🙈',
   most_wins: '👑', longest_streak: '🔥', most_exits: '🚪',
   first_yellow: '🟨', last_yellow: '🟨', most_yellows: '😤', first_red: '🟥',
   first_blooper: '🤦', first_penalty_conceded: '🚨', first_penalty_missed: '🙅', first_post: '🥅',

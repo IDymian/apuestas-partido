@@ -16,7 +16,13 @@
 --     organizador acepta el depósito en su vista de Pagos y recién ahí se suma
 --     al saldo. Con el saldo se apuesta: cada ticket se descuenta al instante.
 --     Si el organizador rechaza un ticket, el monto vuelve al saldo.
+--   * Liquidación: el organizador da por cerrado un mercado cuando quiere; a los
+--     ganadores se les acredita su parte del bote (y las devoluciones) en el saldo.
+--     Puede volver a liquidar o deshacer, y los saldos se actualizan.
 -- =============================================================================
+
+-- Las funciones se crean antes que algunas tablas que usan (se validan al ejecutarse).
+set check_function_bodies = off;
 
 -- -----------------------------------------------------------------------------
 -- 1. Eventos y mercados nuevos
@@ -88,8 +94,25 @@ insert into public.market_types (type, label, target, section, has_param, option
   ('worst_team',             'Último de la tabla',          'team',   'equipos',   false, null, null, false),
   ('top_scoring_team',       'Equipo más goleador',         'team',   'equipos',   false, null, null, false),
   ('most_conceded_team',     'Equipo más goleado',          'team',   'equipos',   false, null, null, false),
-  ('game_first_goal',        'Primer gol del partido N',    'player', 'partidos',  true,  null, null, true),
-  ('game_winner',            'Ganador del partido N',       'number', 'partidos',  true,  0,    2,    false),
+  ('game_winner', 'Ganador (partido N)', 'number', 'partidos', true, 0, 2, false),
+  ('game_goals', 'Goles en el partido (partido N)', 'number', 'partidos', true, 0, 5, false),
+  ('game_first_goal', 'Primer gol (partido N)', 'player', 'partidos', true, null, null, true),
+  ('game_last_goal', 'Último gol (partido N)', 'player', 'partidos', true, null, null, true),
+  ('game_first_own_goal', 'Primer autogol (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_yellow', 'Primera amarilla (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_red', 'Primera roja (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_post', 'Primer palo (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_golazo', 'Primer golazo (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_penalty', 'Primer penal cometido (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_penalty_miss', 'Primer penal fallado (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_blooper', 'Primer blooper (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_dive', 'Primer piscinazo (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_first_nutmeg', 'Primera huacha (partido N)', 'player', 'partidos', true, null, null, false),
+  ('game_has_post', '¿Habrá palo? (partido N)', 'number', 'partidos', true, 0, 1, false),
+  ('game_has_penalty', '¿Habrá penal? (partido N)', 'number', 'partidos', true, 0, 1, false),
+  ('game_has_red', '¿Habrá roja? (partido N)', 'number', 'partidos', true, 0, 1, false),
+  ('game_has_golazo', '¿Habrá golazo? (partido N)', 'number', 'partidos', true, 0, 1, false),
+  ('game_has_own_goal', '¿Habrá autogol? (partido N)', 'number', 'partidos', true, 0, 1, false),
   ('first_red',              'Primera roja',                'player', 'amarillas', false, null, null, false),
   ('first_blooper',          'Primer blooper',              'player', 'show',      false, null, null, false),
   ('first_penalty_conceded', 'Primer penal cometido',       'player', 'show',      false, null, null, false),
@@ -131,16 +154,34 @@ begin
   ) as x(name, type, ord)
   where not exists (select 1 from markets k where k.match_id = p_match and k.type = x.type);
 
-  -- Por partido: primer gol y ganador (1 / empate / 2).
+  -- Por partido: todas las apuestas del catálogo (ganador, goles, primer…, último gol, ¿habrá…?).
   select array_agg(name order by sort_order, name) into v_teams from teams where match_id = p_match;
   if coalesce(cardinality(v_teams), 0) = 4 then
     for i in 1 .. 6 loop
       insert into markets (match_id, name, type, param, sort_order)
-      select p_match, 'Ganador · ' || v_teams[v_h[i]] || ' vs ' || v_teams[v_a[i]], 'game_winner', i, 30 + i * 2
-      where not exists (select 1 from markets k where k.match_id = p_match and k.type = 'game_winner' and k.param = i);
-      insert into markets (match_id, name, type, param, sort_order)
-      select p_match, 'Primer gol · ' || v_teams[v_h[i]] || ' vs ' || v_teams[v_a[i]], 'game_first_goal', i, 31 + i * 2
-      where not exists (select 1 from markets k where k.match_id = p_match and k.type = 'game_first_goal' and k.param = i);
+      select p_match, x.label || ' · ' || v_teams[v_h[i]] || ' vs ' || v_teams[v_a[i]], x.type, i, 100 + i * 30 + x.ord
+      from (values
+        ('game_winner', 'Ganador', 0),
+        ('game_goals', 'Goles en el partido', 1),
+        ('game_first_goal', 'Primer gol', 2),
+        ('game_last_goal', 'Último gol', 3),
+        ('game_first_own_goal', 'Primer autogol', 4),
+        ('game_first_yellow', 'Primera amarilla', 5),
+        ('game_first_red', 'Primera roja', 6),
+        ('game_first_post', 'Primer palo', 7),
+        ('game_first_golazo', 'Primer golazo', 8),
+        ('game_first_penalty', 'Primer penal cometido', 9),
+        ('game_first_penalty_miss', 'Primer penal fallado', 10),
+        ('game_first_blooper', 'Primer blooper', 11),
+        ('game_first_dive', 'Primer piscinazo', 12),
+        ('game_first_nutmeg', 'Primera huacha', 13),
+        ('game_has_post', '¿Habrá palo?', 14),
+        ('game_has_penalty', '¿Habrá penal?', 15),
+        ('game_has_red', '¿Habrá roja?', 16),
+        ('game_has_golazo', '¿Habrá golazo?', 17),
+        ('game_has_own_goal', '¿Habrá autogol?', 18)
+      ) as x(type, label, ord)
+      where not exists (select 1 from markets k where k.match_id = p_match and k.type = x.type and k.param = i);
     end loop;
   end if;
 end;
@@ -261,7 +302,8 @@ as $$
         'id', k.id, 'name', k.name, 'type', k.type, 'param', k.param, 'sort_order', k.sort_order,
         'is_active', k.is_active, 'rollover_to_market_id', k.rollover_to_market_id, 'initial_pot', k.initial_pot,
         'target', mt.target, 'section', mt.section, 'option_min', mt.option_min, 'option_max', mt.option_max,
-        'allows_own_goal', mt.allows_own_goal
+        'allows_own_goal', mt.allows_own_goal,
+        'settled', exists (select 1 from market_settlements s where s.market_id = k.id)
       ) order by k.sort_order, k.created_at)
       from markets k join market_types mt on mt.type = k.type
       where k.match_id = m.id and k.is_active
@@ -397,16 +439,52 @@ create trigger deposits_reviewed
 before update on public.deposits
 for each row execute function public.tg_ticket_reviewed();
 
--- Saldo = depósitos aceptados − tickets no rechazados (en soles enteros).
+-- -----------------------------------------------------------------------------
+-- 4c. Liquidación: mercados cerrados por el organizador y lo acreditado al saldo
+-- -----------------------------------------------------------------------------
+create table public.market_settlements (
+  market_id uuid primary key references public.markets (id) on delete cascade,
+  match_id uuid not null references public.matches (id) on delete cascade,
+  outcome text not null check (outcome in ('winners', 'refund', 'no_winner')),
+  winner_selection text,
+  settled_at timestamptz not null default now()
+);
+create index market_settlements_match_idx on public.market_settlements (match_id);
+
+create table public.credits (
+  id uuid primary key default gen_random_uuid(),
+  match_id uuid not null references public.matches (id) on delete cascade,
+  market_id uuid not null references public.markets (id) on delete cascade,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  username text not null,
+  kind text not null check (kind in ('win', 'refund')),
+  amount_cents int not null check (amount_cents > 0),
+  created_at timestamptz not null default now(),
+  unique (market_id, user_id, kind)
+);
+create index credits_user_idx on public.credits (user_id, created_at desc);
+
+alter table public.market_settlements enable row level security;
+alter table public.credits enable row level security;
+grant select, insert, update, delete on public.market_settlements, public.credits to authenticated;
+create policy market_settlements_admin on public.market_settlements
+  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+create policy credits_admin on public.credits
+  for all to authenticated using (public.is_admin()) with check (public.is_admin());
+
+-- Saldo (soles, con céntimos) = recargas aceptadas − tickets no anulados + ganancias y devoluciones acreditadas.
 create or replace function public.wallet_balance(p_uid uuid)
-returns int
+returns numeric
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select coalesce((select sum(amount) from deposits where user_id = p_uid and status = 'approved'), 0)::int
-       - coalesce((select sum(total) from tickets where user_id = p_uid and status <> 'rejected'), 0)::int;
+  select round((
+      coalesce((select sum(amount) from deposits where user_id = p_uid and status = 'approved'), 0) * 100
+    - coalesce((select sum(total) from tickets where user_id = p_uid and status <> 'rejected'), 0) * 100
+    + coalesce((select sum(amount_cents) from credits where user_id = p_uid), 0)
+  )::numeric / 100, 2);
 $$;
 revoke execute on function public.wallet_balance(uuid) from public, anon, authenticated;
 
@@ -420,6 +498,13 @@ set search_path = public
 as $$
   select jsonb_build_object(
     'balance', wallet_balance(auth.uid()),
+    'credits', coalesce((
+      select jsonb_agg(jsonb_build_object(
+        'id', c.id, 'kind', c.kind, 'amount_cents', c.amount_cents, 'market_name', k.name, 'created_at', c.created_at
+      ) order by c.created_at desc)
+      from (select * from credits where user_id = auth.uid() order by created_at desc limit 50) c
+      join markets k on k.id = c.market_id
+    ), '[]'::jsonb),
     'deposits', coalesce((
       select jsonb_agg(jsonb_build_object(
         'id', d.id, 'amount', d.amount, 'status', d.status, 'reject_reason', d.reject_reason,
@@ -496,6 +581,62 @@ revoke execute on function public.tg_broadcast_deposit() from public, anon, auth
 
 create trigger broadcast_deposits after insert or update or delete on public.deposits
 for each row execute function public.tg_broadcast_deposit();
+create trigger broadcast_credits after insert or delete on public.credits
+for each row execute function public.tg_broadcast_deposit();
+
+-- Liquidar un mercado (solo admin): reemplaza lo acreditado antes (se puede volver a liquidar).
+-- p_credits: [{user_id, username, kind: 'win'|'refund', amount_cents}]
+create or replace function public.admin_settle_market(p_market uuid, p_outcome text, p_winner text, p_credits jsonb)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = public
+as $$
+declare
+  v_match uuid;
+  v_c jsonb;
+begin
+  if not public.is_admin() then
+    raise exception 'Solo el organizador puede liquidar';
+  end if;
+  select match_id into v_match from markets where id = p_market;
+  if v_match is null then
+    raise exception 'Mercado no encontrado';
+  end if;
+  if p_outcome not in ('winners', 'refund', 'no_winner') then
+    raise exception 'Resultado inválido';
+  end if;
+  delete from credits where market_id = p_market;
+  insert into market_settlements (market_id, match_id, outcome, winner_selection, settled_at)
+  values (p_market, v_match, p_outcome, p_winner, now())
+  on conflict (market_id) do update set outcome = excluded.outcome, winner_selection = excluded.winner_selection, settled_at = now();
+  for v_c in select value from jsonb_array_elements(coalesce(p_credits, '[]'::jsonb)) loop
+    if (v_c ->> 'user_id') is null or coalesce((v_c ->> 'amount_cents')::int, 0) <= 0 then
+      continue;
+    end if;
+    insert into credits (match_id, market_id, user_id, username, kind, amount_cents)
+    values (v_match, p_market, (v_c ->> 'user_id')::uuid, coalesce(v_c ->> 'username', '¿?'), v_c ->> 'kind', (v_c ->> 'amount_cents')::int);
+  end loop;
+end;
+$$;
+
+-- Deshacer la liquidación (los saldos vuelven a como estaban).
+create or replace function public.admin_unsettle_market(p_market uuid)
+returns void
+language plpgsql
+volatile
+security definer
+set search_path = public
+as $$
+begin
+  if not public.is_admin() then
+    raise exception 'Solo el organizador puede liquidar';
+  end if;
+  delete from credits where market_id = p_market;
+  delete from market_settlements where market_id = p_market;
+end;
+$$;
 
 -- Ticket del usuario logueado, pagado con su saldo. Cada apuesta: {market_id, player_id | team_id | option, amount}.
 create or replace function public.submit_ticket(p_code text, p_bets jsonb)
@@ -520,7 +661,8 @@ declare
   v_team uuid;
   v_option int;
   v_is_og boolean;
-  v_balance int;
+  v_balance numeric;
+  v_event text;
 begin
   if v_uid is null then
     raise exception 'Inicia sesión para apostar';
@@ -572,15 +714,42 @@ begin
     end if;
     select * into v_type from market_types where type = v_market.type;
 
+    if exists (select 1 from market_settlements where market_id = v_market.id) then
+      raise exception '% ya se liquidó', v_market.name;
+    end if;
+
     -- ¿Sigue abierto? Por partido: hasta que termina (en vivo, "primer gol" solo mientras va 0-0).
     -- De toda la liga: solo antes de que empiece el primer partido.
-    if v_market.type in ('game_winner', 'game_first_goal') then
+    if v_market.type like 'game\_%' then
       if v_market.param < v_match.current_game then
         raise exception '% ya terminó', v_market.name;
       end if;
-      if v_market.type = 'game_first_goal' and v_market.param = v_match.current_game and v_match.game_live
-         and exists (select 1 from events where match_id = v_match.id and type = 'goal' and game = v_market.param) then
-        raise exception 'En % ya hubo gol', v_market.name;
+      -- En vivo, los "primer…" y "¿habrá…?" se cierran apenas pasa ese evento.
+      v_event := case v_market.type
+        when 'game_first_goal' then 'goal'
+        when 'game_first_own_goal' then 'own_goal'
+        when 'game_first_yellow' then 'yellow'
+        when 'game_first_red' then 'red'
+        when 'game_first_post' then 'post'
+        when 'game_first_golazo' then 'golazo'
+        when 'game_first_penalty' then 'penalty'
+        when 'game_first_penalty_miss' then 'penalty_miss'
+        when 'game_first_blooper' then 'blooper'
+        when 'game_first_dive' then 'dive'
+        when 'game_first_nutmeg' then 'nutmeg'
+        when 'game_has_post' then 'post'
+        when 'game_has_penalty' then 'penalty'
+        when 'game_has_red' then 'red'
+        when 'game_has_golazo' then 'golazo'
+        when 'game_has_own_goal' then 'own_goal'
+        else null end;
+      if v_event is not null and v_market.param = v_match.current_game and v_match.game_live
+         and exists (
+           select 1 from events
+           where match_id = v_match.id and game = v_market.param
+             and ((v_event = 'own_goal' and type = 'goal' and is_own_goal) or (v_event <> 'own_goal' and type = v_event))
+         ) then
+        raise exception '% ya pasó', v_market.name;
       end if;
     elsif v_match.current_game > 1 or v_match.game_live then
       raise exception 'La liga ya empezó: % ya no recibe apuestas', v_market.name;
@@ -619,7 +788,7 @@ begin
   end loop;
 
   if v_total > v_balance then
-    raise exception 'Saldo insuficiente: tienes S/ % y el ticket es de S/ %. Recarga por Plin', greatest(v_balance, 0), v_total;
+    raise exception 'Saldo insuficiente: tienes S/ % y el ticket es de S/ %. Recarga por Plin', to_char(greatest(v_balance, 0), 'FM999990.00'), v_total;
   end if;
   update tickets set total = v_total where id = v_ticket;
   return v_ticket;
@@ -781,6 +950,10 @@ revoke execute on function public.post_message(text, text) from public, anon;
 revoke execute on function public.username_available(text) from public;
 grant execute on function public.submit_ticket(text, jsonb) to authenticated;
 grant execute on function public.get_wallet() to authenticated;
+revoke execute on function public.admin_settle_market(uuid, text, text, jsonb) from public, anon;
+revoke execute on function public.admin_unsettle_market(uuid) from public, anon;
+grant execute on function public.admin_settle_market(uuid, text, text, jsonb) to authenticated;
+grant execute on function public.admin_unsettle_market(uuid) to authenticated;
 grant execute on function public.request_deposit(int, text) to authenticated;
 grant execute on function public.get_my_tickets(text) to authenticated;
 grant execute on function public.get_messages(text, int) to authenticated;

@@ -459,7 +459,7 @@ describe('en vivo y mercados abiertos', () => {
     expect(marketOpen(champion, l, true)).toEqual({ open: false, reason: 'La liga ya empezó' });
     expect(marketOpen(firstGoal, l, true).open).toBe(true);
     l = league([g(1, 'e1')], TEAMS4, 1, false, true);
-    expect(marketOpen(firstGoal, l, true)).toEqual({ open: false, reason: 'Ya hubo gol' });
+    expect(marketOpen(firstGoal, l, true)).toEqual({ open: false, reason: 'Ya pasó' });
     expect(marketOpen(winner, l, true).open).toBe(true);
   });
 
@@ -472,6 +472,52 @@ describe('en vivo y mercados abiertos', () => {
   it('jornada cerrada por el organizador: nada abierto', () => {
     const l = league([], TEAMS4, 1, false, false);
     expect(marketOpen(winner, l, false).open).toBe(false);
+  });
+});
+
+describe('apuestas de cada partido', () => {
+  const T = ['e1', 'e2', 'e3', 'e4'];
+  const defs: [string, string][] = [
+    ['game_last_goal', 'Último'], ['game_goals', 'Goles'], ['game_first_post', 'Palo'], ['game_first_own_goal', 'Autogol'],
+    ['game_has_post', 'Hay palo'], ['game_has_red', 'Hay roja'], ['game_has_own_goal', 'Hay autogol'], ['game_first_red', 'Roja'],
+  ];
+  const mk = (): SettleMarket[] => defs.map(([type, name], i) => ({ id: name, name, type, param: 1, sortOrder: i, isActive: true, rolloverToMarketId: null, initialPot: 0 }));
+  const run = (events: TimelineEvent[], currentGame: number, live: boolean) =>
+    settle({ markets: mk(), events, bets: [], teamIds: T, startingTeamIds: [], ownGoalOptionId: OG, currentGame, finished: false, live });
+  const w = (r: ReturnType<typeof settle>, id: string) => market(r, id);
+  const events = [
+    ev({ type: 'goal', playerId: 'pepe', teamId: 'e1', game: 1 }),
+    ev({ type: 'post', playerId: 'lucho', game: 1 }),
+    ev({ type: 'goal', playerId: 'juan', teamId: 'e2', isOwnGoal: true, game: 1 }),
+    ev({ type: 'goal', playerId: 'lucho', teamId: 'e1', game: 1 }),
+    ev({ type: 'post', playerId: 'pepe', game: 2 }),
+  ];
+
+  it('partido terminado: último gol, goles, primer palo, autogol y sí/no', () => {
+    const r = run(events, 2, false);
+    expect(w(r, 'Último').winnerSelection).toBe('lucho');
+    expect(w(r, 'Goles').winnerSelection).toBe('3');
+    expect(w(r, 'Palo').winnerSelection).toBe('lucho');
+    expect(w(r, 'Autogol').winnerSelection).toBe('juan');
+    expect(w(r, 'Hay palo').winnerSelection).toBe('1');
+    expect(w(r, 'Hay autogol').winnerSelection).toBe('1');
+    expect(w(r, 'Hay roja').winnerSelection).toBe('0');
+    expect(w(r, 'Roja').outcome).toBe('refund');
+  });
+
+  it('en vivo: lo que no pasó todavía queda sin resolver; lo que pasó se cierra', () => {
+    const r = run([events[1]], 1, true);
+    expect(w(r, 'Hay palo').winnerSelection).toBe('1');
+    expect(w(r, 'Hay roja').outcome).toBe('unresolved');
+    const l = league([events[1]], T, 1, false, true);
+    expect(marketOpen({ type: 'game_has_post', param: 1 }, l, true).open).toBe(false);
+    expect(marketOpen({ type: 'game_has_red', param: 1 }, l, true).open).toBe(true);
+    expect(marketOpen({ type: 'game_last_goal', param: 1 }, l, true).open).toBe(true);
+  });
+
+  it('partido por jugar: nada se resuelve y todo está abierto', () => {
+    const r = run([], 1, false);
+    expect(r.markets.every((m) => m.outcome === 'unresolved')).toBe(true);
   });
 });
 

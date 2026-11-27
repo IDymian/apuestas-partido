@@ -196,13 +196,12 @@ async function hash(text: string): Promise<string> {
 
 const delay = (ms = 350) => new Promise((r) => setTimeout(r, ms));
 
-/** Cuenta de prueba del modo demo. */
+/** Cuenta de las pruebas automáticas (solo en el backend en memoria). */
 export const DEMO_ACCOUNT = { id: 'demo-user', username: 'demo', email: 'demo@copaalvaro.pe', password: 'demo' };
 
 @Injectable()
 export class MockAuthApi extends AuthApi {
   readonly isDemo = true;
-  override readonly loginWithUsername = true;
 
   private users(): DemoUser[] {
     return store.get<DemoUser[]>(USERS_KEY, []);

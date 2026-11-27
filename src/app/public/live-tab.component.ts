@@ -1,13 +1,13 @@
 import { Component, computed, inject, output } from '@angular/core';
 import { isPlayerEvent, PLAYER_EVENTS } from '../core/models';
 import { MatchContext } from './match-context';
-import { MarketOptionsComponent } from './market-options.component';
+import { GameMarketsComponent } from './game-markets.component';
 import { IconComponent } from '../ui/icon.component';
 
 /** En vivo: vacío hasta que el organizador ponga un partido en vivo. */
 @Component({
   selector: 'app-live-tab',
-  imports: [MarketOptionsComponent, IconComponent],
+  imports: [GameMarketsComponent, IconComponent],
   template: `
     @if (ctx.liveGame(); as g) {
       <section class="relative overflow-hidden rounded-[28px] bg-gradient-to-br from-[#ff8a1f] via-lime to-[#d13f00] p-5 text-white shadow-[0_24px_50px_-20px_rgb(242_98_0/0.7)] anim-in">
@@ -19,12 +19,9 @@ import { IconComponent } from '../ui/icon.component';
         </div>
       </section>
 
-      @for (m of markets(); track m.id) {
-        <section class="glass mt-3 anim-in" style="--i: 1">
-          <h3 class="mb-2 font-bold">{{ m.type === 'game_winner' ? 'Resultado (1 · X · 2)' : 'Primer gol del partido' }}</h3>
-          <app-market-options [market]="m" (full)="full.emit()" />
-        </section>
-      }
+      <section class="mt-3 anim-in" style="--i: 1">
+        <app-game-markets [game]="g" (full)="full.emit()" />
+      </section>
 
       <section class="glass mt-3">
         <h3 class="font-display text-lg font-extrabold">Minuto a minuto</h3>
@@ -62,10 +59,6 @@ export class LiveTabComponent {
   readonly goGames = output<void>();
   readonly full = output<void>();
   protected readonly ctx = inject(MatchContext);
-  protected readonly markets = computed(() => {
-    const g = this.ctx.liveGame();
-    return g ? this.ctx.gameMarkets(g) : [];
-  });
   protected readonly next = computed(() => this.ctx.league()?.games.find((g) => g.status === 'pending') ?? null);
   protected readonly events = computed(() => {
     const g = this.ctx.liveGame();

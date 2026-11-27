@@ -1,7 +1,7 @@
 import { expect, Page, test } from '@playwright/test';
 
 /**
- * Flujos de Copa Álvaro en modo demo (una jornada "COPA", nada jugado todavía).
+ * Flujos de Copa Álvaro con el backend de pruebas en memoria (una jornada "COPA", nada jugado todavía).
  * Corren en celular (Pixel 7 / iPhone 13) y escritorio.
  */
 
@@ -26,7 +26,9 @@ const tab = (page: Page, name: RegExp) => page.getByRole('tab', { name });
 
 async function loginDemo(page: Page) {
   await page.goto('/entrar?next=/p/COPA');
-  await page.getByRole('button', { name: 'Entrar con la cuenta demo' }).click();
+  await page.getByLabel('Correo').fill('demo@copaalvaro.pe');
+  await page.getByLabel('Contraseña', { exact: true }).fill('demo');
+  await page.getByRole('button', { name: /^Entrar$/ }).click();
   await expect(page).toHaveURL(/\/p\/COPA/);
   await expect(page.getByRole('button', { name: 'Mi saldo' })).toContainText('S/ 50');
 }
@@ -44,7 +46,7 @@ test('inicio: abre la jornada con los 6 partidos y "En vivo" vacío', async ({ p
   await expect(page).toHaveURL(/\/p\/COPA/);
   await expect(page.getByText('La esférica no se mancha').first()).toBeVisible();
   for (const n of [1, 2, 3, 4, 5, 6]) await expect(page.getByText(`Partido ${n} · Próximo`)).toBeVisible();
-  await expect(page.getByRole('button', { name: /Equipo 1 · cuota/ }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /Equipo 1 · apostado/ }).first()).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, '01-partidos');
 
@@ -53,32 +55,35 @@ test('inicio: abre la jornada con los 6 partidos y "En vivo" vacío', async ({ p
   await shot(page, '02-en-vivo-vacio');
 });
 
-test('demo: entrar con demo/demo, armar el cupón y apostar con el saldo', async ({ page }) => {
+test('cuenta con saldo: armar el cupón con apuestas de partido y especiales, y apostar', async ({ page }) => {
   await loginDemo(page);
 
   // 1 / X / 2 del partido 1 y un especial
-  await page.getByRole('button', { name: /^Gana Equipo 1 · cuota/ }).first().click();
+  await page.getByRole('button', { name: /^Gana Equipo 1 · apostado/ }).first().click();
   await page.getByRole('button', { name: 'Ver mercados del partido 1' }).click();
-  await expect(page.getByRole('dialog')).toContainText('Primer gol del partido');
-  await page.getByRole('dialog').getByRole('button', { name: /^Adrian Ruiz · cuota/ }).click();
+  await expect(page.getByRole('dialog')).toContainText('¿Habrá palo?');
+  await page.getByRole('dialog').getByRole('button', { name: /^Primer gol bote/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /^Adrian Ruiz · apostado/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /¿Habrá penal\?/ }).click();
+  await page.getByRole('dialog').getByRole('button', { name: /^Sí · apostado/ }).click();
   await shot(page, '03-mercados-partido');
   await page.getByRole('button', { name: 'Cerrar' }).click();
 
   await page.getByRole('tab', { name: 'Especiales' }).click();
   await page.getByRole('button', { name: /Primera roja/ }).click();
-  await page.getByRole('button', { name: /^Diego Guevara · cuota/ }).click();
+  await page.getByRole('button', { name: /^Diego Guevara · apostado/ }).click();
   await shot(page, '04-especiales');
 
   // Cupón: 3 selecciones, subo una a S/ 3 → total S/ 5
   await page.getByRole('button', { name: /Ver cupón/ }).click();
-  await expect(page.getByRole('heading', { name: /Cupón \(3\)/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: /Cupón \(4\)/ })).toBeVisible();
   await page.getByRole('group', { name: /Monto para Diego Guevara/ }).getByRole('button', { name: 'S/ 3' }).click();
-  await expect(page.getByRole('button', { name: /Apostar S\/ 5\.00/ })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Apostar S\/ 6\.00/ })).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, '05-cupon');
-  await page.getByRole('button', { name: /Apostar S\/ 5\.00/ }).click();
+  await page.getByRole('button', { name: /Apostar S\/ 6\.00/ }).click();
   await expect(page.getByRole('heading', { name: '¡Apuesta hecha!' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Mi saldo' })).toContainText('S/ 45');
+  await expect(page.getByRole('button', { name: 'Mi saldo' })).toContainText('S/ 44');
 
   await page.getByRole('button', { name: /Ver mis apuestas/ }).click();
   await expect(page.getByText('En juego', { exact: true })).toBeVisible();
@@ -101,7 +106,7 @@ test('registro con correo de confirmación, recarga por Plin y el admin la acred
   await page.getByRole('button', { name: /Ir a la jornada/ }).click();
 
   // Sin saldo: el cupón pide recargar
-  await page.getByRole('button', { name: /^Empate · cuota/ }).first().click();
+  await page.getByRole('button', { name: /^Empate · apostado/ }).first().click();
   await tab(page, /Cupón/).click();
   await expect(page.getByText('Te faltan S/ 1.00 de saldo')).toBeVisible();
   await page.getByRole('button', { name: /Recargar S\/ 1/ }).click();
@@ -141,7 +146,7 @@ test('admin pone en vivo el partido 1: aparece en "En vivo" y se cierran los esp
   await goInApp(page, '/p/COPA?tab=live');
   await expect(page.getByText(/En vivo · Partido 1/)).toBeVisible();
   await expect(page.getByText('Gol de Victor Manuel Espino (Equipo 1)')).toBeVisible();
-  await expect(page.getByText('Ya hubo gol')).toBeVisible();
+  await expect(page.getByText('Ya pasó').first()).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, '09-en-vivo');
 
@@ -152,7 +157,7 @@ test('admin pone en vivo el partido 1: aparece en "En vivo" y se cierran los esp
 
 test('cuenta: contraseña incorrecta y recuperar contraseña', async ({ page }) => {
   await page.goto('/entrar');
-  await page.getByLabel('Correo o usuario').fill('demo');
+  await page.getByLabel('Correo').fill('demo@copaalvaro.pe');
   await page.getByLabel('Contraseña', { exact: true }).fill('mala');
   await page.getByRole('button', { name: /^Entrar$/ }).click();
   await expect(page.getByRole('alert')).toHaveText('Correo o contraseña incorrectos.');
