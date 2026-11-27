@@ -9,13 +9,21 @@ import { friendlyError } from '../core/public-api';
   selector: 'app-admin-matches',
   imports: [MatchFormComponent, RouterLink],
   template: `
-    <header class="bg-slate-900 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 text-white">
+    <header class="bg-emerald-600 px-4 pt-[max(1rem,env(safe-area-inset-top))] pb-4 text-white">
       <div class="mx-auto flex max-w-2xl items-center justify-between gap-2">
         <div class="min-w-0">
-          <p class="text-xs text-slate-400">Organizador{{ api.isDemo ? ' · demo' : '' }}</p>
+          <p class="text-xs text-white/80">Organizador{{ api.isDemo ? ' · demo' : '' }}</p>
           <h1 class="text-xl font-extrabold">Jornadas</h1>
         </div>
-        <button type="button" class="rounded-lg bg-white/10 px-3 py-1.5 text-sm" (click)="logout()">Salir</button>
+        <div class="flex shrink-0 items-center gap-2">
+          <a routerLink="/admin/pagos" class="relative rounded-xl bg-white px-3 py-2 text-sm font-extrabold text-slate-900">
+            💸 Pagos
+            @if (pending() > 0) {
+              <span class="absolute -top-2 -right-2 grid h-6 min-w-6 place-items-center rounded-full bg-pink-500 px-1 text-xs text-white">{{ pending() }}</span>
+            }
+          </a>
+          <button type="button" class="rounded-lg bg-white/10 px-3 py-1.5 text-sm" (click)="logout()">Salir</button>
+        </div>
       </div>
     </header>
 
@@ -66,6 +74,7 @@ export class AdminMatchesPage implements OnInit {
   protected creating = signal(false);
   protected error = signal<string | null>(null);
   protected label = STATUS_LABEL;
+  protected pending = signal(0);
   /** La jornada nueva hereda los datos de pago de la más reciente. */
   protected payDefaults = computed(() => {
     const last = this.matches()[0];
@@ -75,6 +84,7 @@ export class AdminMatchesPage implements OnInit {
   async ngOnInit() {
     try {
       this.matches.set(await this.api.listMatches());
+      this.pending.set((await this.api.pendingDeposits()).length);
     } catch (e) {
       this.error.set(friendlyError(e));
     } finally {

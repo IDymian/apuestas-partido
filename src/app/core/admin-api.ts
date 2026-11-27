@@ -1,5 +1,7 @@
 import { inject, Injectable } from '@angular/core';
 import {
+  DEFAULT_PAY_METHOD,
+  DepositRow,
   AdminMatchData,
   EventRow,
   MarketRow,
@@ -8,9 +10,12 @@ import {
   MatchRow,
   MatchStatus,
   PaidRow,
+  TicketRow,
   TicketStatus,
 } from './models';
 import { SupabaseService } from './supabase.service';
+import { uuid } from './uid';
+
 
 export type NewEvent = Pick<EventRow, 'match_id' | 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute'>;
 export type EventPatch = Partial<Pick<EventRow, 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute'>>;
@@ -40,6 +45,11 @@ export abstract class AdminApi {
   abstract deleteMarket(id: string): Promise<void>;
 
   abstract setTicketStatus(id: string, status: TicketStatus, reason?: string | null): Promise<void>;
+  /** Recargas de saldo por confirmar (más antiguas primero). */
+  abstract pendingDeposits(): Promise<DepositRow[]>;
+  abstract setDepositStatus(id: string, status: TicketStatus, reason?: string | null): Promise<void>;
+  /** Avisa cuando llega o cambia una recarga. */
+  abstract subscribeDeposits(onChange: () => void): () => void;
   abstract receiptUrl(path: string): Promise<string | null>;
 
   abstract addEvent(e: NewEvent): Promise<void>;
@@ -75,6 +85,35 @@ export class SupabaseAdminApi extends AdminApi {
     const { data, error } = await this.db.rpc('is_admin');
     if (error) throw error;
     return data === true;
+  }
+
+  async pendingDeposits(): Promise<DepositRow[]> {
+    const { data, error } = await this.db.from('deposits').select('*').eq('status', 'pending').order('created_at');
+    if (error) throw error;
+    return data as DepositRow[];
+  }
+
+  async setDepositStatus(id: string, status: TicketStatus, reason?: string | null) {
+    const { error } = await this.db
+      .from('deposits')
+      .update({ status, reject_reason: status === 'rejected' ? reason?.trim() || null : null })
+      .eq('id', id);
+    if (error) throw error;
+  }
+
+  subscribeDeposits(onChange: () => void): () => void {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const channel = this.db
+      .channel('deposits')
+      .on('broadcast', { event: 'changed' }, () => {
+        clearTimeout(timer);
+        timer = setTimeout(onChange, 250);
+      })
+      .subscribe();
+    return () => {
+      clearTimeout(timer);
+      this.db.removeChannel(channel);
+    };
   }
 
   async listMatches() {
@@ -113,7 +152,7 @@ export class SupabaseAdminApi extends AdminApi {
       title: m.title.trim(),
       starts_at: m.starts_at,
       access_code: m.access_code.trim().toUpperCase(),
-      pay_method: m.pay_method?.trim() || 'Plin',
+      pay_method: m.pay_method?.trim() || DEFAULT_PAY_METHOD,
       pay_number: m.pay_number?.trim() || null,
       pay_holder: m.pay_holder?.trim() || null,
     };
@@ -136,7 +175,7 @@ export class SupabaseAdminApi extends AdminApi {
   }
 
   async uploadQr(matchId: string, file: Blob) {
-    const path = `${matchId}/${crypto.randomUUID()}.jpg`;
+    const path = `${matchId}/${uuid()}.jpg`;
     const up = await this.db.storage.from('pay-qr').upload(path, file, { contentType: file.type || 'image/jpeg' });
     if (up.error) throw up.error;
     const { error } = await this.db.from('matches').update({ pay_qr_path: path }).eq('id', matchId);

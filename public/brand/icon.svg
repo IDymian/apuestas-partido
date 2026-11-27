@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Copa Álvaro">
+  <title>Copa Álvaro</title>
+  <defs>
+    <radialGradient id="ballG" cx="38%" cy="30%" r="75%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.7" stop-color="#fbf4ee"/>
+      <stop offset="1" stop-color="#e9d9cc"/>
+    </radialGradient>
+    <linearGradient id="bgG" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ff9a3d"/>
+      <stop offset="0.55" stop-color="#f26200"/>
+      <stop offset="1" stop-color="#c94400"/>
+    </linearGradient>
+    <clipPath id="ballClip"><circle cx="64" cy="78" r="34"/></clipPath>
+  </defs>
+  <rect width="128" height="128" rx="30" fill="url(#bgG)"/>
+    <rect x="1.5" y="1.5" width="125" height="125" rx="28.5" fill="none" stroke="#ffffff" stroke-opacity="0.45" stroke-width="3"/>
+  <g transform="translate(8 8) scale(0.875)">
+    <g>
+      <rect x="14" y="30" width="7" height="3.5" rx="1.5" fill="#ffd089" transform="rotate(-30 17 31)"/>
+      <rect x="104" y="24" width="7" height="3.5" rx="1.5" fill="#ffffff" transform="rotate(40 107 25)"/>
+      <rect x="108" y="70" width="7" height="3.5" rx="1.5" fill="#ffe1c2" transform="rotate(-20 111 71)"/>
+      <circle cx="20" cy="66" r="3" fill="#ffffff"/>
+      <circle cx="98" cy="46" r="2.4" fill="#ffe1c2"/>
+      <circle cx="26" cy="14" r="2.2" fill="#ffffff"/>
+      <path d="M100 100 l4 -6 l4 6" fill="none" stroke="#ffd089" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+    <circle cx="64" cy="78" r="34" fill="url(#ballG)"/>
+    <g clip-path="url(#ballClip)">
+    <polygon points="64.00,66.50 74.94,74.45 70.76,87.30 57.24,87.30 53.06,74.45" fill="#2a1608"/>
+    <line x1="64.00" y1="66.50" x2="64.00" y2="58.00" stroke="#2a1608" stroke-width="2.2" stroke-linecap="round"/>
+    <polygon points="64.00,58.00 53.54,50.40 57.53,38.10 70.47,38.10 74.46,50.40" fill="#2a1608"/>
+    <polyline points="57.53,38.10 78.11,58.58 103.94,71.82" fill="none" stroke="#2a1608" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="74.94" y1="74.45" x2="83.02" y2="71.82" stroke="#2a1608" stroke-width="2.2" stroke-linecap="round"/>
+    <polygon points="83.02,71.82 87.02,59.52 99.95,59.52 103.94,71.82 93.48,79.42" fill="#2a1608"/>
+    <polyline points="99.95,59.52 86.83,85.42 82.22,114.08" fill="none" stroke="#2a1608" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="70.76" y1="87.30" x2="75.76" y2="94.18" stroke="#2a1608" stroke-width="2.2" stroke-linecap="round"/>
+    <polygon points="75.76,94.18 88.69,94.18 92.68,106.48 82.22,114.08 71.76,106.48" fill="#2a1608"/>
+    <polyline points="92.68,106.48 64.00,102.00 35.32,106.48" fill="none" stroke="#2a1608" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="57.24" y1="87.30" x2="52.24" y2="94.18" stroke="#2a1608" stroke-width="2.2" stroke-linecap="round"/>
+    <polygon points="52.24,94.18 56.24,106.48 45.78,114.08 35.32,106.48 39.31,94.18" fill="#2a1608"/>
+    <polyline points="45.78,114.08 41.17,85.42 28.05,59.52" fill="none" stroke="#2a1608" stroke-width="2" stroke-linejoin="round"/>
+    <line x1="53.06" y1="74.45" x2="44.98" y2="71.82" stroke="#2a1608" stroke-width="2.2" stroke-linecap="round"/>
+    <polygon points="44.98,71.82 34.52,79.42 24.06,71.82 28.05,59.52 40.98,59.52" fill="#2a1608"/>
+    <polyline points="24.06,71.82 49.89,58.58 70.47,38.10" fill="none" stroke="#2a1608" stroke-width="2" stroke-linejoin="round"/>
+    <ellipse cx="51" cy="63" rx="11" ry="6.5" fill="white" opacity="0.55" transform="rotate(-35 51 63)"/>
+    </g>
+    <circle cx="64" cy="78" r="34" fill="none" stroke="#2a1608" stroke-width="2.5"/>
+    <g transform="rotate(-16 64 44)">
+      <clipPath id="hatClip"><polygon points="47,50 81,50 64,6"/></clipPath>
+      <polygon points="47,50 81,50 64,6" fill="#f26200" stroke="#2a1608" stroke-width="2.5" stroke-linejoin="round"/>
+      <g clip-path="url(#hatClip)"><rect x="30" y="12" width="70" height="4.5" fill="#ffffff" transform="rotate(-14 64 12)"/><rect x="30" y="21" width="70" height="4.5" fill="#ffb648" transform="rotate(-14 64 21)"/><rect x="30" y="30" width="70" height="4.5" fill="#ffffff" transform="rotate(-14 64 30)"/><rect x="30" y="39" width="70" height="4.5" fill="#ffb648" transform="rotate(-14 64 39)"/><rect x="30" y="48" width="70" height="4.5" fill="#ffffff" transform="rotate(-14 64 48)"/><circle cx="60" cy="28" r="1.6" fill="white" opacity="0.9"/><circle cx="69" cy="38" r="1.6" fill="white" opacity="0.9"/><circle cx="56" cy="42" r="1.6" fill="white" opacity="0.9"/><circle cx="66" cy="20" r="1.6" fill="white" opacity="0.9"/></g>
+      <polygon points="47,50 81,50 64,6" fill="none" stroke="#2a1608" stroke-width="2.5" stroke-linejoin="round"/>
+      <rect x="44" y="47" width="40" height="7" rx="3.5" fill="#ffb648" stroke="#2a1608" stroke-width="2.5"/>
+      <circle cx="64" cy="6" r="6" fill="#ffffff" stroke="#2a1608" stroke-width="2.5"/>
+    </g>
+  </g>
+</svg>

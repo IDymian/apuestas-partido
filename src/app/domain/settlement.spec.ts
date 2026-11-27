@@ -298,3 +298,69 @@ describe('helpers', () => {
     expect(splitProportional(100, [{ stakeCents: 1 }, { stakeCents: 1 }, { stakeCents: 1 }]).map((o) => o.amountCents)).toEqual([33, 33, 34]);
   });
 });
+
+// ---- Copa Álvaro: mercados de show ----------------------------------------
+
+describe('mercados de show y de equipos nuevos', () => {
+  const SHOW_DEFS: [string, string][] = [
+    ['first_red', 'Primera roja'],
+    ['first_blooper', 'Primer blooper'],
+    ['first_penalty_conceded', 'Primer penal cometido'],
+    ['first_penalty_missed', 'Primer penal fallado'],
+    ['first_post', 'Primer palo'],
+    ['first_golazo', 'Primer golazo'],
+    ['first_dive', 'Primer piscinazo'],
+    ['total_posts', 'Cuántos palos'],
+    ['best_team', 'Mejor equipo'],
+    ['worst_team', 'Peor equipo'],
+  ];
+  const showMarkets = (): SettleMarket[] =>
+    SHOW_DEFS.map(([type, name], i) => ({ id: name, name, type, param: null, sortOrder: i + 1, isActive: true, rolloverToMarketId: null, initialPot: 0 }));
+  const run = (events: TimelineEvent[], bets: SettleBet[] = []) => settle(input(events, bets, showMarkets()));
+  const p = (type: TimelineEvent['type'], player: string) => ev({ type, playerId: player });
+
+  it('cada "primer X" gana el primer jugador de ese evento', () => {
+    const r = run([
+      p('post', 'lucho'), p('red', 'juan'), p('blooper', 'pepe'), p('penalty', 'juan'),
+      p('penalty_miss', 'lucho'), p('golazo', 'pepe'), p('dive', 'lucho'), p('red', 'pepe'), p('post', 'pepe'),
+    ]);
+    const w = (id: string) => market(r, id).winnerSelection;
+    expect(w('Primera roja')).toBe('juan');
+    expect(w('Primer blooper')).toBe('pepe');
+    expect(w('Primer penal cometido')).toBe('juan');
+    expect(w('Primer penal fallado')).toBe('lucho');
+    expect(w('Primer palo')).toBe('lucho');
+    expect(w('Primer golazo')).toBe('pepe');
+    expect(w('Primer piscinazo')).toBe('lucho');
+    expect(w('Cuántos palos')).toBe('2');
+  });
+
+  it('sin el evento → devolución; "Cuántos palos" con 0 sí se resuelve', () => {
+    const r = run([], [bet('Ana', 'Primera roja', 'juan', 3), bet('Beto', 'Cuántos palos', 0, 2)]);
+    expect(market(r, 'Primera roja').outcome).toBe('refund');
+    expect(market(r, 'Cuántos palos').outcome).toBe('winners');
+    expect(market(r, 'Cuántos palos').winnerSelection).toBe('0');
+  });
+
+  it('"Cuántos palos" topa en 5 ("5 o más")', () => {
+    const r = run(Array.from({ length: 7 }, () => p('post', 'pepe')));
+    expect(market(r, 'Cuántos palos').winnerSelection).toBe('5');
+  });
+
+  it('mejor y peor equipo por % de partiditos ganados', () => {
+    // R-A en cancha. Azul gana 2 (sale R, luego V), Rojo gana 1 de 2, Verde pierde su único.
+    // Rojo: 1G 1S (50%) · Azul: 2G 1S (67%) · Verde: 0G 1S (0%)
+    const r = run([goal('pepe', A), goal('lucho', A), goal('juan', R), goal('pepe', A)]);
+    const t = r.timeline.stats;
+    expect([t[R].wins, t[A].wins, t[V].wins]).toEqual([1, 2, 0]);
+    expect(market(r, 'Mejor equipo').winnerSelection).toBe(A);
+    expect(market(r, 'Peor equipo').winnerSelection).toBe(V);
+  });
+
+  it('mejor/peor equipo sin goles → devolución', () => {
+    const r = run([p('red', 'juan')]);
+    expect(market(r, 'Mejor equipo').outcome).toBe('refund');
+    expect(market(r, 'Peor equipo').outcome).toBe('refund');
+  });
+});
+

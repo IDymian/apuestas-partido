@@ -48,3 +48,8 @@ Thumbs.db
 .env.*
 !.env.example
 src/environments/env.generated.ts
+
+# Pruebas en navegador
+/e2e/screenshots/
+/test-results/
+/playwright-report/

@@ -1,7 +1,7 @@
 import { Component, effect, inject, input, output, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AdminApi } from '../core/admin-api';
-import { MatchInput, MatchRow, randomCode } from '../core/models';
+import { DEFAULT_PAY_HOLDER, DEFAULT_PAY_METHOD, MatchInput, MatchRow, randomCode } from '../core/models';
 import { friendlyError, PublicApi } from '../core/public-api';
 import { prepareReceipt } from '../core/receipt-image';
 
@@ -154,7 +154,7 @@ export class MatchFormComponent {
 }
 
 function emptyMatch(): MatchInput {
-  return { title: '', starts_at: null, access_code: randomCode(), pay_method: 'Plin', pay_number: '', pay_holder: '' };
+  return { title: '', starts_at: null, access_code: randomCode(), pay_method: DEFAULT_PAY_METHOD, pay_number: '', pay_holder: DEFAULT_PAY_HOLDER };
 }
 
 function toLocalInput(iso: string | null): string {

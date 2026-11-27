@@ -32,13 +32,15 @@ begin
   values ('Pichanga de prueba', now() - interval '2 hours', 'DEMO26', 'open', 'Plin', '999 888 777', 'Organizador Demo')
   returning id into m;
 
+  -- La jornada ya trae los 20 jugadores por defecto; solo agrega los que falten.
   for i in 1 .. array_length(names, 1) loop
-    insert into public.players (match_id, name, sort_order) values (m, names[i], i);
+    insert into public.players (match_id, name, sort_order)
+    select m, names[i], i where not exists (select 1 from public.players where match_id = m and name = names[i]);
   end loop;
 
-  a := pg_temp.tid(m, 'Equipo A');
-  b := pg_temp.tid(m, 'Equipo B');
-  c := pg_temp.tid(m, 'Equipo C');
+  a := pg_temp.tid(m, 'Equipo 1');
+  b := pg_temp.tid(m, 'Equipo 2');
+  c := pg_temp.tid(m, 'Equipo 3');
 
   -- ---------------- Apuestas (antes de cerrar) ----------------
   -- Ana

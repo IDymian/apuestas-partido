@@ -1,5 +1,5 @@
 import { AdminMatchData, betSelection, MatchEvent, MarketTarget, Player, PublicMatchData, Team } from '../core/models';
-import { SettleInput, SettleMarket, STREAK_MAX_OPTION } from './settlement';
+import { numberMaxOption, SettleInput, SettleMarket } from './settlement';
 import { sortEvents, TimelineEvent } from './timeline';
 
 export function toTimelineEvents(events: MatchEvent[]): TimelineEvent[] {
@@ -85,8 +85,11 @@ export function makeSelectionLabel(players: Player[], teams: Team[]) {
     if (target === 'team') return t.get(selection) ?? '¿?';
     if (target === 'number') {
       const n = Number(selection);
-      const txt = n >= STREAK_MAX_OPTION ? `${STREAK_MAX_OPTION} o más` : String(n);
-      return type === 'longest_streak' ? `racha de ${txt}` : txt;
+      const max = numberMaxOption(type);
+      const txt = n >= max ? `${max} o más` : String(n);
+      if (type === 'longest_streak') return `racha de ${txt}`;
+      if (type === 'total_posts') return n === 1 ? '1 palo' : `${txt} palos`;
+      return txt;
     }
     return p.get(selection) ?? t.get(selection) ?? '¿?';
   };

@@ -139,6 +139,13 @@ export function personKey(name: string): string {
 
 /** Número máximo que se puede elegir en "Racha más larga" (10 = "10 o más"). */
 export const STREAK_MAX_OPTION = 10;
+/** Número máximo en "¿Cuántos palos?" (5 = "5 o más"). */
+export const POSTS_MAX_OPTION = 5;
+
+/** Opción máxima ("N o más") de cada mercado a número. */
+export function numberMaxOption(type: string | undefined): number {
+  return type === 'total_posts' ? POSTS_MAX_OPTION : STREAK_MAX_OPTION;
+}
 
 const goals = (c: ResolveContext) => c.events.filter((e) => e.type === 'goal');
 const realGoals = (c: ResolveContext) => goals(c).filter((e) => !e.isOwnGoal && e.playerId);
@@ -155,6 +162,30 @@ const winner = (selection: string | null | undefined, refundReason: string): Res
 
 const NO_GOALS = 'No hubo goles';
 const NO_YELLOWS = 'No hubo amarillas';
+
+/** Primer jugador con un evento de ese tipo (roja, palo, golazo…). */
+const firstOf = (t: TimelineEvent['type'], none: string): Resolver => (c) => winner(ofType(c, t)[0]?.playerId, none);
+
+/**
+ * Mejor / peor equipo por % de partiditos ganados (ganados / jugados).
+ * Desempate: el mejor es el que ganó más; el peor, el que salió más; luego el orden de los equipos.
+ */
+function teamByWinRate(c: ResolveContext, mode: 'best' | 'worst'): Resolution {
+  const rows = c.timeline.teamIds
+    .map((id, order) => {
+      const s = c.timeline.stats[id];
+      return { id, order, wins: s.wins, exits: s.exits, played: s.wins + s.exits };
+    })
+    .filter((r) => r.played > 0);
+  if (rows.length === 0) return { kind: 'refund', reason: NO_GOALS };
+  rows.sort((a, b) => {
+    // a.wins/a.played vs b.wins/b.played sin decimales
+    const rate = b.wins * a.played - a.wins * b.played;
+    if (mode === 'best') return rate || b.wins - a.wins || a.order - b.order;
+    return -rate || b.exits - a.exits || a.order - b.order;
+  });
+  return { kind: 'winner', selection: rows[0].id };
+}
 
 /** Registro de tipos de mercado. Para un tipo nuevo, agrega aquí su resolver. */
 export const RESOLVERS: Record<string, Resolver> = {
@@ -193,15 +224,28 @@ export const RESOLVERS: Record<string, Resolver> = {
       ? { kind: 'winner', selection: String(Math.min(c.timeline.maxStreak, STREAK_MAX_OPTION)) }
       : { kind: 'refund', reason: NO_GOALS },
   most_exits: (c) => winner(c.timeline.mostExitsTeamId, NO_GOALS),
+  best_team: (c) => teamByWinRate(c, 'best'),
+  worst_team: (c) => teamByWinRate(c, 'worst'),
 
   // 🟨 Amarillas (a jugador)
   first_yellow: (c) => winner(ofType(c, 'yellow')[0]?.playerId, NO_YELLOWS),
   last_yellow: (c) => winner(ofType(c, 'yellow').at(-1)?.playerId, NO_YELLOWS),
   most_yellows: (c) => winner(leaderFirstToReach(ofType(c, 'yellow').map((e) => e.playerId!)), NO_YELLOWS),
+  first_red: firstOf('red', 'No hubo rojas'),
 
   // 🤡 Pichanga (a jugador)
   first_own_goal: (c) => winner(goals(c).find((e) => e.isOwnGoal && e.playerId)?.playerId, 'No hubo autogoles'),
   first_nutmeg_victim: (c) => winner(ofType(c, 'nutmeg')[0]?.playerId, 'No hubo huachas'),
+
+  // 🎬 Show (a jugador o número)
+  first_blooper: firstOf('blooper', 'No hubo bloopers'),
+  first_penalty_conceded: firstOf('penalty', 'No hubo penales'),
+  first_penalty_missed: firstOf('penalty_miss', 'Nadie falló un penal'),
+  first_post: firstOf('post', 'No hubo palos'),
+  first_golazo: firstOf('golazo', 'No hubo golazos'),
+  first_dive: firstOf('dive', 'No hubo piscinazos'),
+  // Siempre se resuelve: 0 palos también es un resultado.
+  total_posts: (c) => ({ kind: 'winner', selection: String(Math.min(ofType(c, 'post').length, POSTS_MAX_OPTION)) }),
 };
 
 /**

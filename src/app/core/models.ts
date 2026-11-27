@@ -1,7 +1,9 @@
 export type MatchStatus = 'open' | 'closed' | 'finished';
 export type MarketTarget = 'player' | 'team' | 'number';
-export type MarketSection = 'goles' | 'equipos' | 'amarillas' | 'pichanga';
-export type EventType = 'goal' | 'yellow' | 'nutmeg' | 'rotation';
+export type MarketSection = 'goles' | 'equipos' | 'amarillas' | 'pichanga' | 'show';
+/** Eventos de un solo jugador (se registran con dos toques). */
+export type PlayerEventType = 'yellow' | 'red' | 'nutmeg' | 'blooper' | 'penalty' | 'penalty_miss' | 'post' | 'golazo' | 'dive';
+export type EventType = 'goal' | 'rotation' | PlayerEventType;
 export type TicketStatus = 'pending' | 'approved' | 'rejected';
 
 export interface PublicMatch {
@@ -92,18 +94,110 @@ export const AMOUNTS = [1, 2, 3, 4, 5] as const;
 
 export const STATUS_LABEL: Record<MatchStatus, string> = {
   open: 'Apuestas abiertas',
-  closed: 'En juego · cerrado',
+  closed: 'En juego',
   finished: 'Finalizada',
 };
 
-export const SECTIONS: { id: MarketSection; label: string; icon: string }[] = [
-  { id: 'goles', label: 'Goles', icon: '⚽' },
-  { id: 'equipos', label: 'Equipos', icon: '🛡️' },
-  { id: 'amarillas', label: 'Amarillas', icon: '🟨' },
-  { id: 'pichanga', label: 'Pichanga', icon: '🤡' },
+export const SECTIONS: { id: MarketSection; label: string; icon: string; blurb: string }[] = [
+  { id: 'goles', label: 'Goles', icon: '⚽', blurb: 'Quién la mete y cuándo' },
+  { id: 'equipos', label: 'Equipos', icon: '🛡️', blurb: 'Rey de la cancha, mejor y peor equipo' },
+  { id: 'amarillas', label: 'Tarjetas', icon: '🟨', blurb: 'Amarillas y rojas' },
+  { id: 'show', label: 'Show', icon: '🎬', blurb: 'Palos, golazos, penales y bloopers' },
+  { id: 'pichanga', label: 'Pichanga', icon: '🤡', blurb: 'Autogoles y huachas' },
 ];
 
-export const EVENT_ICON: Record<EventType, string> = { goal: '⚽', yellow: '🟨', nutmeg: '🥜', rotation: '🔄' };
+/** Cómo se muestra y se registra cada evento de un jugador. */
+export const PLAYER_EVENTS: Record<PlayerEventType, { label: string; icon: string; ask: string; text: (name: string) => string; stat: string }> = {
+  yellow: { label: 'Amarilla', icon: '🟨', ask: '¿A quién amonestaron?', text: (n) => `Amarilla a ${n}`, stat: 'Amarillas' },
+  red: { label: 'Roja', icon: '🟥', ask: '¿A quién expulsaron?', text: (n) => `Roja a ${n}`, stat: 'Rojas' },
+  nutmeg: { label: 'Huacha', icon: '🥜', ask: '¿A quién le hicieron la huacha?', text: (n) => `Huacha a ${n}`, stat: 'Huachas recibidas' },
+  golazo: { label: 'Golazo', icon: '✨', ask: '¿Quién metió el golazo?', text: (n) => `Golazo de ${n}`, stat: 'Golazos' },
+  post: { label: 'Palo', icon: '🥅', ask: '¿Quién la estrelló en el palo?', text: (n) => `Palo de ${n}`, stat: 'Palos' },
+  penalty: { label: 'Penal', icon: '🚨', ask: '¿Quién cometió el penal?', text: (n) => `Penal cometido por ${n}`, stat: 'Penales cometidos' },
+  penalty_miss: { label: 'Falla penal', icon: '🙅', ask: '¿Quién falló el penal?', text: (n) => `Penal fallado por ${n}`, stat: 'Penales fallados' },
+  blooper: { label: 'Blooper', icon: '🤦', ask: '¿Quién hizo el blooper?', text: (n) => `Blooper de ${n}`, stat: 'Bloopers' },
+  dive: { label: 'Piscinazo', icon: '🏊', ask: '¿Quién se tiró a la piscina?', text: (n) => `Piscinazo de ${n}`, stat: 'Piscinazos' },
+};
+export const PLAYER_EVENT_TYPES = Object.keys(PLAYER_EVENTS) as PlayerEventType[];
+export const isPlayerEvent = (t: EventType): t is PlayerEventType => t in PLAYER_EVENTS;
+
+export const EVENT_ICON: Record<EventType, string> = {
+  goal: '⚽',
+  rotation: '🔄',
+  ...(Object.fromEntries(PLAYER_EVENT_TYPES.map((t) => [t, PLAYER_EVENTS[t].icon])) as Record<PlayerEventType, string>),
+};
+
+/** Método de pago: depósito por Plin al QR (el organizador lo acepta a mano). */
+export const DEFAULT_PAY_METHOD = 'Plin';
+/** Titular por defecto del Plin (organizador). */
+export const DEFAULT_PAY_HOLDER = 'Alvaro Fabrizzio Salazar';
+/** QR por defecto si la jornada no tiene uno subido: guarda la imagen en public/pago/qr.png. */
+export const DEFAULT_PAY_QR = 'pago/qr.png';
+
+// ---------------------------------------------------------------------------
+// Cuentas, mis tickets y social
+// ---------------------------------------------------------------------------
+export interface AppUser {
+  id: string;
+  email: string;
+  username: string;
+}
+
+export interface MyBet {
+  id: string;
+  market_id: string;
+  player_id: string | null;
+  team_id: string | null;
+  option_value: number | null;
+  amount: number;
+}
+
+export interface MyTicket {
+  id: string;
+  total: number;
+  status: TicketStatus;
+  reject_reason: string | null;
+  created_at: string;
+  bets: MyBet[];
+}
+
+/** Recarga de saldo por Plin (la acepta el organizador). */
+export interface Deposit {
+  id: string;
+  amount: number;
+  status: TicketStatus;
+  reject_reason: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+}
+
+/** Depósito visto por el organizador (con dueño y captura). */
+export interface DepositRow extends Deposit {
+  user_id: string;
+  username: string;
+  receipt_path: string | null;
+}
+
+export interface Wallet {
+  /** Saldo en soles: depósitos aceptados − tickets no rechazados. */
+  balance: number;
+  deposits: Deposit[];
+}
+
+/** Montos rápidos para recargar. */
+export const DEPOSIT_AMOUNTS = [10, 20, 30, 50] as const;
+export const MAX_DEPOSIT = 500;
+
+export interface ChatMessage {
+  id: string;
+  user_id: string | null;
+  username: string;
+  body: string;
+  created_at: string;
+}
+
+/** Respuestas rápidas del chat Social. */
+export const QUICK_REACTIONS = ['⚽ ¡GOOOL!', '⚪ ¡La esférica no se mancha!', '🔥 Golazo', '🤡 Qué blooper', '🥅 ¡Palo!', '🟥 ¡Roja!', '💸 Ya plineé'];
 
 /** Mensaje que ve todo apostador. */
 export const HOUSE_WARNING = 'Si nadie acierta en una apuesta, ese bote se lo queda el organizador.';

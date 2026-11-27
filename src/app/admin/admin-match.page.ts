@@ -38,15 +38,16 @@ const TABS: { id: Tab; label: string }[] = [
       </div>
     } @else {
       @let d = data()!;
-      <header class="bg-slate-900 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
+      <header class="bg-emerald-600 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] text-white">
         <div class="mx-auto max-w-2xl">
           <div class="flex items-center justify-between gap-2">
-            <a routerLink="/admin" class="text-sm text-slate-300">← Jornadas</a>
+            <a routerLink="/admin" class="text-sm text-white/85">← Jornadas</a>
+            <a routerLink="/admin/pagos" class="ml-auto rounded-lg bg-white px-2.5 py-1 text-xs font-extrabold text-slate-900">💸 Pagos</a>
             <span class="rounded-full px-2 py-0.5 text-xs font-semibold" [class]="statusBadge()">{{ statusLabel[d.match.status] }}</span>
           </div>
           <h1 class="mt-1 text-xl leading-tight font-extrabold">{{ d.match.title }}</h1>
           <div class="mt-1 flex flex-wrap items-center gap-2 text-sm">
-            <span class="font-mono tracking-wider text-slate-300">{{ d.match.access_code }}</span>
+            <span class="font-mono tracking-wider text-white/85">{{ d.match.access_code }}</span>
             <button type="button" class="rounded-md bg-white/10 px-2 py-0.5 text-xs" (click)="copyLink()">{{ copied() ? '¡Link copiado!' : 'Copiar link' }}</button>
             <a [routerLink]="['/p', d.match.access_code]" target="_blank" class="rounded-md bg-white/10 px-2 py-0.5 text-xs">Ver pública ↗</a>
           </div>

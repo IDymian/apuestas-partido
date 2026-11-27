@@ -9,12 +9,23 @@
  * Función pura: la usan los resolvers, la pantalla pública y el admin.
  */
 
-export type EventKind = 'goal' | 'yellow' | 'nutmeg' | 'rotation';
+export type EventKind =
+  | 'goal'
+  | 'yellow'
+  | 'nutmeg'
+  | 'rotation'
+  | 'red'
+  | 'blooper'
+  | 'penalty'
+  | 'penalty_miss'
+  | 'post'
+  | 'golazo'
+  | 'dive';
 
 export interface TimelineEvent {
   id: string;
   type: EventKind;
-  /** Goleador real (también en autogol), amonestado o víctima de la huacha. */
+  /** Goleador real (también en autogol), amonestado, víctima de la huacha o protagonista del evento. */
   playerId: string | null;
   /** Gol: equipo al que le cuenta. */
   teamId: string | null;

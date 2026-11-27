@@ -2,22 +2,21 @@ import { Component, computed, effect, inject, input, output, signal, untracked }
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminApi } from '../core/admin-api';
-import { AdminMatchData, elapsedMinutes, EventRow, EventType, PlayerRow } from '../core/models';
+import { AdminMatchData, elapsedMinutes, EventRow, EventType, isPlayerEvent, PLAYER_EVENT_TYPES, PLAYER_EVENTS, PlayerEventType, PlayerRow } from '../core/models';
 import { friendlyError } from '../core/public-api';
 import { teamOrder, toTimelineEvents } from '../domain/adapt';
 import { courtTimeline } from '../domain/timeline';
 
-type Action = 'goal' | 'own_goal' | 'yellow' | 'nutmeg' | 'rotation';
+type Action = 'goal' | 'own_goal' | 'rotation' | PlayerEventType;
 
 const ACTIONS: { id: Action; label: string; icon: string }[] = [
   { id: 'goal', label: 'Gol', icon: '⚽' },
   { id: 'own_goal', label: 'Autogol', icon: '🙈' },
-  { id: 'yellow', label: 'Amarilla', icon: '🟨' },
-  { id: 'nutmeg', label: 'Huacha', icon: '🥜' },
+  ...PLAYER_EVENT_TYPES.map((t) => ({ id: t, label: PLAYER_EVENTS[t].label, icon: PLAYER_EVENTS[t].icon })),
   { id: 'rotation', label: 'Rotación', icon: '🔄' },
 ];
 
-/** Registro rápido de la jornada: cancha, goles por equipo, amarillas, huachas y rotaciones. */
+/** Registro rápido de la jornada: cancha, goles por equipo, tarjetas, show (palo, golazo, penal, blooper…) y rotaciones. */
 @Component({
   selector: 'app-events-tab',
   imports: [FormsModule, NgTemplateOutlet],
@@ -64,11 +63,11 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
         <button type="button" class="btn-secondary h-11 shrink-0" (click)="refreshMinute()" title="Usar el tiempo transcurrido">⏱ Ahora</button>
       </div>
 
-      <div class="mt-3 grid grid-cols-5 gap-1.5">
+      <div class="mt-3 grid grid-cols-4 gap-1.5 sm:grid-cols-6">
         @for (a of actions; track a.id) {
           <button
             type="button"
-            class="flex h-16 flex-col items-center justify-center rounded-2xl border-2 text-xs font-bold"
+            class="flex h-16 flex-col items-center justify-center rounded-2xl border-2 text-[11px] leading-tight font-bold"
             [class]="action() === a.id ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-slate-200 bg-white text-slate-700'"
             (click)="pick(a.id)"
           >
@@ -95,9 +94,7 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
           <ng-container *ngTemplateOutlet="goalSteps" />
         }
         @default {
-          <p class="mt-3 text-sm text-slate-600">
-            Toca al jugador {{ action() === 'yellow' ? 'amonestado' : 'al que le hicieron la huacha' }} (minuto {{ minute ?? 0 }}):
-          </p>
+          <p class="mt-3 text-sm text-slate-600">{{ askFor(action()) }} (minuto {{ minute ?? 0 }}):</p>
           <div class="mt-2 flex flex-wrap gap-2">
             @for (p of players(); track p.id) {
               <button type="button" class="chip" [disabled]="busy()" (click)="addPlayerEvent(p)">{{ p.name }}</button>
@@ -135,6 +132,11 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
       @if (flash()) {
         <p class="mt-3 rounded-lg bg-emerald-50 p-2 text-center text-sm font-semibold text-emerald-800">{{ flash() }}</p>
       }
+      @if (lastGoal(); as lg) {
+        <button type="button" class="btn-secondary mt-2 w-full bg-amber-50 text-amber-800" [disabled]="busy()" (click)="markGolazo(lg)">
+          ✨ ¿Fue golazo? Marcar golazo de {{ lg.name }}
+        </button>
+      }
       @if (error()) {
         <p class="mt-3 rounded-lg bg-red-50 p-2 text-sm text-red-700">{{ error() }}</p>
       }
@@ -151,8 +153,9 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
                 <div class="flex gap-2">
                   <select class="input" [(ngModel)]="edit.type" name="etype">
                     <option value="goal">⚽ Gol</option>
-                    <option value="yellow">🟨 Amarilla</option>
-                    <option value="nutmeg">🥜 Huacha</option>
+                    @for (t of playerEventTypes; track t) {
+                      <option [value]="t">{{ playerEvents[t].icon }} {{ playerEvents[t].label }}</option>
+                    }
                     <option value="rotation">🔄 Rotación</option>
                   </select>
                   <input class="input w-24 text-center" type="number" min="0" max="300" [(ngModel)]="edit.minute" name="emin" />
@@ -218,6 +221,10 @@ export class EventsTabComponent {
   private api = inject(AdminApi);
 
   protected actions = ACTIONS;
+  protected playerEvents = PLAYER_EVENTS;
+  protected playerEventTypes = PLAYER_EVENT_TYPES;
+  /** Último gol registrado desde aquí (para marcarlo como golazo con un toque). */
+  protected lastGoal = signal<{ playerId: string; name: string; minute: number } | null>(null);
   protected minute: number | null = null;
   protected action = signal<Action>('goal');
   protected goalTeam = signal<string | null>(null);
@@ -260,18 +267,18 @@ export class EventsTabComponent {
   }
 
   describe(e: EventRow): string {
-    switch (e.type) {
-      case 'goal':
-        return e.is_own_goal
-          ? `🙈 Autogol de ${this.playerName(e.player_id)} (para ${this.teamName(e.team_id)})`
-          : `⚽ ${this.playerName(e.player_id)} (para ${this.teamName(e.team_id)})`;
-      case 'yellow':
-        return `🟨 ${this.playerName(e.player_id)}`;
-      case 'nutmeg':
-        return `🥜 Huacha a ${this.playerName(e.player_id)}`;
-      case 'rotation':
-        return `🔄 Rotación: sale ${this.teamName(e.team_out_id)}`;
+    if (e.type === 'goal') {
+      return e.is_own_goal
+        ? `🙈 Autogol de ${this.playerName(e.player_id)} (para ${this.teamName(e.team_id)})`
+        : `⚽ ${this.playerName(e.player_id)} (para ${this.teamName(e.team_id)})`;
     }
+    if (e.type === 'rotation') return `🔄 Rotación: sale ${this.teamName(e.team_out_id)}`;
+    const meta = PLAYER_EVENTS[e.type];
+    return `${meta.icon} ${meta.text(this.playerName(e.player_id))}`;
+  }
+
+  askFor(a: Action): string {
+    return isPlayerEvent(a as EventType) ? PLAYER_EVENTS[a as PlayerEventType].ask : '';
   }
 
   gameNote(e: EventRow): string | null {
@@ -281,6 +288,7 @@ export class EventsTabComponent {
 
   pick(a: Action) {
     this.action.set(a);
+    this.lastGoal.set(null);
     this.goalTeam.set(null);
     this.error.set(null);
   }
@@ -322,15 +330,24 @@ export class EventsTabComponent {
       `${own ? '🙈 Autogol de' : '⚽ Gol de'} ${p.name} para ${this.teamName(team)} (${minute}')`,
     );
     this.goalTeam.set(null);
+    this.lastGoal.set(own ? null : { playerId: p.id, name: p.name, minute });
+  }
+
+  async markGolazo(g: { playerId: string; name: string; minute: number }) {
+    await this.run(
+      () => this.api.addEvent({ match_id: this.data().match.id, type: 'golazo', player_id: g.playerId, team_id: null, is_own_goal: false, team_out_id: null, minute: g.minute }),
+      `✨ Golazo de ${g.name} (${g.minute}')`,
+    );
+    this.lastGoal.set(null);
   }
 
   async addPlayerEvent(p: PlayerRow) {
     const minute = this.validMinute();
-    const type = this.action() as 'yellow' | 'nutmeg';
-    if (minute === null) return;
+    const type = this.action() as PlayerEventType;
+    if (minute === null || !isPlayerEvent(type)) return;
     await this.run(
       () => this.api.addEvent({ match_id: this.data().match.id, type, player_id: p.id, team_id: null, is_own_goal: false, team_out_id: null, minute }),
-      `${type === 'yellow' ? '🟨 Amarilla a' : '🥜 Huacha a'} ${p.name} (${minute}')`,
+      `${PLAYER_EVENTS[type].icon} ${PLAYER_EVENTS[type].text(p.name)} (${minute}')`,
     );
   }
 

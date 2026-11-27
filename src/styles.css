@@ -1,19 +1,195 @@
 @import "tailwindcss";
 
+/* =============================================================================
+   Copa Álvaro — sistema de diseño (ver DESIGN.md)
+   Noche de estadio + cumpleaños: fondo morado noche, verde lima de cancha,
+   rosa de fiesta y dorado de trofeo.
+   ============================================================================= */
+@theme {
+  --font-display: "Bricolage Grotesque", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Manrope", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+
+  /* Nombres heredados del tema noche: "night" = fondos claros, "ink" = texto, "lime" = naranja principal. */
+  --color-night: #fffaf5;
+  --color-night-2: #ffffff;
+  --color-night-3: #fff1e6;
+  --color-night-4: #f3e6da;
+  --color-ink: #1f140d;
+  --color-mute: #6e5d52;
+  --color-faint: #a8968a;
+  --color-lime: #f26200;
+  --color-lime-deep: #d14f00;
+  --color-candy: #e11d48;
+  --color-gold: #e38a00;
+  --color-sky: #0284c7;
+  --color-grape: #ff8a3d;
+  --color-plin: #00c5d4;
+
+  /* El panel del organizador usa "emerald": lo pasamos al naranja de la marca. */
+  --color-emerald-50: #fff4eb;
+  --color-emerald-100: #ffe6d2;
+  --color-emerald-200: #ffc9a3;
+  --color-emerald-300: #ffa66b;
+  --color-emerald-500: #ff7a1a;
+  --color-emerald-600: #f26200;
+  --color-emerald-700: #c94f00;
+  --color-emerald-800: #9c3e00;
+  --color-emerald-900: #6e2c00;
+  --color-emerald-950: #3d1800;
+
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+
+  --animate-fade-up: fade-up 0.55s var(--ease-out-quint) both;
+  --animate-pop: pop 0.45s var(--ease-spring) both;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-marquee: marquee 38s linear infinite;
+  --animate-live: live 1.6s ease-out infinite;
+  --animate-shine: shine 3.5s ease-in-out infinite;
+
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(14px) scale(0.98); filter: blur(4px); }
+    to { opacity: 1; transform: none; filter: none; }
+  }
+  @keyframes pop {
+    0% { transform: scale(0.6); opacity: 0; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  @keyframes float {
+    0%, 100% { transform: translateY(0) rotate(-2deg); }
+    50% { transform: translateY(-10px) rotate(2deg); }
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+  }
+  @keyframes live {
+    0% { box-shadow: 0 0 0 0 rgb(225 29 72 / 0.6); }
+    100% { box-shadow: 0 0 0 10px rgb(225 29 72 / 0); }
+  }
+  @keyframes shine {
+    0%, 60% { background-position: -150% 0; }
+    100% { background-position: 250% 0; }
+  }
+}
+
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
     color-scheme: light;
+    scroll-behavior: smooth;
   }
   body {
-    @apply min-h-dvh bg-slate-100 text-slate-800 antialiased;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    @apply min-h-dvh bg-night font-sans text-ink antialiased;
+    background-image:
+      radial-gradient(60rem 40rem at 110% -10%, rgb(255 122 26 / 0.16), transparent 60%),
+      radial-gradient(50rem 30rem at -20% 10%, rgb(255 176 92 / 0.14), transparent 60%),
+      radial-gradient(40rem 30rem at 50% 120%, rgb(242 98 0 / 0.06), transparent 60%);
+    background-attachment: fixed;
+  }
+  /* Panel del organizador: tema claro de trabajo. */
+  body.theme-admin {
+    @apply bg-slate-100 text-slate-800;
+    background-image: none;
+    color-scheme: light;
+  }
+  h1, h2, h3, .font-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
   }
   button:not(:disabled) {
     cursor: pointer;
   }
+  :focus-visible {
+    outline: 2px solid var(--color-lime);
+    outline-offset: 2px;
+  }
+  body.theme-admin :focus-visible {
+    outline-color: var(--color-emerald-600);
+  }
+  ::selection {
+    background: var(--color-lime);
+    color: white;
+  }
 }
 
+/* -----------------------------------------------------------------------------
+   Componentes de la parte pública (tema noche)
+   ----------------------------------------------------------------------------- */
+@layer components {
+  .glass {
+    @apply rounded-3xl border border-ink/[0.07] bg-night-2/90 p-4 shadow-[0_10px_30px_-14px_rgb(120_55_10/0.22)] backdrop-blur-xl;
+  }
+  .glass-raised {
+    @apply rounded-3xl border border-ink/10 bg-white p-4 shadow-[0_18px_40px_-14px_rgb(120_55_10/0.3)];
+  }
+  .btn {
+    @apply relative inline-flex h-13 items-center justify-center gap-2 overflow-hidden rounded-2xl bg-lime px-6 font-display text-[17px] font-extrabold text-white shadow-[0_10px_26px_-8px_rgb(242_98_0/0.55)] transition duration-200 ease-out select-none active:scale-[0.97] disabled:bg-night-4 disabled:text-faint disabled:shadow-none;
+  }
+  .btn:not(:disabled):hover {
+    @apply -translate-y-0.5 shadow-[0_16px_32px_-8px_rgb(242_98_0/0.6)];
+  }
+  .btn-candy {
+    @apply bg-candy text-white shadow-[0_10px_30px_-8px_rgb(225_29_72/0.45)];
+  }
+  .btn-candy:not(:disabled):hover {
+    @apply shadow-[0_16px_36px_-8px_rgb(225_29_72/0.55)];
+  }
+  .btn-ghost {
+    @apply inline-flex h-11 items-center justify-center gap-2 rounded-2xl border border-ink/10 bg-white px-4 text-sm font-bold text-ink transition hover:border-lime/40 hover:bg-night-3 active:scale-[0.97] disabled:opacity-50;
+  }
+  .field {
+    @apply h-13 w-full rounded-2xl border border-ink/12 bg-white px-4 text-base text-ink outline-none transition placeholder:text-faint focus:border-lime focus:ring-4 focus:ring-lime/15;
+  }
+  .field-label {
+    @apply mb-1.5 block text-xs font-bold tracking-wide text-mute uppercase;
+  }
+  .pick {
+    @apply inline-flex min-h-11 items-center gap-1.5 rounded-full border border-ink/10 bg-white px-4 text-sm font-semibold text-ink transition duration-200 hover:border-lime/50 hover:bg-night-3 active:scale-95;
+  }
+  .pick-on {
+    @apply border-lime bg-lime text-white shadow-[0_6px_18px_-6px_rgb(242_98_0/0.6)] hover:border-lime hover:bg-lime;
+    animation: pop 0.35s var(--ease-spring);
+  }
+  .tag {
+    @apply inline-flex items-center gap-1 rounded-full bg-ink/[0.05] px-2.5 py-1 text-xs font-bold text-mute;
+  }
+  .eyebrow {
+    @apply text-[11px] font-extrabold tracking-[0.18em] text-mute uppercase;
+  }
+  .text-gradient {
+    background: linear-gradient(100deg, #ff8a1f 0%, var(--color-lime) 50%, #d13f00 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .shine {
+    background-image: linear-gradient(110deg, transparent 30%, rgb(255 255 255 / 0.6) 50%, transparent 70%);
+    background-size: 200% 100%;
+    background-repeat: no-repeat;
+    animation: var(--animate-shine);
+  }
+  .live-dot {
+    @apply inline-block h-2 w-2 rounded-full bg-candy;
+    animation: var(--animate-live);
+  }
+  .nav-bar {
+    @apply fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))];
+  }
+  .nav-inner {
+    @apply grid grid-cols-4 rounded-[26px] border border-ink/10 bg-white/90 p-1.5 shadow-[0_18px_40px_-12px_rgb(120_55_10/0.35)] backdrop-blur-2xl;
+  }
+  .nav-item {
+    @apply relative flex h-14 flex-col items-center justify-center gap-0.5 rounded-[20px] text-[11px] font-bold text-faint transition-colors duration-200;
+  }
+  .nav-item-on {
+    @apply text-white;
+  }
+}
+
+/* -----------------------------------------------------------------------------
+   Componentes del panel del organizador (tema claro, morado de marca)
+   ----------------------------------------------------------------------------- */
 @layer components {
   .card {
     @apply rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200/70;
@@ -36,11 +212,8 @@
   .tab-on {
     @apply bg-slate-100 text-emerald-800;
   }
-}
-
-@layer components {
   .input {
-    @apply h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100;
+    @apply h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-base text-slate-900 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100;
   }
   .btn-secondary {
     @apply inline-flex h-10 items-center justify-center rounded-xl bg-slate-100 px-3 text-sm font-semibold text-slate-700 transition active:scale-[0.98] disabled:opacity-50;
@@ -53,9 +226,107 @@
   }
 }
 
+/* -----------------------------------------------------------------------------
+   Animaciones de entrada/salida (Angular animate.enter / animate.leave)
+   ----------------------------------------------------------------------------- */
+.anim-in {
+  animation: fade-up 0.55s var(--ease-out-quint) both;
+  animation-delay: calc(var(--i, 0) * 55ms);
+}
+.anim-pop {
+  animation: pop 0.45s var(--ease-spring) both;
+}
+.anim-out {
+  animation: fade-out 0.2s ease-in both;
+}
+.anim-expand {
+  animation: expand 0.35s var(--ease-out-quint) both;
+}
+.anim-sheet {
+  animation: sheet-up 0.42s var(--ease-out-quint) both;
+}
+.anim-sheet-out {
+  animation: sheet-down 0.22s ease-in both;
+}
+.anim-backdrop {
+  animation: fade-in 0.25s ease-out both;
+}
+.anim-msg {
+  animation: msg-in 0.35s var(--ease-spring) both;
+}
+.anim-tab {
+  animation: tab-in 0.4s var(--ease-out-quint) both;
+}
+.anim-bump {
+  animation: bump 0.45s var(--ease-spring);
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+}
+@keyframes fade-out {
+  to { opacity: 0; transform: scale(0.97); }
+}
+@keyframes expand {
+  from { opacity: 0; transform: translateY(-6px); clip-path: inset(0 0 100% 0); }
+  to { opacity: 1; transform: none; clip-path: inset(0 0 0 0); }
+}
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+@keyframes sheet-down {
+  to { transform: translateY(100%); }
+}
+@keyframes msg-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.92); }
+}
+@keyframes tab-in {
+  from { opacity: 0; transform: translateX(var(--from-x, 0)) translateY(8px); }
+}
+@keyframes bump {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+@keyframes draw {
+  to { stroke-dashoffset: 0; }
+}
+.draw-check path {
+  stroke-dasharray: 40;
+  stroke-dashoffset: 40;
+  animation: draw 0.6s 0.25s var(--ease-out-quint) forwards;
+}
+
+/* Transición entre pantallas (View Transitions API) */
+::view-transition-old(root) {
+  animation: 0.18s ease-in both fade-out;
+}
+::view-transition-new(root) {
+  animation: 0.38s var(--ease-out-quint) both fade-up;
+}
+
 @utility no-scrollbar {
   scrollbar-width: none;
   &::-webkit-scrollbar {
     display: none;
+  }
+}
+
+@utility h-13 {
+  height: 3.25rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after,
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    animation-delay: 0ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

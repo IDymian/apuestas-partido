@@ -12,6 +12,8 @@ export interface JornadaStats {
   yellows: PlayerCount[];
   ownGoals: PlayerCount[];
   nutmegVictims: PlayerCount[];
+  /** Conteo por jugador de cada tipo de evento (rojas, palos, golazos, bloopers…). */
+  byType: Record<string, PlayerCount[]>;
   /** Próximo "gol número N" de los mercados activos, si queda alguno. */
   nextMilestone: { n: number; remaining: number } | null;
 }
@@ -41,6 +43,9 @@ export function jornadaStats(events: TimelineEvent[], nthGoalParams: number[] = 
     yellows: tally(events.filter((e) => e.type === 'yellow')),
     ownGoals: tally(goals.filter((e) => e.isOwnGoal)),
     nutmegVictims: tally(events.filter((e) => e.type === 'nutmeg')),
+    byType: Object.fromEntries(
+      (['red', 'blooper', 'penalty', 'penalty_miss', 'post', 'golazo', 'dive'] as const).map((t) => [t, tally(events.filter((e) => e.type === t))]),
+    ),
     nextMilestone: next ? { n: next, remaining: next - totalGoals } : null,
   };
 }

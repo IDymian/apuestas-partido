@@ -1,6 +1,6 @@
 {
-  "name": "Apuestas del Partido",
-  "short_name": "Apuestas",
+  "name": "Copa Álvaro",
+  "short_name": "Copa Álvaro",
   "display": "standalone",
   "scope": "./",
   "start_url": "./",
@@ -54,7 +54,8 @@
       "purpose": "maskable any"
     }
   ],
-  "theme_color": "#047857",
-  "background_color": "#f1f5f9",
-  "lang": "es-PE"
+  "theme_color": "#f26200",
+  "background_color": "#fffaf5",
+  "lang": "es-PE",
+  "description": "Copa Álvaro: apuestas, en vivo y chat. La esférica no se mancha."
 }

@@ -1,231 +1,211 @@
-# Apuestas del Partido ⚽
+# Copa Álvaro ⚽🎂
 
-App web para organizar apuestas entre amigos en una **jornada de triangulares** (pichanga):
-3 equipos, dos en cancha y uno esperando, partiditos a un gol. Cada quien apuesta de S/ 1 a S/ 5
-a un jugador, a un equipo o a un número en 15 mercados, paga por **Plin** y el organizador aprueba.
-El bote de cada mercado se reparte en proporción entre los que acertaron.
+> **La esférica no se mancha.**
 
-- **Frontend:** Angular 21 (standalone + signals), Tailwind, PWA.
-- **Backend:** Supabase (Postgres + RLS, Auth para el admin, Storage, Realtime).
-- **Hosting:** Vercel (cada push a `main` se despliega solo).
-- **En línea:** <https://apuestas-partido.vercel.app>
+App web (PWA) para el partido de la Copa Álvaro: cada amigo crea su cuenta, **recarga saldo por Plin**,
+apuesta de S/ 1 a S/ 5 en **25 mercados** (goles, rojas, palos, golazos, penales, bloopers, mejor y peor equipo…),
+mira el **bote en vivo** y comenta en **Social**. Se usa sobre todo en el celular.
 
-> **Modo demo:** si el `.env` no tiene claves de Supabase, la app usa datos de prueba en memoria.
-> Prueba `/p/DEMO26` (en vivo), `/p/ABIERTA` (apuestas abiertas) y `/p/FINAL` (terminada).
-> En `/admin` entras con cualquier correo y contraseña; los cambios se pierden al recargar.
+- **Frontend:** Angular 21 (standalone + signals), Tailwind 4, three.js (escena 3D del inicio), PWA.
+- **Backend:** Supabase (Postgres + RLS, Auth con correo, Storage, Realtime).
+- **Diseño:** blanco y naranja. Ver [DESIGN.md](DESIGN.md).
+
+> **Modo demo:** sin claves de Supabase en el `.env`, la app usa datos de prueba en el navegador.
+> Los "correos" de confirmación y de recuperación se abren desde la misma pantalla (bandeja de prueba).
+> Prueba `/p/ABIERTA` (apuestas abiertas), `/p/DEMO26` (en vivo) y `/p/FINAL` (terminada).
+> En `/admin` entras con cualquier correo y contraseña. Los datos se pierden al recargar la página.
 
 ---
 
-## Cómo es la jornada
+## Cómo funciona
 
-- Hay **3 equipos**: Equipo A, B y C (se arman ese día; en la app son genéricos).
-- **Los jugadores no tienen equipo.** Es una sola lista de nombres; cada gol registra a qué equipo le cuenta.
-- **Dos equipos en cancha y uno esperando.** Cada partidito es a un gol: el que recibe el gol **sale** y entra el que esperaba.
-- Al empezar, el admin elige qué dos equipos arrancan.
-- **Rotación sin gol** (se cansaron, lesión…): sale el equipo que elija el admin y entra el que esperaba. No cuenta como partidito ganado ni como salida, y corta la racha del que sale.
-- El **minuto** se autocompleta con el tiempo desde que se cerraron las apuestas (0–300) y se puede editar. Los eventos se ordenan por minuto y, si empatan, por orden de registro.
-- Si un gol queda registrado para un equipo que no estaba en cancha (por ejemplo, tras editar un evento viejo), se marca en rojo en el admin y se ignora en los mercados de equipos hasta corregirlo.
+### 1. Cuenta (correo + usuario + contraseña)
 
-## Apuestas (cada mercado tiene su bote; se agrupan en 4 secciones)
+1. **Crear cuenta** (`/registro`): correo, usuario único (3–20 letras, números, `.` o `_`) y contraseña de 8 o más caracteres.
+   El usuario se valida en vivo ("✓ Disponible").
+2. Llega un **correo de confirmación**. El link abre `/cuenta-confirmada` con la sesión iniciada.
+3. **Entrar** (`/entrar`) con correo y contraseña. Si no confirmó el correo, aparece "Reenviar correo".
+4. **Recuperar contraseña** (`/recuperar`): llega un link que abre `/nueva-clave` para escribir una contraseña nueva.
 
-### ⚽ Goles — a un jugador
+El usuario es el nombre con el que apuestas y comentas. Nadie puede apostar a nombre de otro.
 
-| Mercado | `type` | Gana | Si no ocurre |
-|---|---|---|---|
-| Primer gol de la noche | `first_goal` | El primer gol | Sin goles → devolución |
-| Último gol de la noche | `last_goal` | El último gol | Sin goles → devolución |
-| Pichichi de la noche | `top_scorer` | El que mete más goles | Sin goles → devolución |
-| Primer cuartete | `first_to_n_goals` (N = 4) | El primero en llegar a 4 goles | Nadie llega → devolución |
-| Primer sextete | `first_to_n_goals` (N = 6) | El primero en llegar a 6 goles | Nadie llega → devolución |
-| Gol número 15 | `nth_goal` (N = 15) | El que mete el gol 15 | No hay 15 goles → devolución |
-| Gol número 28 | `nth_goal` (N = 28) | El que mete el gol 28 | No hay 28 goles → devolución |
+### 2. Saldo por Plin (billetera)
 
-### 🛡️ Equipos — a un equipo o a un número
+1. En **Mi cuenta → Recargar**: eliges el monto (10, 20, 30, 50 u otro hasta S/ 500), **plineas al QR**
+   y subes la captura → la recarga queda **"Por confirmar"**.
+2. Al organizador le llega el aviso en **`/admin/pagos`** (sonido, vibración y notificación del navegador).
+   Compara la captura con su app de Plin y toca **Aceptar** (o Rechazar con motivo; tiene "Deshacer").
+3. Recién al aceptar, el monto **se suma al saldo**, y la persona lo ve al instante (tiempo real).
+4. Con el saldo se hacen **todas las apuestas que quieras**: cada cupón se descuenta al momento y entra al bote.
+   Si el cupón cuesta más que el saldo, la app muestra cuánto falta y un botón **"Recargar S/ X"**.
+5. Si el organizador **anula un ticket** (pestaña Tickets), el monto vuelve al saldo.
 
-| Mercado | `type` | Se apuesta a | Gana |
-|---|---|---|---|
-| Rey de la cancha | `most_wins` | Equipo | El que gana más partiditos |
-| Racha más larga | `longest_streak` | Número 1–10 (10 = "10 o más") | La mayor cantidad de partiditos seguidos que ganó cualquier equipo |
-| Equipo que más sale | `most_exits` | Equipo | El que sale más veces por gol |
+> ¿Por qué no una pasarela de pago? Plin y Yape entre personas no tienen una API pública. Pasarelas como Culqi,
+> Izipay o Mercado Pago piden RUC o cuenta de negocio, cobran comisión y necesitan un backend propio.
+> Para un partido entre amigos, la recarga con un toque del organizador es lo más simple y seguro.
 
-Sin goles → devolución.
+**Saldo = recargas aceptadas − tickets no anulados.** Lo calcula la base de datos (`wallet_balance`) y
+`submit_ticket` lo verifica con un bloqueo por usuario, así no se puede gastar dos veces el mismo saldo.
+Los premios los paga el organizador al final (Liquidación → "pagado" y resumen para WhatsApp).
 
-### 🟨 Amarillas — a un jugador
+### 3. Social
 
-| Mercado | `type` | Gana |
-|---|---|---|
-| Primera amarilla | `first_yellow` | El primer amonestado |
-| Última amarilla | `last_yellow` | El último amonestado |
-| El más amonestado | `most_yellows` | El que recibe más amarillas |
+Chat por jornada en tiempo real (canal `chat:<CODIGO>`), con reacciones rápidas
+("⚪ ¡La esférica no se mancha!", "🥅 ¡Palo!", "🔥 Golazo"…). Tiene anti-spam
+(máximo 6 mensajes cada 15 segundos). Si hace falta moderar, el organizador puede borrar mensajes desde la tabla `messages` en Supabase.
 
-Sin amarillas → devolución.
+### 4. La jornada
 
-### 🤡 Pichanga — a un jugador
+- **4 equipos** (Equipo 1, 2, 3 y 4, de 5 jugadores) y los **20 jugadores de siempre**, que se cargan solos al crear una jornada.
+  En las apuestas a jugador aparece el **nombre completo**.
+- Dos equipos en cancha y dos esperando. Cada partidito es a un gol: el que recibe el gol sale y entra el siguiente.
+- **Rotación sin gol:** sale el equipo que elija el admin. No cuenta como ganado ni como salida, y corta la racha.
 
-| Mercado | `type` | Gana |
-|---|---|---|
-| Primer autogol | `first_own_goal` | El primero que la mete en su propio arco |
-| Primera huacha | `first_nutmeg_victim` | El primero al que **le hacen** una huacha (lo decide el organizador) |
+## Mercados (25; cada uno tiene su bote)
 
-### Reglas generales
+| Sección | Mercados |
+|---|---|
+| ⚽ Goles (jugador) | Primer gol · Último gol · Pichichi · Primer cuartete (4) · Primer sextete (6) · Gol 15 · Gol 28 |
+| 🛡️ Equipos | Rey de la cancha (más ganados) · Racha más larga (número 1–10+) · Equipo que más sale · **Mejor equipo** · **Peor equipo** |
+| 🟨 Tarjetas (jugador) | Primera amarilla · Última amarilla · El más amonestado · **Primera roja** |
+| 🎬 Show | **Primer blooper** · **Primer penal cometido** · **Primer penal fallado** · **Primer palo** · **Primer golazo** · **Primer piscinazo** (jugador) · **¿Cuántos palos habrá?** (número 0–5+) |
+| 🤡 Pichanga (jugador) | Primer autogol · Primera huacha |
+
+- **Mejor / peor equipo:** el de mayor / menor % de partiditos ganados (ganados ÷ jugados).
+  Desempate: el mejor es el que ganó más y el peor, el que salió más. Sin goles → se devuelve.
+- **"Primer X" del show:** gana el primer jugador con ese evento. Si no ocurre → se devuelve.
+- **¿Cuántos palos?:** siempre se resuelve (0 también es un resultado). 5 = "5 o más".
+- **Golazo:** después de registrar un gol, el admin toca **"✨ ¿Fue golazo?"** (o lo registra aparte).
 
 | Regla | Detalle |
 |---|---|
-| Monto | S/ 1 a S/ 5 (enteros) por opción y mercado; máximo 20 apuestas por ticket. |
-| Reparto | El bote se reparte entre los que acertaron, en proporción a lo apostado. Redondeo a céntimos: el último ganador absorbe la diferencia. |
-| **Nadie acierta** | **El bote se lo queda el organizador.** Se avisa a los apostadores. (Opcional: en Mercados se puede configurar que pase a otro mercado.) |
-| No ocurre | Se devuelve lo apostado. El pozo inicial y lo arrastrado quedan para el organizador. |
+| Monto | S/ 1 a S/ 5 por opción y mercado; máximo 20 apuestas por ticket. |
+| Reparto | El bote se reparte entre los que acertaron, en proporción a lo apostado (en céntimos; el último ganador absorbe el redondeo). |
+| **Nadie acierta** | **El bote se lo queda el organizador.** (Opcional: arrastre a otro mercado.) |
+| No ocurre | Se devuelve lo apostado. |
 | Empates en "el que más…" | Gana el que **llegó primero** a esa cantidad. |
-| Autogoles | Se registran con el jugador real y el equipo al que le cuenta el gol. **Sí** cuentan para Primer/Último gol y Gol N (ahí gana la opción especial "Autogol"). **No** cuentan para Pichichi ni cuartete/sextete. En Primer autogol gana el jugador real. |
-| Misma persona | Se identifica por nombre (sin importar mayúsculas, tildes ni espacios). |
+| Autogoles | Cuentan para Primer/Último gol y Gol N (gana la opción "Autogol"); no cuentan para Pichichi ni cuartete/sextete. |
 
-La lógica está en [`src/app/domain/timeline.ts`](src/app/domain/timeline.ts) (cancha, partiditos, rachas)
-y [`src/app/domain/settlement.ts`](src/app/domain/settlement.ts) (resolvers y reparto, en céntimos), con tests.
+La lógica está en [`src/app/domain/settlement.ts`](src/app/domain/settlement.ts) y [`timeline.ts`](src/app/domain/timeline.ts), con tests.
+
+---
+
+## El QR de Plin
+
+La app muestra el QR en **Recargar**. Hay dos formas de ponerlo:
+
+1. **Recomendada (con Supabase):** en `/admin` → la jornada → pestaña **Datos** → **QR de Plin** → elige la imagen.
+   Se guarda en Supabase (bucket `pay-qr`) y queda en esa jornada; las jornadas nuevas heredan número y titular.
+2. **Por defecto para todas las jornadas:** guarda la imagen del QR como **`public/pago/qr.png`**.
+   Funciona también en modo demo. Si la jornada tiene un QR subido, se usa ese.
+   Ojo: si el repositorio es público, la imagen también lo será.
 
 ---
 
 ## 1. Requisitos
 
-- Node.js 22.12+ (o 24+).
-- Si `npm install` falla con `Cannot read properties of null (reading 'edgesOut')`
-  (bug de npm 10.9), usa npm 11: `npx npm@11 install`.
+- Node.js 22.12+ (o 24+) y npm 11.
 
 ```bash
-npm install            # o: npx npm@11 install
+npm install
 ```
 
-## 2. Crear el proyecto en Supabase
+## 2. Supabase
 
-1. Entra a <https://supabase.com>, crea un proyecto (región São Paulo es la más cercana a Lima).
-2. **Base de datos:** abre **SQL Editor** → *New query* y corre, **en orden**, cada archivo de
-   [`supabase/migrations/`](supabase/migrations/) (primero `…_init.sql`, luego `…_jornadas.sql`).
-   - Alternativa con la CLI: `npx supabase link --project-ref TU_REF` y `npx supabase db push`.
-3. **Datos de prueba (opcional):** en el SQL Editor corre
-   [`supabase/seed.sql`](supabase/seed.sql). Crea una jornada de ejemplo en vivo con código **DEMO26**.
-4. **Auth:** en **Authentication → Sign In / Providers**, desactiva *Allow new users to sign up*
-   (solo el admin entra, y lo creas tú a mano).
-
-## 3. Crear el usuario administrador
-
-1. **Authentication → Users → Add user → Create new user**: tu correo y una contraseña
-   (marca *Auto Confirm User*).
-2. En el **SQL Editor**, dale permisos de admin (cambia el correo):
+1. Crea un proyecto en <https://supabase.com> (São Paulo es la región más cercana a Lima).
+2. **SQL Editor:** corre en orden los archivos de [`supabase/migrations/`](supabase/migrations/):
+   `…_init.sql`, `…_jornadas.sql` y `…_copa_alvaro.sql` (o `npx supabase db push`).
+3. Datos de prueba (opcional): [`supabase/seed.sql`](supabase/seed.sql) crea la jornada **DEMO26**.
+4. **Authentication → Sign In / Providers → Email:** activa *Allow new users to sign up* y *Confirm email*.
+5. **Authentication → URL Configuration:**
+   - *Site URL*: `https://tu-app.vercel.app`
+   - *Redirect URLs*: `https://tu-app.vercel.app/cuenta-confirmada`, `https://tu-app.vercel.app/nueva-clave`
+     (y `http://localhost:4200/**` para probar en local).
+6. **Correos (importante):** el correo integrado de Supabase solo envía a los miembros del equipo y tiene un límite bajo.
+   Para que les llegue a todos tus amigos configura un SMTP propio en **Authentication → Emails → SMTP Settings**.
+   Por ejemplo, [Resend](https://resend.com) tiene plan gratis: host `smtp.resend.com`, puerto `465`, usuario `resend`
+   y como contraseña tu API key de Resend.
+   Opcional: traduce las plantillas *Confirm signup* y *Reset password* al español.
+7. **Admin:** crea tu usuario (regístrate en la app o en *Authentication → Users*) y dale permisos:
 
    ```sql
-   insert into public.admins (user_id)
-   select id from auth.users where email = 'tu-correo@ejemplo.com';
+   insert into public.admins (user_id) select id from auth.users where email = 'tu-correo@ejemplo.com';
    ```
 
-Solo los usuarios que estén en la tabla `admins` pueden administrar.
-
-## 4. Configurar el `.env`
+## 3. `.env`
 
 ```bash
-cp .env.example .env
+cp .env.example .env    # SUPABASE_URL y SUPABASE_ANON_KEY (Project Settings → API)
 ```
 
-Completa con los datos de **Project Settings → API**:
+La anon key es pública por diseño; la seguridad la dan las políticas RLS. **Nunca** pongas la `service_role` key en la app.
 
-```
-SUPABASE_URL=https://xxxx.supabase.co
-SUPABASE_ANON_KEY=eyJ...   # anon public / publishable key
-```
-
-El `.env` está en `.gitignore`. El script `scripts/gen-env.mjs` lo convierte en
-`src/environments/env.generated.ts` (también ignorado) antes de `start`, `build` y `test`.
-
-> La anon key es pública por diseño (va en el navegador). La seguridad la dan las
-> políticas RLS. **Nunca** pongas la `service_role` key en la app.
-
-## 5. Correr en local
+## 4. Correr en local
 
 ```bash
-npm start              # http://localhost:4200
+npm start                                  # http://localhost:4200
+npx ng serve --host 0.0.0.0 --port 4200    # para probar desde el celular en la misma red Wi-Fi
 ```
 
-- Jornada demo: <http://localhost:4200/p/DEMO26>
-- Admin: <http://localhost:4200/admin>
+Desde el celular abre `http://<IP-de-tu-PC>:4200` (la IP la ves con `ipconfig`). Si Windows pregunta, permite Node.js en redes privadas.
 
-## 6. Tests
+## 5. Pruebas
 
 ```bash
-npm test -- --watch=false   # cancha, mercados y reparto (Vitest)
-npm run test:db             # migraciones + seguridad en un Postgres embebido (PGlite)
-npm run check:live          # seguridad del Supabase real como usuario anónimo (lee el .env)
+npm test -- --watch=false   # lógica de mercados, cancha y reparto (Vitest)
+npm run test:db             # migraciones, RLS, billetera, chat y RPC en un Postgres embebido (PGlite)
+npm run test:e2e            # flujos completos en Chrome: celular Android, iPhone y escritorio (Playwright)
+node e2e/visual.mjs         # capturas de diseño (celular y escritorio) en e2e/screenshots/visual
+npm run check:live          # seguridad del Supabase real como usuario anónimo
 ```
 
-## 7. Desplegar
+Las pruebas e2e cubren: inicio sin scroll horizontal, registro con confirmación por correo, validaciones, entrar con
+contraseña incorrecta, recuperar contraseña, apostar sin saldo → recargar por Plin → el admin acredita → apostar con
+saldo, Social, en vivo con 4 equipos y eventos de show, y el registro de palo y golazo desde el admin.
 
-### Vercel
+## 6. Desplegar
 
-1. <https://vercel.com> → *Add New → Project* → importa el repo de GitHub.
-2. En *Environment Variables* agrega `SUPABASE_URL` y `SUPABASE_ANON_KEY`.
-3. *Deploy*. `vercel.json` ya define el build y las rutas (SPA).
-
-### Netlify
-
-1. <https://app.netlify.com> → *Add new site → Import an existing project*.
-2. En *Site configuration → Environment variables* agrega las mismas dos variables.
-3. *Deploy*. `netlify.toml` ya define el build y las rutas.
-
-Después del deploy, comparte el link `https://tu-app.vercel.app/p/CODIGO` de la jornada.
-
-> **Deploy de prueba:** si despliegas sin las variables de entorno, la app sale en **modo demo**
-> (datos falsos en memoria, admin con cualquier correo). Sirve para mostrarla a tus amigos antes
-> de la jornada real. Cuando agregues las variables, vuelve a desplegar (*Redeploy*).
-
-### Instalar en el celular (PWA)
-
-- **Android (Chrome):** abre el link → menú ⋮ → *Agregar a la pantalla principal*.
-- **iPhone (Safari):** abre el link → botón compartir → *Agregar a inicio*.
-
-La app instalada abre en la pantalla de inicio, que ofrece volver a la última jornada vista, y se actualiza sola cuando hay una versión nueva.
+Vercel o Netlify (ya configurados): agrega `SUPABASE_URL` y `SUPABASE_ANON_KEY` en las variables de entorno y despliega.
+Recuerda correr la migración `…_copa_alvaro.sql` en Supabase **antes** de publicar esta versión.
 
 ---
 
 ## Panel del organizador (`/admin`)
 
-| Pestaña | Para qué |
+| Vista / pestaña | Para qué |
 |---|---|
-| Tickets | Ver la captura en grande, aprobar o rechazar (con motivo). Filtros por estado. |
-| Eventos | Arriba: quién está en cancha y quién espera (y, antes del primer evento, quiénes arrancan). Botones ⚽ Gol, 🙈 Autogol, 🟨 Amarilla, 🥜 Huacha y 🔄 Rotación. Gol/Autogol: primero el equipo al que le cuenta, luego el jugador. Amarilla/Huacha: dos toques. Todo se edita o borra. |
-| Liquidación | Ganador por mercado (jugador, equipo o número), reparto por persona, lo que queda para el organizador, check de "pagado" y resumen para WhatsApp. Se recalcula solo. |
-| Jugadores | Una sola lista: pegar nombres, uno por línea. |
-| Mercados | Activar, ordenar, renombrar, tipo, N (4, 6, 15, 28…), arrastre opcional y pozo inicial. |
-| Datos | Nombre de la jornada, fecha, código y Plin (número, titular y QR). Una jornada nueva hereda el Plin de la anterior. |
-
-Arriba están los botones de estado: **Cerrar apuestas** (al empezar la jornada) → **Finalizar jornada**.
+| **💸 Pagos** (`/admin/pagos`) | Recargas por Plin por confirmar, con aviso en tiempo real, captura, **Aceptar / Rechazar** y "Deshacer". |
+| Tickets | Ver los tickets y **anularlos** (el monto vuelve al saldo). |
+| Eventos | Cancha (quién juega y quién espera), ⚽ Gol, 🙈 Autogol, 🟨 Amarilla, 🟥 Roja, ✨ Golazo, 🥅 Palo, 🚨 Penal, 🙅 Falla penal, 🤦 Blooper, 🏊 Piscinazo, 🥜 Huacha y 🔄 Rotación. Todo se edita o borra. |
+| Liquidación | Ganador por mercado, reparto por persona, lo que queda para el organizador, "pagado" y resumen para WhatsApp. |
+| Jugadores | Ya vienen los 20; se pueden agregar, renombrar o quitar. |
+| Mercados | Activar, ordenar, renombrar, N, arrastre y pozo inicial. |
+| Datos | Nombre, fecha, código, Plin (número, titular y **QR**). |
 
 ## Seguridad (resumen)
 
-- **RLS activada en todas las tablas.** El público no tiene acceso directo a ninguna.
-- El público solo usa dos funciones RPC que exigen el código de la jornada:
-  - `get_public_match(code)`: jornada, equipos, jugadores, mercados, eventos y apuestas
-    **aprobadas** (vista `public_bets`, sin ruta de la captura).
-  - `submit_ticket(code, nombre, apuestas, captura)`: valida en la base de datos que el
-    jornada esté abierta, montos 1–5, máximo 20 apuestas, que cada apuesta vaya al tipo
-    correcto (jugador, equipo o número 1–10) y sea de esa jornada, que no se apueste a
-    "Autogol" donde no corresponde, y que la captura exista y no esté repetida. El estado siempre es `pending`
-    y el total lo calcula el servidor.
-- **Storage:** `receipts` es privado (el público solo puede subir a la carpeta de un
-  jornada abierta; solo el admin ve, con URL firmada). `pay-qr` (QR de Plin) es público.
-- **Realtime:** cada cambio emite un *broadcast* en el canal `match:<CODIGO>` y la
-  pantalla vuelve a pedir los datos con la RPC.
-
-## Agregar un tipo de mercado nuevo
-
-1. Inserta una fila en `market_types` (por ejemplo `first_red`) con su `target`
-   (`player | team | number`), `section` y, si aplica, `has_param` u opciones.
-2. Agrega su resolver en `RESOLVERS` dentro de `settlement.ts` (recibe eventos, línea de
-   tiempo de la cancha y `param`; devuelve el ganador, una devolución o “sin resolver”).
-3. Si necesita un tipo de evento nuevo, amplía el `check` de `events.type`.
+- **RLS en todas las tablas.** El público no lee ninguna tabla directo; usa funciones RPC que validan todo en la base de datos.
+- `submit_ticket(code, apuestas)`: exige login, jornada abierta, montos de 1 a 5, máximo 20 apuestas, el tipo correcto por
+  mercado y **saldo suficiente** (con bloqueo por usuario). El nombre y el total los pone el servidor.
+- `request_deposit(monto, captura)`: exige login, monto de 1 a 500, una captura propia (`deposits/<usuario>/…`) y no repetida, y
+  como máximo 5 recargas pendientes. Solo el admin puede aceptarla.
+- `post_message`: login, de 1 a 500 caracteres y anti-spam. `get_messages` y `get_my_tickets` solo devuelven lo tuyo o lo de tu jornada.
+- **Storage:** `receipts` es privado: cada usuario sube solo a su carpeta y solo el admin ve las capturas (URL firmada).
+- **Realtime:** avisos por *broadcast* (`match:`, `chat:`, `deposits`, `wallet:<id>`) que solo dicen "algo cambió";
+  los datos se vuelven a pedir por RPC.
+- Contraseñas, confirmación y recuperación: Supabase Auth (incluye límite de intentos).
 
 ## Estructura
 
 ```
-supabase/migrations/   esquema, RLS, RPC, storage, triggers
-supabase/seed.sql      jornada de ejemplo DEMO26 (en vivo)
+supabase/migrations/   esquema, RLS, RPC, storage, triggers (…_copa_alvaro.sql: cuentas, billetera, chat, mercados)
 supabase/tests/        prueba de la BD con PGlite
-scripts/gen-env.mjs    .env → env.generated.ts
 src/app/domain/        cancha, mercados y reparto (funciones puras) + tests
+src/app/core/          APIs (Supabase y demo), auth, billetera
+src/app/auth/          entrar, registro, recuperar, nueva contraseña
+src/app/public/        inicio, jornada: apostar, en vivo, social, mi cuenta
+src/app/admin/         panel del organizador y Pagos
+src/app/ui/            íconos, marca, pelota 3D, confeti, contador
+e2e/                   pruebas de flujo y capturas (Playwright)
+scripts/brand/         generador del logo e íconos
 ```

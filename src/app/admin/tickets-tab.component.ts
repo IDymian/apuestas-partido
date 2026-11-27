@@ -54,7 +54,7 @@ type Filter = TicketStatus | 'all';
               <p class="mt-3 rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">Cargando captura…</p>
             }
           } @else {
-            <p class="mt-3 rounded-xl bg-slate-50 p-3 text-center text-xs text-slate-500">Sin captura (dato de prueba)</p>
+            <p class="mt-3 rounded-xl bg-emerald-50 p-2 text-center text-xs font-semibold text-emerald-800">Pagado con saldo</p>
           }
 
           @if (t.status === 'rejected' && t.reject_reason) {
@@ -65,8 +65,10 @@ type Filter = TicketStatus | 'all';
             @if (t.status === 'pending') {
               <button type="button" class="btn-primary h-12 flex-1" [disabled]="busy() === t.id" (click)="set(t, 'approved')">✓ Aprobar</button>
               <button type="button" class="btn-danger h-12 flex-1" [disabled]="busy() === t.id" (click)="reject(t)">✕ Rechazar</button>
+            } @else if (t.status === 'approved') {
+              <button type="button" class="btn-danger flex-1" [disabled]="busy() === t.id" (click)="reject(t)">✕ Anular (devuelve el saldo)</button>
             } @else {
-              <button type="button" class="btn-secondary flex-1" [disabled]="busy() === t.id" (click)="set(t, 'pending')">Volver a pendiente</button>
+              <button type="button" class="btn-secondary flex-1" [disabled]="busy() === t.id" (click)="set(t, 'approved')">Reactivar (vuelve a descontar)</button>
             }
           </div>
         </li>
@@ -90,17 +92,17 @@ export class TicketsTabComponent {
   private api = inject(AdminApi);
   protected soles = formatSoles;
   protected statusLabel = TICKET_STATUS_LABEL;
-  protected filter = signal<Filter>('pending');
+  protected filter = signal<Filter>('all');
   protected busy = signal<string | null>(null);
   protected error = signal<string | null>(null);
   protected zoom = signal<string | null>(null);
   protected urls = signal<Record<string, string>>({});
   private requested = new Set<string>();
   protected filters: { id: Filter; label: string }[] = [
-    { id: 'pending', label: 'Pendientes' },
-    { id: 'approved', label: 'Aprobados' },
-    { id: 'rejected', label: 'Rechazados' },
     { id: 'all', label: 'Todos' },
+    { id: 'approved', label: 'En juego' },
+    { id: 'rejected', label: 'Anulados' },
+    { id: 'pending', label: 'Pendientes' },
   ];
 
   private labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams));
@@ -150,7 +152,7 @@ export class TicketsTabComponent {
   }
 
   reject(t: TicketRow) {
-    const reason = prompt(`Rechazar el ticket de ${t.bettor_name}.\nMotivo (opcional):`, '');
+    const reason = prompt(`Anular el ticket de ${t.bettor_name} (el monto vuelve a su saldo).\nMotivo (opcional):`, '');
     if (reason === null) return;
     this.set(t, 'rejected', reason);
   }
