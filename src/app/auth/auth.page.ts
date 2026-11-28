@@ -193,7 +193,6 @@ function takeNext(): string | null {
                   <p class="rounded-2xl bg-candy/15 p-3 text-sm text-candy anim-pop" role="alert">{{ error() }}</p>
                 }
                 <button class="btn w-full" [disabled]="busy()">{{ busy() ? 'Creando…' : 'Crear cuenta' }} <app-icon name="sparkles" /></button>
-                <p class="text-center text-xs text-faint">Te enviaremos un correo para confirmar que es tuyo.</p>
               </form>
               <p class="mt-5 text-center text-sm text-mute anim-in" style="--i: 2">
                 ¿Ya tienes cuenta?

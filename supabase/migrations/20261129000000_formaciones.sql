@@ -199,40 +199,44 @@ begin
       jsonb_build_object('number', 3, 'home', v_t[2], 'away', v_t[3], 'mode', 1),
       jsonb_build_object('number', 4, 'home', v_t[1], 'away', v_t[2], 'mode', 2),
       jsonb_build_object('number', 5, 'home', v_t[1], 'away', v_t[3], 'mode', 2),
-      jsonb_build_object('number', 6, 'home', v_t[2], 'away', v_t[3], 'mode', 2)
+      jsonb_build_object('number', 6, 'home', v_t[2], 'away', v_t[3], 'mode', 2),
+      jsonb_build_object('number', 7, 'home', v_t[1], 'away', v_t[2], 'mode', 3),
+      jsonb_build_object('number', 8, 'home', v_t[1], 'away', v_t[3], 'mode', 3),
+      jsonb_build_object('number', 9, 'home', v_t[2], 'away', v_t[3], 'mode', 3)
     ))
   where id = new.id;
 
   insert into players (match_id, name, is_own_goal, sort_order) values (new.id, 'Autogol', true, 9999);
 
-  -- Plantel canónico = DEFAULT_ROSTER de src/app/core/mock-backend.ts (mismo orden).
+  -- Plantel canónico = DEFAULT_ROSTER de src/app/core/mock-backend.ts (mismo orden: Rondas 1, 2 y 3).
   insert into players (match_id, name, sort_order, team_id, shirt_number, position, slot, modes)
   select new.id, r.name, r.ord, v_t[r.t1], r.n1, r.p1, r.s1,
          jsonb_build_object(
            '1', jsonb_build_object('team_id', v_t[r.t1], 'shirt_number', r.n1, 'position', r.p1, 'slot', r.s1),
-           '2', jsonb_build_object('team_id', v_t[r.t2], 'shirt_number', r.n2, 'position', r.p2, 'slot', r.s2))
+           '2', jsonb_build_object('team_id', v_t[r.t2], 'shirt_number', r.n2, 'position', r.p2, 'slot', r.s2),
+           '3', jsonb_build_object('team_id', v_t[r.t3], 'shirt_number', r.n3, 'position', r.p3, 'slot', r.s3))
   from (values
-    (1, 'Diego', 1, 1, 'GK', 0, 2, 1, 'GK', 0),
-    (2, 'Mate', 1, 4, 'DEF', 0, 2, 4, 'DEF', 0),
-    (3, 'Angel', 1, 5, 'DEF', 1, 1, 5, 'DEF', 1),
-    (4, 'Victor', 1, 8, 'MID', 0, 1, 8, 'MID', 0),
-    (5, 'Manuel', 1, 10, 'MID', 1, 3, 10, 'MID', 1),
-    (6, 'Iker', 1, 9, 'FWD', 0, 2, 8, 'MID', 0),
-    (7, 'Nestor', 1, 12, 'SUB', 0, 3, 4, 'DEF', 0),
-    (8, 'Paul', 2, 1, 'GK', 0, 3, 5, 'DEF', 1),
-    (9, 'Nicolas', 2, 4, 'DEF', 0, 2, 5, 'DEF', 1),
-    (10, 'Oscar', 2, 5, 'DEF', 1, 1, 10, 'MID', 1),
-    (11, 'Braden', 2, 8, 'MID', 0, 1, 9, 'FWD', 0),
-    (12, 'Adrian', 2, 10, 'MID', 1, 3, 1, 'GK', 0),
-    (13, 'David Vivar', 2, 9, 'FWD', 0, 1, 12, 'SUB', 0),
-    (14, 'David Málaga', 2, 12, 'SUB', 0, 2, 10, 'MID', 1),
-    (15, 'Andreow', 3, 1, 'GK', 0, 3, 12, 'SUB', 0),
-    (16, 'Fabian', 3, 4, 'DEF', 0, 3, 8, 'MID', 0),
-    (17, 'Álvaro', 3, 5, 'DEF', 1, 1, 1, 'GK', 0),
-    (18, 'Alexis', 3, 8, 'MID', 0, 2, 9, 'FWD', 0),
-    (19, 'Balicco', 3, 10, 'MID', 1, 3, 9, 'FWD', 0),
-    (20, 'Bryan', 3, 9, 'FWD', 0, 1, 4, 'DEF', 0)
-  ) as r(ord, name, t1, n1, p1, s1, t2, n2, p2, s2);
+    (1, 'Diego', 1, 1, 'GK', 0, 2, 1, 'GK', 0, 2, 8, 'MID', 0),
+    (2, 'Mate', 1, 4, 'DEF', 0, 2, 4, 'DEF', 0, 2, 10, 'MID', 1),
+    (3, 'Angel', 1, 5, 'DEF', 1, 1, 5, 'DEF', 1, 3, 10, 'MID', 1),
+    (4, 'Victor', 1, 8, 'MID', 0, 1, 8, 'MID', 0, 3, 1, 'GK', 0),
+    (5, 'Manuel', 1, 10, 'MID', 1, 3, 10, 'MID', 1, 1, 9, 'FWD', 0),
+    (6, 'Iker', 1, 9, 'FWD', 0, 2, 8, 'MID', 0, 3, 5, 'DEF', 1),
+    (7, 'Nestor', 1, 12, 'SUB', 0, 3, 4, 'DEF', 0, 1, 4, 'DEF', 0),
+    (8, 'Paul', 2, 1, 'GK', 0, 3, 5, 'DEF', 1, 2, 1, 'GK', 0),
+    (9, 'Nicolas', 2, 4, 'DEF', 0, 2, 5, 'DEF', 1, 2, 4, 'DEF', 0),
+    (10, 'Oscar', 2, 5, 'DEF', 1, 1, 10, 'MID', 1, 3, 9, 'FWD', 0),
+    (11, 'Braden', 2, 8, 'MID', 0, 1, 9, 'FWD', 0, 2, 9, 'FWD', 0),
+    (12, 'Adrian', 2, 10, 'MID', 1, 3, 1, 'GK', 0, 1, 12, 'SUB', 0),
+    (13, 'David Vivar', 2, 9, 'FWD', 0, 1, 12, 'SUB', 0, 2, 5, 'DEF', 1),
+    (14, 'David Málaga', 2, 12, 'SUB', 0, 2, 10, 'MID', 1, 3, 4, 'DEF', 0),
+    (15, 'Andreow', 3, 1, 'GK', 0, 3, 12, 'SUB', 0, 1, 8, 'MID', 0),
+    (16, 'Fabian', 3, 4, 'DEF', 0, 3, 8, 'MID', 0, 2, 12, 'SUB', 0),
+    (17, 'Álvaro', 3, 5, 'DEF', 1, 1, 1, 'GK', 0, 1, 1, 'GK', 0),
+    (18, 'Alexis', 3, 8, 'MID', 0, 2, 9, 'FWD', 0, 3, 8, 'MID', 0),
+    (19, 'Balicco', 3, 10, 'MID', 1, 3, 9, 'FWD', 0, 1, 5, 'DEF', 1),
+    (20, 'Bryan', 3, 9, 'FWD', 0, 1, 4, 'DEF', 0, 1, 10, 'MID', 1)
+  ) as r(ord, name, t1, n1, p1, s1, t2, n2, p2, s2, t3, n3, p3, s3);
 
   -- Solo lo que es de toda la noche: los "primer…" van por partido (copa_game_markets).
   -- Sin arrastres por defecto: si nadie acierta, el bote es del organizador.
@@ -382,13 +386,18 @@ insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_typ
 values ('avatares', 'avatares', true, 102400, array['image/webp'])
 on conflict (id) do nothing;
 
+drop policy if exists avatares_admin_select on storage.objects;
 drop policy if exists avatares_admin_insert on storage.objects;
 drop policy if exists avatares_admin_update on storage.objects;
 drop policy if exists avatares_admin_delete on storage.objects;
+create policy avatares_admin_select on storage.objects
+  for select to authenticated using (bucket_id = 'avatares' and public.is_admin());
 create policy avatares_admin_insert on storage.objects
   for insert to authenticated with check (bucket_id = 'avatares' and public.is_admin());
 create policy avatares_admin_update on storage.objects
-  for update to authenticated using (bucket_id = 'avatares' and public.is_admin());
+  for update to authenticated
+  using (bucket_id = 'avatares' and public.is_admin())
+  with check (bucket_id = 'avatares' and public.is_admin());
 create policy avatares_admin_delete on storage.objects
   for delete to authenticated using (bucket_id = 'avatares' and public.is_admin());
 

@@ -55,10 +55,11 @@ test('inicio: portada, entra a la jornada con Partido 1, descanso y "En vivo" va
   await shot(page, '00-portada');
   await page.getByRole('link', { name: /Entrar a la Copa/ }).click();
   await expect(page).toHaveURL(/\/p\/COPA/);
-  await expect(page.getByText('6 partidos · 125 mercados')).toBeVisible();
+  await expect(page.getByText('9 partidos · 182 mercados')).toBeVisible();
   await expect(page.getByText('Partido 1 · Próximo')).toBeVisible();
   await expect(page.getByText('Partido 4 · Próximo')).toBeVisible();
-  await expect(page.getByText('Modo 3 · Draft de goleadores')).toBeVisible();
+  await expect(page.getByText('Modo 3 · Equipo de Álvaro')).toBeVisible();
+  await expect(page.getByText('Partido 7 · Próximo')).toBeVisible();
   await expect(page.getByText('Calentando el asiento · espera al ganador')).toBeVisible();
   // Todo es por bote: cada opción conserva el apostado accesible
   await expect(page.getByRole('button', { name: /^Gana Equipo 1 · apostado S\/ 0/ }).first()).toBeVisible();
@@ -205,9 +206,9 @@ test('bote: en vivo, liquidar acredita la ganancia al saldo y el admin devuelve 
   await page.getByRole('link', { name: /Copa Álvaro/ }).click();
   await page.getByRole('button', { name: /^Eventos/ }).click();
   await page.getByRole('button', { name: /Terminar partido 1/ }).click();
-  await page.getByRole('button', { name: /\+ Crear partido 7/ }).click();
-  // Crear el 7 sin ponerlo en vivo no da por jugados los pendientes (2 a 6).
-  await expect(page.getByText('Partido actual · 2 de 7')).toBeVisible();
+  await page.getByRole('button', { name: /\+ Crear partido 10/ }).click();
+  // Crear el 10 sin ponerlo en vivo no da por jugados los pendientes (2 a 9).
+  await expect(page.getByText('Partido actual · 2 de 10')).toBeVisible();
 
   // Liquidar: se acredita al saldo del ganador
   await page.getByRole('button', { name: /^Liquidación/ }).click();

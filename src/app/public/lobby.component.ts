@@ -91,17 +91,13 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
               <h3 class="font-display text-base font-extrabold leading-tight">
                 {{ sec.meta.short }} · {{ sec.meta.name }}
               </h3>
-              @if (sec.meta.id === 3) {
-                <span class="rounded-full bg-gold/15 px-2 py-0.5 text-[10px] font-extrabold text-gold uppercase">Top 3 capitanes</span>
-              } @else {
-                <button
-                  type="button"
-                  class="text-xs font-bold text-lime-deep underline underline-offset-2"
-                  (click)="toggleSquads(sec.meta.id)"
-                >
-                  {{ openSquadMode() === sec.meta.id ? 'Ocultar equipos' : 'Ver ' + ctx.orderedTeams().length + ' equipos' }}
-                </button>
-              }
+              <button
+                type="button"
+                class="text-xs font-bold text-lime-deep underline underline-offset-2"
+                (click)="toggleSquads(sec.meta.id)"
+              >
+                {{ openSquadMode() === sec.meta.id ? 'Ocultar equipos' : 'Ver ' + ctx.orderedTeams().length + ' equipos' }}
+              </button>
             </div>
 
             <!-- Planteles de los 3 equipos de este modo (desplegable) -->
@@ -119,8 +115,8 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
               </div>
             }
 
-            <!-- Tarjeta del Draft de goleadores (Modo 3) -->
-            @if (sec.meta.id === 3) {
+            <!-- Tarjeta del Draft solo si Modo 3 no tiene partidos cargados -->
+            @if (sec.meta.id === 3 && sec.games.length === 0) {
               <div class="glass mb-2.5 border-gold/30 bg-gradient-to-br from-white to-night-3/80 p-3.5 anim-in">
                 <p class="text-xs leading-snug text-mute">
                   Se suman los goles de <b class="text-ink">Modo 1 y Modo 2</b>. Los 3 máximos goleadores son capitanes y arman su equipo en vivo.
@@ -259,7 +255,7 @@ export class LobbyComponent {
   }
 
   protected modeChipLabel(id: GameModeId) {
-    return id === 1 ? 'Chocolateados' : id === 2 ? 'Cumpleañero' : 'Draft 👑';
+    return id === 1 ? 'Ronda 1' : id === 2 ? 'Ronda 2' : 'Ronda 3 👑';
   }
 
   protected readonly upcoming = computed(() =>

@@ -107,6 +107,7 @@ interface SeedPlayer {
   name: string;
   m1: SeedSlot;
   m2: SeedSlot;
+  m3: SeedSlot;
 }
 
 const DEFAULT_TEAMS = DEFAULT_TEAM_KITS.map((t, i) => ({
@@ -118,34 +119,34 @@ const DEFAULT_TEAMS = DEFAULT_TEAM_KITS.map((t, i) => ({
 }));
 
 /**
- * Plantel confirmado (20). Modo 1 = Ronda 1 del sorteo; Modo 2 = Ronda 2 (provisional hasta definir el formato).
+ * Plantel confirmado (20). Modo 1 = Ronda 1; Modo 2 = Ronda 2; Modo 3 = Ronda 3 (Equipo 1 de Álvaro).
  * Equipos de 7 y 6: en cada equipo el orden es ARQ, DEF, DEF, MED, MED, DEL y el 7º al banco (SUB).
- * Posiciones y dorsales son de arranque: el admin los cambia.
+ * Posiciones, equipos y dorsales son editables desde el admin por modo.
  */
 export const DEFAULT_ROSTER: SeedPlayer[] = [
   // Ronda 1 · Equipo 1
-  { name: 'Diego', m1: { team: 1, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 2, shirt: 1, position: 'GK', slot: 0 } },
-  { name: 'Mate', m1: { team: 1, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 4, position: 'DEF', slot: 0 } },
-  { name: 'Angel', m1: { team: 1, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 5, position: 'DEF', slot: 1 } },
-  { name: 'Victor', m1: { team: 1, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 1, shirt: 8, position: 'MID', slot: 0 } },
-  { name: 'Manuel', m1: { team: 1, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 10, position: 'MID', slot: 1 } },
-  { name: 'Iker', m1: { team: 1, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 2, shirt: 8, position: 'MID', slot: 0 } },
-  { name: 'Nestor', m1: { team: 1, shirt: 12, position: 'SUB', slot: 0 }, m2: { team: 3, shirt: 4, position: 'DEF', slot: 0 } },
+  { name: 'Diego', m1: { team: 1, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 2, shirt: 1, position: 'GK', slot: 0 }, m3: { team: 2, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Mate', m1: { team: 1, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 4, position: 'DEF', slot: 0 }, m3: { team: 2, shirt: 10, position: 'MID', slot: 1 } },
+  { name: 'Angel', m1: { team: 1, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 5, position: 'DEF', slot: 1 }, m3: { team: 3, shirt: 10, position: 'MID', slot: 1 } },
+  { name: 'Victor', m1: { team: 1, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 1, shirt: 8, position: 'MID', slot: 0 }, m3: { team: 3, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'Manuel', m1: { team: 1, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 10, position: 'MID', slot: 1 }, m3: { team: 1, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Iker', m1: { team: 1, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 2, shirt: 8, position: 'MID', slot: 0 }, m3: { team: 3, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'Nestor', m1: { team: 1, shirt: 12, position: 'SUB', slot: 0 }, m2: { team: 3, shirt: 4, position: 'DEF', slot: 0 }, m3: { team: 1, shirt: 4, position: 'DEF', slot: 0 } },
   // Ronda 1 · Equipo 2
-  { name: 'Paul', m1: { team: 2, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 3, shirt: 5, position: 'DEF', slot: 1 } },
-  { name: 'Nicolas', m1: { team: 2, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 5, position: 'DEF', slot: 1 } },
-  { name: 'Oscar', m1: { team: 2, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 10, position: 'MID', slot: 1 } },
-  { name: 'Braden', m1: { team: 2, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 1, shirt: 9, position: 'FWD', slot: 0 } },
-  { name: 'Adrian', m1: { team: 2, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 1, position: 'GK', slot: 0 } },
-  { name: 'David Vivar', m1: { team: 2, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 12, position: 'SUB', slot: 0 } },
-  { name: 'David Málaga', m1: { team: 2, shirt: 12, position: 'SUB', slot: 0 }, m2: { team: 2, shirt: 10, position: 'MID', slot: 1 } },
+  { name: 'Paul', m1: { team: 2, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 3, shirt: 5, position: 'DEF', slot: 1 }, m3: { team: 2, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'Nicolas', m1: { team: 2, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 5, position: 'DEF', slot: 1 }, m3: { team: 2, shirt: 4, position: 'DEF', slot: 0 } },
+  { name: 'Oscar', m1: { team: 2, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 10, position: 'MID', slot: 1 }, m3: { team: 3, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Braden', m1: { team: 2, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 1, shirt: 9, position: 'FWD', slot: 0 }, m3: { team: 2, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Adrian', m1: { team: 2, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 1, position: 'GK', slot: 0 }, m3: { team: 1, shirt: 12, position: 'SUB', slot: 0 } },
+  { name: 'David Vivar', m1: { team: 2, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 12, position: 'SUB', slot: 0 }, m3: { team: 2, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'David Málaga', m1: { team: 2, shirt: 12, position: 'SUB', slot: 0 }, m2: { team: 2, shirt: 10, position: 'MID', slot: 1 }, m3: { team: 3, shirt: 4, position: 'DEF', slot: 0 } },
   // Ronda 1 · Equipo 3
-  { name: 'Andreow', m1: { team: 3, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 3, shirt: 12, position: 'SUB', slot: 0 } },
-  { name: 'Fabian', m1: { team: 3, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 3, shirt: 8, position: 'MID', slot: 0 } },
-  { name: 'Álvaro', m1: { team: 3, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 1, position: 'GK', slot: 0 } },
-  { name: 'Alexis', m1: { team: 3, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 2, shirt: 9, position: 'FWD', slot: 0 } },
-  { name: 'Balicco', m1: { team: 3, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 9, position: 'FWD', slot: 0 } },
-  { name: 'Bryan', m1: { team: 3, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 4, position: 'DEF', slot: 0 } },
+  { name: 'Andreow', m1: { team: 3, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 3, shirt: 12, position: 'SUB', slot: 0 }, m3: { team: 1, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Fabian', m1: { team: 3, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 3, shirt: 8, position: 'MID', slot: 0 }, m3: { team: 2, shirt: 12, position: 'SUB', slot: 0 } },
+  { name: 'Álvaro', m1: { team: 3, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 1, position: 'GK', slot: 0 }, m3: { team: 1, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'Alexis', m1: { team: 3, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 2, shirt: 9, position: 'FWD', slot: 0 }, m3: { team: 3, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Balicco', m1: { team: 3, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 9, position: 'FWD', slot: 0 }, m3: { team: 1, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'Bryan', m1: { team: 3, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 4, position: 'DEF', slot: 0 }, m3: { team: 1, shirt: 10, position: 'MID', slot: 1 } },
 ];
 
 export const DEFAULT_PLAYERS = DEFAULT_ROSTER.map((p) => p.name);
@@ -231,7 +232,7 @@ export class MockStore {
     if (code) setTimeout(() => this.listeners.get(code)?.forEach((fn) => fn()), 50);
   }
 
-  /** Crea la jornada con 3 equipos 6v6, planteles para Modo 1 y Modo 2, y los 6 partidos base (3+3). */
+  /** Crea la jornada con 3 equipos 6v6, planteles para Rondas 1, 2 y 3, y los 9 partidos base (3+3+3). */
   createMatch(input: MatchInput, status: MatchStatus = 'open', id = uid()): MatchRow {
     const teamIds = DEFAULT_TEAMS.map((def, i) => {
       const t: TeamRow = {
@@ -247,14 +248,18 @@ export class MockStore {
       return t.id;
     });
     const initialGames: ScheduledGame[] = [
-      // Modo 1: Equipos chocolateados (todos contra todos inicial)
+      // Modo 1: Ronda 1 – Equipos al azar
       { number: 1, home: teamIds[0], away: teamIds[1], mode: 1 },
       { number: 2, home: teamIds[0], away: teamIds[2], mode: 1 },
       { number: 3, home: teamIds[1], away: teamIds[2], mode: 1 },
-      // Modo 2: Equipo del cumpleañero (todos contra todos inicial)
+      // Modo 2: Ronda 2
       { number: 4, home: teamIds[0], away: teamIds[1], mode: 2 },
       { number: 5, home: teamIds[0], away: teamIds[2], mode: 2 },
       { number: 6, home: teamIds[1], away: teamIds[2], mode: 2 },
+      // Modo 3: Ronda 3 – Equipo de Álvaro
+      { number: 7, home: teamIds[0], away: teamIds[1], mode: 3 },
+      { number: 8, home: teamIds[0], away: teamIds[2], mode: 3 },
+      { number: 9, home: teamIds[1], away: teamIds[2], mode: 3 },
     ];
     const m: MatchRow = {
       id,
@@ -289,6 +294,7 @@ export class MockStore {
         modes: {
           1: { team_id: teamIds[p.m1.team - 1], shirt_number: p.m1.shirt, position: p.m1.position, slot: p.m1.slot },
           2: { team_id: teamIds[p.m2.team - 1], shirt_number: p.m2.shirt, position: p.m2.position, slot: p.m2.slot },
+          3: { team_id: teamIds[p.m3.team - 1], shirt_number: p.m3.shirt, position: p.m3.position, slot: p.m3.slot },
         },
       }),
     );

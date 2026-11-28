@@ -17,9 +17,9 @@ export interface GameModeMeta {
 }
 
 export const GAME_MODES: GameModeMeta[] = [
-  { id: 1, short: 'Modo 1', name: 'Equipos chocolateados', blurb: 'Equipos 6v6 sorteados · todos contra todos y rotación' },
-  { id: 2, short: 'Modo 2', name: 'Equipo del cumpleañero', blurb: 'Álvaro arma su equipo y se cambian las camisetas' },
-  { id: 3, short: 'Modo 3', name: 'Draft de goleadores', blurb: 'Los 3 máximos goleadores de Modo 1 + 2 son capitanes y eligen' },
+  { id: 1, short: 'Modo 1', name: 'Equipos chocolateados', blurb: 'Ronda 1 · equipos 6v6 sorteados · todos contra todos y rotación' },
+  { id: 2, short: 'Modo 2', name: 'Ronda 2 · Equipos', blurb: 'Ronda 2 · equipos nuevos 6v6 · editables desde el admin' },
+  { id: 3, short: 'Modo 3', name: 'Equipo de Álvaro', blurb: 'Ronda 3 · Equipo 1 de Álvaro · editables desde el admin' },
 ];
 
 export interface ScheduledGame {

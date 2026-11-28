@@ -52,7 +52,7 @@ const [seedMatch] = await q(`select id, status, closed_at from matches where acc
 const count = async (t) => (await q(`select count(*)::int c from ${t} where match_id=$1`, [seedMatch.id]))[0].c;
 check('seed: 3 equipos', (await count('teams')) === 3);
 check('seed: 21 jugadores (20 + Autogol)', (await count('players')) === 21);
-check('seed: 125 mercados (11 de la jornada + 19 × 6 por partido)', (await count('markets')) === 125, `(${await count('markets')})`);
+check('seed: 182 mercados (11 de la jornada + 19 × 9 por partido)', (await count('markets')) === 182, `(${await count('markets')})`);
 check('seed: partido en juego = 3', (await q(`select current_game from matches where id=$1`, [seedMatch.id]))[0].current_game === 3);
 check('seed: 10 eventos', (await count('events')) === 10);
 check('seed: jornada cerrada con closed_at', seedMatch.status === 'closed' && !!seedMatch.closed_at);
@@ -99,7 +99,7 @@ await expectErr('anon no escribe en el chat', () => q(`select post_message('TEST
 await expectErr('anon no inserta tickets directo', () => q(`insert into tickets (match_id, bettor_name, status) values ($1,'x','approved')`, [mid]), /permission/);
 
 const pub = (await q(`select get_public_match('prueba') j`))[0].j;
-check('público: jornada de prueba', pub.match.title === 'Copa Álvaro · En vivo' && pub.teams.length === 3 && pub.markets.length === 125 && pub.match.current_game === 3 && pub.events.every((e) => 'game' in e) && pub.events.length === 10);
+check('público: jornada de prueba', pub.match.title === 'Copa Álvaro · En vivo' && pub.teams.length === 3 && pub.markets.length === 182 && pub.match.current_game === 3 && pub.events.every((e) => 'game' in e) && pub.events.length === 10);
 check('público: solo apuestas aprobadas (18)', pub.bets.length === 18, `(${pub.bets.length})`);
 check('público: sin rutas de captura', !JSON.stringify(pub).includes('receipt'));
 check('público: Plin y titular', pub.match.pay_method === 'Plin');
@@ -320,12 +320,14 @@ const pubT = (await q(`select get_public_match('TEST01') j`))[0].j;
 const krul = pubT.players.find((p) => p.name === 'Diego');
 const fields = ['team_id', 'shirt_number', 'position', 'slot', 'modes', 'photo_id', 'costume_id'];
 check('T2: jugador con los 7 campos nuevos', fields.every((k) => k in krul), JSON.stringify(Object.keys(krul)));
-check('T2: Diego arquero de Equipo 1 en Modo 1 (Ronda 1) y de Equipo 2 en Modo 2 (Ronda 2)',
-  krul.team_id === teams[0].id && krul.position === 'GK' && krul.shirt_number === 1 && krul.modes['1'].team_id === teams[0].id && krul.modes['2'].team_id === teams[1].id && krul.modes['2'].position === 'GK');
-check('T2: 6 partidos base (3 Modo 1 + 3 Modo 2)', pubT.match.games.length === 6 && pubT.match.games.filter((g) => g.mode === 2).length === 3 && pubT.match.games[2].home === teams[1].id);
+check('T2: Diego arquero de Equipo 1 en Modo 1, Equipo 2 en Modo 2 y medio de Equipo 2 en Modo 3',
+  krul.team_id === teams[0].id && krul.position === 'GK' && krul.shirt_number === 1 && krul.modes['1'].team_id === teams[0].id && krul.modes['2'].team_id === teams[1].id && krul.modes['2'].position === 'GK' && krul.modes['3'].team_id === teams[1].id);
+check('T2: 9 partidos base (3 Modo 1 + 3 Modo 2 + 3 Modo 3)', pubT.match.games.length === 9 && pubT.match.games.filter((g) => g.mode === 2).length === 3 && pubT.match.games.filter((g) => g.mode === 3).length === 3 && pubT.match.games[2].home === teams[1].id);
 check('B1: equipos con formación y kit', pubT.teams.every((t) => t.formation === '2-2-1') && pubT.teams.map((t) => t.kit_id).join() === 'barca,madrid,alianza');
 const roster1 = (t) => pubT.players.filter((p) => p.team_id === t.id && !['Pepe', 'Lucho'].includes(p.name));
+const roster3 = (t) => pubT.players.filter((p) => p.modes?.['3']?.team_id === t.id);
 check('T2: Ronda 1 = 7, 7 y 6; 6 en cancha y el resto al banco', roster1(teams[0]).length === 7 && roster1(teams[1]).length === 7 && roster1(teams[2]).length === 6 && teams.every((t) => roster1(t).filter((p) => p.position !== 'SUB').length === 6));
+check('T2: Ronda 3 = 7, 7 y 6 con Álvaro en Equipo 1', roster3(teams[0]).length === 7 && roster3(teams[1]).length === 7 && roster3(teams[2]).length === 6 && pubT.players.find((p) => p.name === 'Álvaro')?.modes?.['3']?.team_id === teams[0].id);
 await expectErr('T2: jugador en un equipo de otra jornada', () => q(`update players set team_id=$1 where id=$2`, [otherTeam, pl['Pepe']]), /no pertenece al partido/);
 
 await asUser(U1);
@@ -334,14 +336,14 @@ await expectErr('T4: usuario no crea equipos', () => q(`select admin_add_team($1
 await asUser(ADM);
 await q(`update matches set status='open', current_game=2, game_live=false where id=$1`, [mid]);
 const marketsBefore = await q(`select count(*)::int c from markets where match_id=$1`, [mid]);
-const [{ n: g7 }] = await q(`select admin_add_game($1,$2,$3,false,2) n`, [mid, teams[1].id, teams[0].id]);
+const [{ n: g10 }] = await q(`select admin_add_game($1,$2,$3,false,2) n`, [mid, teams[1].id, teams[0].id]);
 const afterAdd = (await q(`select current_game, game_live, games from matches where id=$1`, [mid]))[0];
-check('T3: partido 7 creado sin mover current_game', g7 === 7 && afterAdd.current_game === 2 && afterAdd.game_live === false && afterAdd.games.length === 7 && afterAdd.games[6].mode === 2);
+check('T3: partido 10 creado sin mover current_game', g10 === 10 && afterAdd.current_game === 2 && afterAdd.game_live === false && afterAdd.games.length === 10 && afterAdd.games[9].mode === 2);
 check('T3: 19 mercados del partido nuevo', (await q(`select count(*)::int c from markets where match_id=$1`, [mid]))[0].c === marketsBefore[0].c + 19 && !!(await q(`select 1 from markets where match_id=$1 and name='Ganador · M2 · Equipo 2 vs Equipo 1'`, [mid])).length);
 await expectErr('T3: mismo equipo', () => q(`select admin_add_game($1,$2,$2)`, [mid, teams[0].id]), /distintos/);
 await expectErr('T3: equipo de otra jornada', () => q(`select admin_add_game($1,$2,$3)`, [mid, teams[0].id, otherTeam]), /del partido/);
-const [{ n: g8 }] = await q(`select admin_add_game($1,$2,$3,true,1) n`, [mid, teams[0].id, teams[2].id]);
-check('T3: en vivo mueve current_game', (await q(`select current_game, game_live from matches where id=$1`, [mid]))[0].current_game === g8 && g8 === 8);
+const [{ n: g11 }] = await q(`select admin_add_game($1,$2,$3,true,1) n`, [mid, teams[0].id, teams[2].id]);
+check('T3: en vivo mueve current_game', (await q(`select current_game, game_live from matches where id=$1`, [mid]))[0].current_game === g11 && g11 === 11);
 
 const [{ id: t4 }] = await q(`select admin_add_team($1, '  Equipo 4 ', null) id`, [mid]);
 const [{ id: tU }] = await q(`select admin_add_team($1, 'Los Camotito', '#b91c1c', 'u') id`, [mid]);
@@ -374,7 +376,7 @@ await q(`insert into teams (match_id, name, sort_order) values ($1, 'Equipo 4', 
 check('T5: fixture_pair con 4 equipos', await fxPairs(4));
 await q(`insert into teams (match_id, name, sort_order) values ($1, 'Equipo 5', 5)`, [fx]);
 check('T5: fixture_pair con 5 equipos', await fxPairs(5));
-check('T5: con games manda la lista', (await q(`select fixture_pair($1, 7) p`, [mid]))[0].p.join() === [teams[1].id, teams[0].id].join());
+check('T5: con games manda la lista', (await q(`select fixture_pair($1, 10) p`, [mid]))[0].p.join() === [teams[1].id, teams[0].id].join());
 
 const g1First = (await q(`select id from markets where match_id=$1 and name='Primer gol · M1 · Equipo 1 vs Equipo 2'`, [mid]))[0].id;
 await expectErr('P1-8: no se apuesta a un jugador que no juega ese partido', () => q(`insert into bets (ticket_id, market_id, player_id, amount) values ($1,$2,$3,1)`, [ok[0].id, g1First, pl['Bryan']]), /no juega Primer gol/);
