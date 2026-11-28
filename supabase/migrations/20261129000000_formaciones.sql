@@ -156,13 +156,6 @@ begin
     ('Último de la tabla',     'worst_team',             17),
     ('Equipo más goleador',    'top_scoring_team',       18),
     ('Equipo más goleado',     'most_conceded_team',     19),
-    ('Primera roja',           'first_red',              20),
-    ('Primer blooper',         'first_blooper',          21),
-    ('Primer penal cometido',  'first_penalty_conceded', 22),
-    ('Primer penal fallado',   'first_penalty_missed',   23),
-    ('Primer palo',            'first_post',             24),
-    ('Primer golazo',          'first_golazo',           25),
-    ('Primer piscinazo',       'first_dive',             26),
     ('¿Cuántos palos habrá?',  'total_posts',            27)
   ) as x(name, type, ord)
   where not exists (select 1 from markets k where k.match_id = p_match and k.type = x.type);
@@ -239,20 +232,15 @@ begin
     (18, 'Bryan',         3, 9,  'FWD', 0, 1, 9,  'MID', 1)
   ) as r(ord, name, t1, n1, p1, s1, t2, n2, p2, s2);
 
+  -- Solo lo que es de toda la noche: los "primer…" van por partido (copa_game_markets).
   -- Sin arrastres por defecto: si nadie acierta, el bote es del organizador.
   insert into markets (match_id, name, type, param, sort_order) values
-    (new.id, 'Primer gol de la noche',  'first_goal',          null, 1),
-    (new.id, 'Último gol de la noche',  'last_goal',           null, 2),
     (new.id, 'Pichichi de la noche',    'top_scorer',          null, 3),
     (new.id, 'Primer cuartete',         'first_to_n_goals',    4,    4),
     (new.id, 'Primer sextete',          'first_to_n_goals',    6,    5),
     (new.id, 'Gol número 15',           'nth_goal',            15,   6),
     (new.id, 'Gol número 28',           'nth_goal',            28,   7),
-    (new.id, 'Primera amarilla',        'first_yellow',        null, 11),
-    (new.id, 'Última amarilla',         'last_yellow',         null, 12),
-    (new.id, 'El más amonestado',       'most_yellows',        null, 13),
-    (new.id, 'Primer autogol',          'first_own_goal',      null, 14),
-    (new.id, 'Primera huacha',          'first_nutmeg_victim', null, 15);
+    (new.id, 'El más amonestado',       'most_yellows',        null, 13);
   return new;
 end;
 $$;
@@ -401,3 +389,51 @@ create policy avatares_admin_update on storage.objects
   for update to authenticated using (bucket_id = 'avatares' and public.is_admin());
 create policy avatares_admin_delete on storage.objects
   for delete to authenticated using (bucket_id = 'avatares' and public.is_admin());
+
+-- -----------------------------------------------------------------------------
+-- 7. En los mercados de jugador de un partido solo se apuesta a quien juega ese partido
+--    (su equipo en el modo del partido es local o visitante). Igual que el filtro de la app:
+--    si nadie del partido tiene equipo asignado todavía, no se valida. "Autogol" siempre vale.
+-- -----------------------------------------------------------------------------
+create or replace function public.tg_bet_player_in_game() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  v_market markets%rowtype;
+  v_game jsonb;
+  v_mode text;
+  v_teams uuid[];
+  v_team uuid;
+begin
+  if new.player_id is null then return new; end if;
+  select * into v_market from markets where id = new.market_id;
+  if v_market.type not like 'game\_%' or v_market.param is null then return new; end if;
+  if (select is_own_goal from players where id = new.player_id) then return new; end if;
+
+  select x into v_game
+  from matches m, jsonb_array_elements(coalesce(m.games, '[]'::jsonb)) x
+  where m.id = v_market.match_id and (x ->> 'number')::int = v_market.param
+  limit 1;
+  if v_game is null then return new; end if;
+
+  v_mode := coalesce(v_game ->> 'mode', '1');
+  v_teams := array[(v_game ->> 'home')::uuid, (v_game ->> 'away')::uuid];
+  -- Equipo del jugador en ese modo (Modo 1 cae al team_id de siempre).
+  select coalesce((p.modes -> v_mode ->> 'team_id')::uuid, case when v_mode = '1' then p.team_id end)
+    into v_team from players p where p.id = new.player_id;
+
+  if (v_team is null or not (v_team = any (v_teams)))
+     and exists (
+       select 1 from players p
+       where p.match_id = v_market.match_id and not p.is_own_goal
+         and coalesce((p.modes -> v_mode ->> 'team_id')::uuid, case when v_mode = '1' then p.team_id end) = any (v_teams)
+     ) then
+    raise exception 'Ese jugador no juega %', v_market.name;
+  end if;
+  return new;
+end $$;
+revoke execute on function public.tg_bet_player_in_game() from public, anon, authenticated;
+
+drop trigger if exists bets_player_in_game on public.bets;
+create trigger bets_player_in_game
+  before insert or update of player_id, market_id on public.bets
+  for each row execute function public.tg_bet_player_in_game();

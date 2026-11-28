@@ -52,7 +52,7 @@ const [seedMatch] = await q(`select id, status, closed_at from matches where acc
 const count = async (t) => (await q(`select count(*)::int c from ${t} where match_id=$1`, [seedMatch.id]))[0].c;
 check('seed: 3 equipos', (await count('teams')) === 3);
 check('seed: 19 jugadores (18 + Autogol)', (await count('players')) === 19);
-check('seed: 138 mercados (24 de la jornada + 19 × 6 por partido)', (await count('markets')) === 138, `(${await count('markets')})`);
+check('seed: 125 mercados (11 de la jornada + 19 × 6 por partido)', (await count('markets')) === 125, `(${await count('markets')})`);
 check('seed: partido en juego = 3', (await q(`select current_game from matches where id=$1`, [seedMatch.id]))[0].current_game === 3);
 check('seed: 10 eventos', (await count('events')) === 10);
 check('seed: jornada cerrada con closed_at', seedMatch.status === 'closed' && !!seedMatch.closed_at);
@@ -64,7 +64,7 @@ const [m2] = await q(`select starting_team_ids from matches where id=$1`, [mid])
 check('defaults: Equipo 1, 2 y 3', teams.map((t) => t.name).join() === 'Equipo 1,Equipo 2,Equipo 3');
 check('defaults: 18 jugadores + Autogol', (await q(`select count(*)::int c from players where match_id=$1`, [mid]))[0].c === 19);
 check('defaults: arrancan A y B', m2.starting_team_ids.join() === [teams[0].id, teams[1].id].join());
-await q(`insert into players (match_id, name, sort_order) values ($1,'Pepe',1), ($1,'Lucho',2)`, [mid]);
+await q(`insert into players (match_id, name, sort_order, team_id) values ($1,'Pepe',1,$2), ($1,'Lucho',2,$2)`, [mid, teams[0].id]);
 const pl = Object.fromEntries((await q(`select name, id from players where match_id=$1`, [mid])).map((r) => [r.name, r.id]));
 const mk = Object.fromEntries((await q(`select name, id from markets where match_id=$1`, [mid])).map((r) => [r.name, r.id]));
 const otherTeam = (await q(`select id from teams where match_id=$1 limit 1`, [seedMatch.id]))[0].id;
@@ -99,7 +99,7 @@ await expectErr('anon no escribe en el chat', () => q(`select post_message('TEST
 await expectErr('anon no inserta tickets directo', () => q(`insert into tickets (match_id, bettor_name, status) values ($1,'x','approved')`, [mid]), /permission/);
 
 const pub = (await q(`select get_public_match('prueba') j`))[0].j;
-check('público: jornada de prueba', pub.match.title === 'Copa Álvaro · En vivo' && pub.teams.length === 3 && pub.markets.length === 138 && pub.match.current_game === 3 && pub.events.every((e) => 'game' in e) && pub.events.length === 10);
+check('público: jornada de prueba', pub.match.title === 'Copa Álvaro · En vivo' && pub.teams.length === 3 && pub.markets.length === 125 && pub.match.current_game === 3 && pub.events.every((e) => 'game' in e) && pub.events.length === 10);
 check('público: solo apuestas aprobadas (18)', pub.bets.length === 18, `(${pub.bets.length})`);
 check('público: sin rutas de captura', !JSON.stringify(pub).includes('receipt'));
 check('público: Plin y titular', pub.match.pay_method === 'Plin');
@@ -145,7 +145,7 @@ await asUser(U1);
 check('saldo S/ 20 tras aceptar', Number((await wallet()).balance) === 20);
 
 const ok = await submit([
-  { market_id: mk['Primer gol de la noche'], player_id: pl['Autogol'], amount: 2 },
+  { market_id: mk['Primer gol · M1 · Equipo 1 vs Equipo 2'], player_id: pl['Autogol'], amount: 2 },
   { market_id: mk['Campeón de la liga'], team_id: teams[0].id, amount: 3 },
   { market_id: mk['Ganador · M1 · Equipo 1 vs Equipo 2'], option: 0, amount: 1 },
 ]);
@@ -159,14 +159,14 @@ check('mercados por partido creados con los nombres de los equipos', !!mk['Prime
 await expectErr('sí/no: opción 2 fuera de 0–1', () => submit([{ market_id: mk['¿Habrá penal? · M1 · Equipo 1 vs Equipo 2'], option: 2, amount: 1 }]), /va de 0 a 1/);
 await expectErr('palos: 6 fuera de 0–5', () => submit([{ market_id: mk['¿Cuántos palos habrá?'], option: 6, amount: 1 }]), /va de 0 a 5/);
 await expectErr('equipo de otra jornada', () => submit([{ market_id: mk['Campeón de la liga'], team_id: otherTeam, amount: 1 }]), /Equipo inválido/);
-await expectErr('"Autogol" en Primer autogol', () => submit([{ market_id: mk['Primer autogol'], player_id: pl['Autogol'], amount: 1 }]), /Autogol/);
+await expectErr('"Autogol" en Primer autogol', () => submit([{ market_id: mk['Primer autogol · M1 · Equipo 1 vs Equipo 2'], player_id: pl['Autogol'], amount: 1 }]), /Autogol/);
 await expectErr('dos destinos a la vez', () => submit([{ market_id: mk['Campeón de la liga'], team_id: teams[0].id, player_id: pl['Pepe'], amount: 1 }]), /se apuesta a un equipo/);
 await expectErr('monto 6', () => submit([{ market_id: mk['Campeón de la liga'], team_id: teams[0].id, amount: 6 }]), /S\/ 1 a S\/ 5/);
 await expectErr('apuesta repetida', () => submit([{ market_id: mk['Campeón de la liga'], team_id: teams[0].id, amount: 1 }, { market_id: mk['Campeón de la liga'], team_id: teams[0].id, amount: 2 }]), /iguales/);
-await expectErr('21 apuestas', () => submit(Array.from({ length: 21 }, (_, i) => ({ market_id: mk['Primer gol de la noche'], player_id: pl['Pepe'], amount: 1 }))), /entre 1 y 20/);
+await expectErr('21 apuestas', () => submit(Array.from({ length: 21 }, (_, i) => ({ market_id: mk['Primer gol · M1 · Equipo 1 vs Equipo 2'], player_id: pl['Pepe'], amount: 1 }))), /entre 1 y 20/);
 const ok2 = await submit([
   { market_id: mk['¿Cuántos palos habrá?'], option: 0, amount: 2 },
-  { market_id: mk['Primer golazo'], player_id: pl['Pepe'], amount: 1 },
+  { market_id: mk['Primer golazo · M1 · Equipo 1 vs Equipo 2'], player_id: pl['Pepe'], amount: 1 },
   { market_id: mk['Campeón de la liga'], team_id: teams[1].id, amount: 1 },
 ]);
 check('mercados de show (palos 0, golazo, mejor equipo)', !!ok2[0].id);
@@ -243,9 +243,9 @@ await expectErr('apostar con la jornada cerrada', () => submit([{ market_id: mk[
 // Liquidación: el organizador acredita ganancias al saldo (y puede re-liquidar o deshacer)
 await asUser(U1);
 const before = Number((await wallet()).balance);
-await expectErr('usuario no puede liquidar', () => q(`select admin_settle_market($1, 'winners', 'x', '[]'::jsonb)`, [mk['Primer gol de la noche']]), /Solo el organizador/);
+await expectErr('usuario no puede liquidar', () => q(`select admin_settle_market($1, 'winners', 'x', '[]'::jsonb)`, [mk['Primer gol · M1 · Equipo 1 vs Equipo 2']]), /Solo el organizador/);
 await asUser(ADM);
-await q(`select admin_settle_market($1, 'winners', $2, $3::jsonb)`, [mk['Primer gol de la noche'], pl['Autogol'], JSON.stringify([{ user_id: U1, username: 'Pepe.Lucho', kind: 'win', amount_cents: 450 }])]);
+await q(`select admin_settle_market($1, 'winners', $2, $3::jsonb)`, [mk['Primer gol · M1 · Equipo 1 vs Equipo 2'], pl['Autogol'], JSON.stringify([{ user_id: U1, username: 'Pepe.Lucho', kind: 'win', amount_cents: 450 }])]);
 await asUser(U1);
 let wl = await wallet();
 check('ganancia acreditada al saldo (+4.50)', Math.abs(Number(wl.balance) - (before + 4.5)) < 0.001, `(${wl.balance})`);
@@ -253,23 +253,23 @@ check('mi cuenta muestra la ganancia', wl.credits.length === 1 && wl.credits[0].
 await asUser(ADM);
 await q(`update matches set status='open' where id=$1`, [mid]);
 await asUser(U1);
-await expectErr('no se apuesta a un mercado liquidado', () => submit([{ market_id: mk['Primer gol de la noche'], player_id: pl['Pepe'], amount: 1 }]), /ya se liquidó/);
+await expectErr('no se apuesta a un mercado liquidado', () => submit([{ market_id: mk['Primer gol · M1 · Equipo 1 vs Equipo 2'], player_id: pl['Pepe'], amount: 1 }]), /ya se liquidó/);
 await asUser(ADM);
 await q(`update matches set status='closed' where id=$1`, [mid]);
 await asUser(U1);
-check('público: mercado liquidado', (await q(`select get_public_match('TEST01') j`))[0].j.markets.find((m) => m.id === mk['Primer gol de la noche']).settled === true);
+check('público: mercado liquidado', (await q(`select get_public_match('TEST01') j`))[0].j.markets.find((m) => m.id === mk['Primer gol · M1 · Equipo 1 vs Equipo 2']).settled === true);
 await asUser(ADM);
-await q(`select admin_settle_market($1, 'winners', $2, $3::jsonb)`, [mk['Primer gol de la noche'], pl['Autogol'], JSON.stringify([{ user_id: U1, username: 'Pepe.Lucho', kind: 'win', amount_cents: 300 }])]);
+await q(`select admin_settle_market($1, 'winners', $2, $3::jsonb)`, [mk['Primer gol · M1 · Equipo 1 vs Equipo 2'], pl['Autogol'], JSON.stringify([{ user_id: U1, username: 'Pepe.Lucho', kind: 'win', amount_cents: 300 }])]);
 await asUser(U1);
 check('re-liquidar reemplaza lo acreditado (+3.00)', Math.abs(Number((await wallet()).balance) - (before + 3)) < 0.001);
 await asUser(ADM);
-await q(`select admin_unsettle_market($1)`, [mk['Primer gol de la noche']]);
+await q(`select admin_unsettle_market($1)`, [mk['Primer gol · M1 · Equipo 1 vs Equipo 2']]);
 await asUser(U1);
 check('deshacer la liquidación devuelve el saldo', Math.abs(Number((await wallet()).balance) - before) < 0.001);
 
 // El bote es solo plata apostada: no se puede acreditar más de lo que se apostó
 await asUser(ADM);
-await expectErr('no se acredita más de lo apostado en la jornada', () => q(`select admin_settle_market($1, 'winners', 'x', $2::jsonb)`, [mk['Primer gol de la noche'], JSON.stringify([{ user_id: U1, username: 'Pepe.Lucho', kind: 'win', amount_cents: 999999 }])]), /supera lo apostado/);
+await expectErr('no se acredita más de lo apostado en la jornada', () => q(`select admin_settle_market($1, 'winners', 'x', $2::jsonb)`, [mk['Primer gol · M1 · Equipo 1 vs Equipo 2'], JSON.stringify([{ user_id: U1, username: 'Pepe.Lucho', kind: 'win', amount_cents: 999999 }])]), /supera lo apostado/);
 await asUser(U1);
 check('el intento fallido no cambió el saldo', Math.abs(Number((await wallet()).balance) - before) < 0.001);
 
@@ -324,7 +324,7 @@ check('T2: Krul arquero de Equipo 1 en Modo 1, defensa de Equipo 3 en Modo 2',
   krul.team_id === teams[0].id && krul.position === 'GK' && krul.shirt_number === 1 && krul.modes['1'].team_id === teams[0].id && krul.modes['2'].team_id === teams[2].id && krul.modes['2'].position === 'DEF');
 check('T2: 6 partidos base (3 Modo 1 + 3 Modo 2)', pubT.match.games.length === 6 && pubT.match.games.filter((g) => g.mode === 2).length === 3 && pubT.match.games[2].home === teams[1].id);
 check('B1: equipos con formación y kit', pubT.teams.every((t) => t.formation === '2-2-1') && pubT.teams.map((t) => t.kit_id).join() === 'barca,madrid,alianza');
-check('T2: 6 por equipo en Modo 1', teams.every((t) => pubT.players.filter((p) => p.team_id === t.id).length === 6));
+check('T2: 6 por equipo en Modo 1', teams.every((t) => pubT.players.filter((p) => p.team_id === t.id && !['Pepe', 'Lucho'].includes(p.name)).length === 6));
 await expectErr('T2: jugador en un equipo de otra jornada', () => q(`update players set team_id=$1 where id=$2`, [otherTeam, pl['Pepe']]), /no pertenece al partido/);
 
 await asUser(U1);
@@ -375,6 +375,14 @@ await q(`insert into teams (match_id, name, sort_order) values ($1, 'Equipo 5', 
 check('T5: fixture_pair con 5 equipos', await fxPairs(5));
 check('T5: con games manda la lista', (await q(`select fixture_pair($1, 7) p`, [mid]))[0].p.join() === [teams[1].id, teams[0].id].join());
 
+const g1First = (await q(`select id from markets where match_id=$1 and name='Primer gol · M1 · Equipo 1 vs Equipo 2'`, [mid]))[0].id;
+await expectErr('P1-8: no se apuesta a un jugador que no juega ese partido', () => q(`insert into bets (ticket_id, market_id, player_id, amount) values ($1,$2,$3,1)`, [ok[0].id, g1First, pl['Bryan']]), /no juega Primer gol/);
+await q(`insert into bets (ticket_id, market_id, player_id, amount) values ($1,$2,$3,1)`, [ok[0].id, g1First, pl['Nicolas']]);
+check('P1-8: sí a uno que juega (Nicolas, Equipo 1)', true);
+await q(`delete from bets where ticket_id=$1 and market_id=$2`, [ok[0].id, g1First]);
+await q(`insert into bets (ticket_id, market_id, player_id, amount) values ($1,$2,$3,1)`, [ok[0].id, g1First, pl['Autogol']]);
+check('P1-8: "Autogol" siempre vale', true);
+await q(`delete from bets where ticket_id=$1 and market_id=$2`, [ok[0].id, g1First]);
 check('B5: bucket público de fotos (solo WebP)', (await q(`select allowed_mime_types from storage.buckets where id='avatares'`))[0]?.allowed_mime_types?.join() === 'image/webp');
 console.log(fails === 0 ? '\nTodas las pruebas de BD pasaron' : `\n${fails} prueba(s) de BD fallaron`);
 process.exit(fails === 0 ? 0 : 1);

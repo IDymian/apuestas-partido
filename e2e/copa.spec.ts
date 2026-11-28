@@ -55,7 +55,7 @@ test('inicio: portada, entra a la jornada con Partido 1, descanso y "En vivo" va
   await shot(page, '00-portada');
   await page.getByRole('link', { name: /Entrar a la Copa/ }).click();
   await expect(page).toHaveURL(/\/p\/COPA/);
-  await expect(page.getByText('6 partidos · 138 mercados')).toBeVisible();
+  await expect(page.getByText('6 partidos · 125 mercados')).toBeVisible();
   await expect(page.getByText('Partido 1 · Próximo')).toBeVisible();
   await expect(page.getByText('Partido 4 · Próximo')).toBeVisible();
   await expect(page.getByText('Modo 3 · Draft de goleadores')).toBeVisible();
@@ -94,7 +94,7 @@ test('cupón con apuestas desde Formaciones, Populares y Especiales; se ve en Mi
   await page.getByRole('button', { name: 'Cerrar' }).click();
 
   await page.getByRole('tab', { name: 'Makanakis' }).click();
-  await page.getByRole('button', { name: /Primera roja/ }).click();
+  await page.getByRole('button', { name: /El más leñero/ }).click();
   await page.getByRole('button', { name: /^Digetto · apostado/ }).click();
 
   await page.getByRole('button', { name: /Ver ticket/ }).click();

@@ -79,29 +79,16 @@ export const MARKET_TYPES: MarketType[] = [
 
 /** Igual que los triggers de la BD: los mercados de toda la jornada (los de cada partido se agregan aparte). */
 const DEFAULT_MARKETS: [string, string, number | null][] = [
-  ['Primer gol de la noche', 'first_goal', null],
-  ['Último gol de la noche', 'last_goal', null],
   ['Goleador de la noche', 'top_scorer', null],
   ['Primero en meter 4', 'first_to_n_goals', 4],
   ['Primero en meter 6', 'first_to_n_goals', 6],
   ['Gol número 15', 'nth_goal', 15],
   ['Gol número 28', 'nth_goal', 28],
-  ['Primera amarilla', 'first_yellow', null],
-  ['Última amarilla', 'last_yellow', null],
   ['El más leñero (más amarillas)', 'most_yellows', null],
-  ['Primer autogol', 'first_own_goal', null],
-  ['Primera huacha', 'first_nutmeg_victim', null],
   ['Campeón de la liga', 'best_team', null],
   ['El colero (peor equipo)', 'worst_team', null],
   ['Equipo más goleador', 'top_scoring_team', null],
   ['Equipo más goleado', 'most_conceded_team', null],
-  ['Primera roja', 'first_red', null],
-  ['Primer blooper', 'first_blooper', null],
-  ['Primer penal cometido', 'first_penalty_conceded', null],
-  ['Primer penal fallado', 'first_penalty_missed', null],
-  ['Primer palo', 'first_post', null],
-  ['Primer golazo', 'first_golazo', null],
-  ['Primer piscinazo', 'first_dive', null],
   ['¿Cuántos palos habrá?', 'total_posts', null],
 ];
 

@@ -38,26 +38,26 @@ begin
   insert into public.tickets (match_id, bettor_name, total, status, created_at)
   values (m, 'Ana', 0, 'approved', now() - interval '3 hours') returning id into t;
   insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
-    (t, pg_temp.mid(m, 'Primer gol de la noche'), pg_temp.pid(m, 'Nicolas'), null, null, 4),
+    (t, pg_temp.mid(m, 'Pichichi de la noche'), pg_temp.pid(m, 'Nicolas'), null, null, 4),
     (t, pg_temp.mid(m, 'Campeón de la liga'), null, e1, null, 3),
-    (t, pg_temp.mid(m, 'Primera amarilla'), pg_temp.pid(m, 'Iker'), null, null, 2),
+    (t, pg_temp.mid(m, 'Primera amarilla · M1 · Equipo 1 vs Equipo 2'), pg_temp.pid(m, 'Iker'), null, null, 2),
     (t, pg_temp.mid(m, 'Ganador · M1 · Equipo 1 vs Equipo 2'), null, null, 1, 2);
   -- Luis
   insert into public.tickets (match_id, bettor_name, total, status, created_at)
   values (m, 'Luis', 0, 'approved', now() - interval '170 minutes') returning id into t;
   insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
-    (t, pg_temp.mid(m, 'Primer gol de la noche'), pg_temp.pid(m, 'Alexis'), null, null, 2),
+    (t, pg_temp.mid(m, 'Pichichi de la noche'), pg_temp.pid(m, 'Alexis'), null, null, 2),
     (t, pg_temp.mid(m, 'Pichichi de la noche'), pg_temp.pid(m, 'Nicolas'), null, null, 5),
     (t, pg_temp.mid(m, 'Equipo más goleado'), null, e2, null, 3),
-    (t, pg_temp.mid(m, 'Primer autogol'), pg_temp.pid(m, 'Manuel'), null, null, 1);
+    (t, pg_temp.mid(m, 'Primer autogol · M1 · Equipo 1 vs Equipo 2'), pg_temp.pid(m, 'Manuel'), null, null, 1);
   -- Rosa
   insert into public.tickets (match_id, bettor_name, total, status, created_at)
   values (m, 'Rosa', 0, 'approved', now() - interval '160 minutes') returning id into t;
   insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
-    (t, pg_temp.mid(m, 'Último gol de la noche'), pg_temp.pid(m, 'Bryan'), null, null, 3),
+    (t, pg_temp.mid(m, 'Último gol · M1 · Equipo 1 vs Equipo 3'), pg_temp.pid(m, 'Bryan'), null, null, 3),
     (t, pg_temp.mid(m, 'Primer cuartete'), pg_temp.pid(m, 'Nicolas'), null, null, 2),
     (t, pg_temp.mid(m, 'Gol número 15'), pg_temp.pid(m, 'Autogol'), null, null, 1),
-    (t, pg_temp.mid(m, 'Primera huacha'), pg_temp.pid(m, 'Digetto'), null, null, 4);
+    (t, pg_temp.mid(m, 'Primera huacha · M1 · Equipo 1 vs Equipo 3'), pg_temp.pid(m, 'Digetto'), null, null, 4);
   -- Beto
   insert into public.tickets (match_id, bettor_name, total, status, created_at)
   values (m, 'Beto', 0, 'approved', now() - interval '150 minutes') returning id into t;
@@ -65,14 +65,14 @@ begin
     (t, pg_temp.mid(m, 'Campeón de la liga'), null, e2, null, 5),
     (t, pg_temp.mid(m, 'Primer gol · M1 · Equipo 1 vs Equipo 3'), pg_temp.pid(m, 'Bryan'), null, null, 3),
     (t, pg_temp.mid(m, 'El más amonestado'), pg_temp.pid(m, 'Iker'), null, null, 2),
-    (t, pg_temp.mid(m, 'Última amarilla'), pg_temp.pid(m, 'Andreow'), null, null, 1),
+    (t, pg_temp.mid(m, 'Primera amarilla · M1 · Equipo 1 vs Equipo 3'), pg_temp.pid(m, 'Andreow'), null, null, 1),
     (t, pg_temp.mid(m, 'Primer sextete'), pg_temp.pid(m, 'Alexis'), null, null, 1),
     (t, pg_temp.mid(m, 'Gol número 28'), pg_temp.pid(m, 'Bryan'), null, null, 1);
   -- Carla (pendiente: no cuenta)
   insert into public.tickets (match_id, bettor_name, total, status, created_at)
   values (m, 'Carla', 0, 'pending', now() - interval '140 minutes') returning id into t;
   insert into public.bets (ticket_id, market_id, player_id, team_id, option_value, amount) values
-    (t, pg_temp.mid(m, 'Primer gol de la noche'), pg_temp.pid(m, 'Digetto'), null, null, 5);
+    (t, pg_temp.mid(m, 'Pichichi de la noche'), pg_temp.pid(m, 'Digetto'), null, null, 5);
   -- Dani (anulado: no cuenta)
   insert into public.tickets (match_id, bettor_name, total, status, reject_reason, created_at)
   values (m, 'Dani', 0, 'rejected', 'Apuesta repetida', now() - interval '135 minutes') returning id into t;
