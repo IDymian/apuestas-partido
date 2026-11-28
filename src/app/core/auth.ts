@@ -235,9 +235,11 @@ export class MockAuthApi extends AuthApi {
     const e = email.trim().toLowerCase();
     if (list.some((u) => u.email === e)) throw new Error(authError('already registered'));
     if (!(await this.usernameAvailable(username))) throw new Error('Ese usuario ya está tomado. Prueba con otro.');
-    const u: LocalUser = { id: uuid(), email: e, username: username.trim(), passHash: await hash(password), confirmed: false };
+    const u: LocalUser = { id: uuid(), email: e, username: username.trim(), passHash: await hash(password), confirmed: true };
     this.saveUsers([...list, u]);
-    return { needsConfirm: true, testToken: u.id };
+    // Sin confirmación por correo (igual que Supabase con "Confirm email" apagado): entra directo.
+    this.login(u);
+    return { needsConfirm: false };
   }
 
   /** "Abrir" el correo de confirmación de prueba. */

@@ -12,6 +12,7 @@ const POSITIONS: { id: PlayerPosition; label: string }[] = [
   { id: 'DEF', label: 'DEF' },
   { id: 'MID', label: 'MED' },
   { id: 'FWD', label: 'DEL' },
+  { id: 'SUB', label: 'BANCO' },
 ];
 
 /** Plantel de la jornada: agregar jugadores y asignar equipo, dorsal y posición para Formaciones. */

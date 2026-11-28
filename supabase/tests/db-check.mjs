@@ -51,7 +51,7 @@ const expectErr = async (label, fn, pattern) => {
 const [seedMatch] = await q(`select id, status, closed_at from matches where access_code='PRUEBA'`);
 const count = async (t) => (await q(`select count(*)::int c from ${t} where match_id=$1`, [seedMatch.id]))[0].c;
 check('seed: 3 equipos', (await count('teams')) === 3);
-check('seed: 19 jugadores (18 + Autogol)', (await count('players')) === 19);
+check('seed: 21 jugadores (20 + Autogol)', (await count('players')) === 21);
 check('seed: 125 mercados (11 de la jornada + 19 × 6 por partido)', (await count('markets')) === 125, `(${await count('markets')})`);
 check('seed: partido en juego = 3', (await q(`select current_game from matches where id=$1`, [seedMatch.id]))[0].current_game === 3);
 check('seed: 10 eventos', (await count('events')) === 10);
@@ -62,7 +62,7 @@ const [{ id: mid }] = await q(`insert into matches (title, access_code) values (
 const teams = await q(`select id, name from teams where match_id=$1 order by sort_order`, [mid]);
 const [m2] = await q(`select starting_team_ids from matches where id=$1`, [mid]);
 check('defaults: Equipo 1, 2 y 3', teams.map((t) => t.name).join() === 'Equipo 1,Equipo 2,Equipo 3');
-check('defaults: 18 jugadores + Autogol', (await q(`select count(*)::int c from players where match_id=$1`, [mid]))[0].c === 19);
+check('defaults: 20 jugadores + Autogol', (await q(`select count(*)::int c from players where match_id=$1`, [mid]))[0].c === 21);
 check('defaults: arrancan A y B', m2.starting_team_ids.join() === [teams[0].id, teams[1].id].join());
 await q(`insert into players (match_id, name, sort_order, team_id) values ($1,'Pepe',1,$2), ($1,'Lucho',2,$2)`, [mid, teams[0].id]);
 const pl = Object.fromEntries((await q(`select name, id from players where match_id=$1`, [mid])).map((r) => [r.name, r.id]));
@@ -314,17 +314,18 @@ check('broadcasts en match:<código>', (await q(`select count(*)::int c from rea
 const mockSrc = readFileSync(root + '../src/app/core/mock-backend.ts', 'utf8');
 const mockRoster = [...mockSrc.slice(mockSrc.indexOf('DEFAULT_ROSTER: SeedPlayer[]'), mockSrc.indexOf('DEFAULT_PLAYERS')).matchAll(/name: '([^']+)'/g)].map((x) => x[1]);
 const sqlRoster = (await q(`select name from players where match_id=$1 and not is_own_goal and name not in ('Pepe','Lucho') order by sort_order`, [mid])).map((r) => r.name);
-check('T1: mismos 18 alias que el mock', mockRoster.length === 18 && sqlRoster.join() === mockRoster.join(), `(${sqlRoster.length})`);
+check('T1: mismos 20 nombres que el mock', mockRoster.length === 20 && sqlRoster.join() === mockRoster.join(), `(${sqlRoster.length})`);
 
 const pubT = (await q(`select get_public_match('TEST01') j`))[0].j;
-const krul = pubT.players.find((p) => p.name === 'Krul');
+const krul = pubT.players.find((p) => p.name === 'Diego');
 const fields = ['team_id', 'shirt_number', 'position', 'slot', 'modes', 'photo_id', 'costume_id'];
 check('T2: jugador con los 7 campos nuevos', fields.every((k) => k in krul), JSON.stringify(Object.keys(krul)));
-check('T2: Krul arquero de Equipo 1 en Modo 1, defensa de Equipo 3 en Modo 2',
-  krul.team_id === teams[0].id && krul.position === 'GK' && krul.shirt_number === 1 && krul.modes['1'].team_id === teams[0].id && krul.modes['2'].team_id === teams[2].id && krul.modes['2'].position === 'DEF');
+check('T2: Diego arquero de Equipo 1 en Modo 1 (Ronda 1) y de Equipo 2 en Modo 2 (Ronda 2)',
+  krul.team_id === teams[0].id && krul.position === 'GK' && krul.shirt_number === 1 && krul.modes['1'].team_id === teams[0].id && krul.modes['2'].team_id === teams[1].id && krul.modes['2'].position === 'GK');
 check('T2: 6 partidos base (3 Modo 1 + 3 Modo 2)', pubT.match.games.length === 6 && pubT.match.games.filter((g) => g.mode === 2).length === 3 && pubT.match.games[2].home === teams[1].id);
 check('B1: equipos con formación y kit', pubT.teams.every((t) => t.formation === '2-2-1') && pubT.teams.map((t) => t.kit_id).join() === 'barca,madrid,alianza');
-check('T2: 6 por equipo en Modo 1', teams.every((t) => pubT.players.filter((p) => p.team_id === t.id && !['Pepe', 'Lucho'].includes(p.name)).length === 6));
+const roster1 = (t) => pubT.players.filter((p) => p.team_id === t.id && !['Pepe', 'Lucho'].includes(p.name));
+check('T2: Ronda 1 = 7, 7 y 6; 6 en cancha y el resto al banco', roster1(teams[0]).length === 7 && roster1(teams[1]).length === 7 && roster1(teams[2]).length === 6 && teams.every((t) => roster1(t).filter((p) => p.position !== 'SUB').length === 6));
 await expectErr('T2: jugador en un equipo de otra jornada', () => q(`update players set team_id=$1 where id=$2`, [otherTeam, pl['Pepe']]), /no pertenece al partido/);
 
 await asUser(U1);

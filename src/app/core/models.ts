@@ -1,7 +1,8 @@
 export type MatchStatus = 'open' | 'closed' | 'finished';
 export type MarketTarget = 'player' | 'team' | 'number';
 export type MarketSection = 'partidos' | 'goles' | 'equipos' | 'amarillas' | 'pichanga' | 'show';
-export type PlayerPosition = 'GK' | 'DEF' | 'MID' | 'FWD';
+/** SUB = banco: está en el equipo pero no se dibuja en la cancha. */
+export type PlayerPosition = 'GK' | 'DEF' | 'MID' | 'FWD' | 'SUB';
 export type GameModeId = 1 | 2 | 3;
 /** Eventos de un solo jugador (se registran con dos toques). */
 export type PlayerEventType = 'yellow' | 'red' | 'nutmeg' | 'blooper' | 'penalty' | 'penalty_miss' | 'post' | 'golazo' | 'dive';

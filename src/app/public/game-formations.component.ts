@@ -25,6 +25,8 @@ interface Half {
   gkKit: Kit;
   /** Filas de arriba hacia abajo (visitante: arco arriba; local: arco abajo). */
   rows: PitchRow[];
+  /** Nombres en el banco (no se dibujan en la cancha). */
+  bench: string[];
 }
 
 /** Arquero de magenta (salvo que la camiseta ya sea magenta). */
@@ -107,6 +109,14 @@ const BOARD_LINES = ['¡Eso, tilín!', 'Qué lechero', 'Al toque, causa', 'Se mu
           </button>
         }
       </div>
+      @if (benchOf().length) {
+        <p class="px-3 pb-2 text-[11.5px] font-semibold text-emerald-100/80">
+          🪑 Banco:
+          @for (h of benchOf(); track h.id; let first = $first) {
+            {{ first ? '' : ' · ' }}<b class="text-white">{{ h.bench.join(', ') }}</b> ({{ h.name }})
+          }
+        </p>
+      }
 
       <!-- Selector horizontal de mercado a jugador -->
       @if (playerMarkets().length) {
@@ -326,7 +336,8 @@ export class GameFormationsComponent {
     return [g.home, g.away].map((id, i) => {
       const t = this.ctx.teamById().get(id);
       const ring = this.ctx.teamColor(id);
-      const rows = this.rowsOf(this.ctx.teamPlayers(id, mode));
+      const all = this.ctx.teamPlayers(id, mode);
+      const rows = this.rowsOf(all.filter((p) => p.position !== 'SUB'));
       return {
         id,
         name: t?.name ?? this.ctx.team(id),
@@ -336,9 +347,12 @@ export class GameFormationsComponent {
         gkKit: gkKitFor(ring),
         // Local (i = 0) ataca hacia arriba: delanteros arriba, arquero abajo. Visitante al revés.
         rows: i === 0 ? rows : [...rows].reverse(),
+        bench: all.filter((p) => p.position === 'SUB').map((p) => p.name),
       };
     });
   });
+
+  protected readonly benchOf = computed(() => this.halvesByRole().filter((h) => h.bench.length));
 
   /** Mitades de la cancha de arriba hacia abajo: visitante, local. */
   protected readonly halves = computed(() => {

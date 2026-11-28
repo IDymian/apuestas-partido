@@ -118,32 +118,34 @@ const DEFAULT_TEAMS = DEFAULT_TEAM_KITS.map((t, i) => ({
 }));
 
 /**
- * Plantel real de los 18 confirmados (6 vs 6 por equipo) en:
- *  - Modo 1 (Equipos chocolateados): E1 Krul ARQ · E2 Balicco ARQ · E3 David Arquero ARQ
- *  - Modo 2 (Equipo del cumpleañero): E1 Braden ARQ · E2 Adrix ARQ · E3 David Arquero ARQ
+ * Plantel confirmado (20). Modo 1 = Ronda 1 del sorteo; Modo 2 = Ronda 2 (provisional hasta definir el formato).
+ * Equipos de 7 y 6: en cada equipo el orden es ARQ, DEF, DEF, MED, MED, DEL y el 7º al banco (SUB).
+ * Posiciones y dorsales son de arranque: el admin los cambia.
  */
 export const DEFAULT_ROSTER: SeedPlayer[] = [
-  // Modo 1 · Equipo 1 (Equipo 1)
-  { name: 'Krul',        m1: { team: 1, shirt: 1,  position: 'GK',  slot: 0 }, m2: { team: 3, shirt: 5,  position: 'DEF', slot: 1 } },
-  { name: 'Manuel',      m1: { team: 1, shirt: 4,  position: 'DEF', slot: 0 }, m2: { team: 3, shirt: 4,  position: 'DEF', slot: 0 } },
-  { name: 'David Vivar', m1: { team: 1, shirt: 5,  position: 'DEF', slot: 1 }, m2: { team: 2, shirt: 3,  position: 'DEF', slot: 0 } },
-  { name: 'Fabian',      m1: { team: 1, shirt: 8,  position: 'MID', slot: 0 }, m2: { team: 2, shirt: 8,  position: 'MID', slot: 0 } },
-  { name: 'Alexis',      m1: { team: 1, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 2, shirt: 10, position: 'FWD', slot: 0 } },
-  { name: 'Nicolas',     m1: { team: 1, shirt: 9,  position: 'FWD', slot: 0 }, m2: { team: 3, shirt: 9,  position: 'FWD', slot: 0 } },
-  // Modo 1 · Equipo 2 (Equipo 2)
-  { name: 'Balicco',     m1: { team: 2, shirt: 1,  position: 'GK',  slot: 0 }, m2: { team: 2, shirt: 6,  position: 'DEF', slot: 1 } },
-  { name: 'Braden',      m1: { team: 2, shirt: 3,  position: 'DEF', slot: 0 }, m2: { team: 1, shirt: 1,  position: 'GK',  slot: 0 } },
-  { name: 'Victor',      m1: { team: 2, shirt: 6,  position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 4,  position: 'DEF', slot: 0 } },
-  { name: 'Iker',        m1: { team: 2, shirt: 7,  position: 'MID', slot: 0 }, m2: { team: 3, shirt: 7,  position: 'MID', slot: 1 } },
-  { name: 'Angel',       m1: { team: 2, shirt: 11, position: 'MID', slot: 1 }, m2: { team: 1, shirt: 8,  position: 'MID', slot: 0 } },
-  { name: 'Álvaro',      m1: { team: 2, shirt: 10, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 10, position: 'FWD', slot: 0 } },
-  // Modo 1 · Equipo 3 (Equipo 3) — David Arquero siempre al arco
-  { name: 'David Arquero', m1: { team: 3, shirt: 1,  position: 'GK',  slot: 0 }, m2: { team: 3, shirt: 1,  position: 'GK',  slot: 0 } },
-  { name: 'Adrix',         m1: { team: 3, shirt: 2,  position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 1,  position: 'GK',  slot: 0 } },
-  { name: 'Oscar',         m1: { team: 3, shirt: 4,  position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 5,  position: 'DEF', slot: 1 } },
-  { name: 'Digetto',       m1: { team: 3, shirt: 8,  position: 'MID', slot: 0 }, m2: { team: 3, shirt: 8,  position: 'MID', slot: 0 } },
-  { name: 'Andreow',       m1: { team: 3, shirt: 11, position: 'MID', slot: 1 }, m2: { team: 2, shirt: 11, position: 'MID', slot: 1 } },
-  { name: 'Bryan',         m1: { team: 3, shirt: 9,  position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 9,  position: 'MID', slot: 1 } },
+  // Ronda 1 · Equipo 1
+  { name: 'Diego', m1: { team: 1, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 2, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'Mate', m1: { team: 1, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 4, position: 'DEF', slot: 0 } },
+  { name: 'Angel', m1: { team: 1, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'Victor', m1: { team: 1, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 1, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Manuel', m1: { team: 1, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 10, position: 'MID', slot: 1 } },
+  { name: 'Iker', m1: { team: 1, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 2, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Nestor', m1: { team: 1, shirt: 12, position: 'SUB', slot: 0 }, m2: { team: 3, shirt: 4, position: 'DEF', slot: 0 } },
+  // Ronda 1 · Equipo 2
+  { name: 'Paul', m1: { team: 2, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 3, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'Nicolas', m1: { team: 2, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'Oscar', m1: { team: 2, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 10, position: 'MID', slot: 1 } },
+  { name: 'Braden', m1: { team: 2, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 1, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Adrian', m1: { team: 2, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'David Vivar', m1: { team: 2, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 12, position: 'SUB', slot: 0 } },
+  { name: 'David Málaga', m1: { team: 2, shirt: 12, position: 'SUB', slot: 0 }, m2: { team: 2, shirt: 10, position: 'MID', slot: 1 } },
+  // Ronda 1 · Equipo 3
+  { name: 'Andreow', m1: { team: 3, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 3, shirt: 12, position: 'SUB', slot: 0 } },
+  { name: 'Fabian', m1: { team: 3, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 3, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Álvaro', m1: { team: 3, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'Alexis', m1: { team: 3, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 2, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Balicco', m1: { team: 3, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Bryan', m1: { team: 3, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 4, position: 'DEF', slot: 0 } },
 ];
 
 export const DEFAULT_PLAYERS = DEFAULT_ROSTER.map((p) => p.name);

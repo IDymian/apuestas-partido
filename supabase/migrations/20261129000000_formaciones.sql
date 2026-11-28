@@ -1,7 +1,7 @@
 -- =============================================================================
 -- Formaciones 6v6, 3 modos y equipos dinámicos
 --
---   * Plantel canónico: los 18 alias de la app (mock) en 3 equipos de 6 (Equipo 1,
+--   * Plantel canónico: los 20 confirmados (Ronda 1 del sorteo) en equipos de 7, 7 y 6 (Equipo 1,
 --     Equipo 2 e Equipo 3, con su camiseta en `kit_id`), con su
 --     lugar en Modo 1 y Modo 2. El 4º equipo (o más) se crea desde el admin.
 --   * `matches.games`: lista de partidos { number, home, away, mode }. Los 6 base
@@ -34,7 +34,7 @@ alter table public.players
 
 alter table public.players drop constraint if exists players_position_check;
 alter table public.players add constraint players_position_check
-  check (position is null or position in ('GK', 'DEF', 'MID', 'FWD'));
+  check (position is null or position in ('GK', 'DEF', 'MID', 'FWD', 'SUB'));
 
 -- Nadie queda en un equipo de otro partido.
 create or replace function public.tg_player_team_check() returns trigger
@@ -169,7 +169,7 @@ $$;
 revoke execute on function public.copa_extra_markets(uuid) from public, anon, authenticated;
 
 -- -----------------------------------------------------------------------------
--- 3. Jornada por defecto: 3 equipos, los 18 alias y los 6 partidos base
+-- 3. Jornada por defecto: 3 equipos, los 20 jugadores (el 7º de cada equipo al banco) y los 6 partidos base
 -- -----------------------------------------------------------------------------
 create or replace function public.tg_match_defaults()
 returns trigger
@@ -212,24 +212,26 @@ begin
            '1', jsonb_build_object('team_id', v_t[r.t1], 'shirt_number', r.n1, 'position', r.p1, 'slot', r.s1),
            '2', jsonb_build_object('team_id', v_t[r.t2], 'shirt_number', r.n2, 'position', r.p2, 'slot', r.s2))
   from (values
-    (1,  'Krul',          1, 1,  'GK',  0, 3, 5,  'DEF', 1),
-    (2,  'Manuel',        1, 4,  'DEF', 0, 3, 4,  'DEF', 0),
-    (3,  'David Vivar',   1, 5,  'DEF', 1, 2, 3,  'DEF', 0),
-    (4,  'Fabian',        1, 8,  'MID', 0, 2, 8,  'MID', 0),
-    (5,  'Alexis',        1, 10, 'MID', 1, 2, 10, 'FWD', 0),
-    (6,  'Nicolas',       1, 9,  'FWD', 0, 3, 9,  'FWD', 0),
-    (7,  'Balicco',       2, 1,  'GK',  0, 2, 6,  'DEF', 1),
-    (8,  'Braden',        2, 3,  'DEF', 0, 1, 1,  'GK',  0),
-    (9,  'Victor',        2, 6,  'DEF', 1, 1, 4,  'DEF', 0),
-    (10, 'Iker',          2, 7,  'MID', 0, 3, 7,  'MID', 1),
-    (11, 'Angel',         2, 11, 'MID', 1, 1, 8,  'MID', 0),
-    (12, 'Álvaro',        2, 10, 'FWD', 0, 1, 10, 'FWD', 0),
-    (13, 'David Arquero', 3, 1,  'GK',  0, 3, 1,  'GK',  0),
-    (14, 'Adrix',         3, 2,  'DEF', 0, 2, 1,  'GK',  0),
-    (15, 'Oscar',         3, 4,  'DEF', 1, 1, 5,  'DEF', 1),
-    (16, 'Digetto',       3, 8,  'MID', 0, 3, 8,  'MID', 0),
-    (17, 'Andreow',       3, 11, 'MID', 1, 2, 11, 'MID', 1),
-    (18, 'Bryan',         3, 9,  'FWD', 0, 1, 9,  'MID', 1)
+    (1, 'Diego', 1, 1, 'GK', 0, 2, 1, 'GK', 0),
+    (2, 'Mate', 1, 4, 'DEF', 0, 2, 4, 'DEF', 0),
+    (3, 'Angel', 1, 5, 'DEF', 1, 1, 5, 'DEF', 1),
+    (4, 'Victor', 1, 8, 'MID', 0, 1, 8, 'MID', 0),
+    (5, 'Manuel', 1, 10, 'MID', 1, 3, 10, 'MID', 1),
+    (6, 'Iker', 1, 9, 'FWD', 0, 2, 8, 'MID', 0),
+    (7, 'Nestor', 1, 12, 'SUB', 0, 3, 4, 'DEF', 0),
+    (8, 'Paul', 2, 1, 'GK', 0, 3, 5, 'DEF', 1),
+    (9, 'Nicolas', 2, 4, 'DEF', 0, 2, 5, 'DEF', 1),
+    (10, 'Oscar', 2, 5, 'DEF', 1, 1, 10, 'MID', 1),
+    (11, 'Braden', 2, 8, 'MID', 0, 1, 9, 'FWD', 0),
+    (12, 'Adrian', 2, 10, 'MID', 1, 3, 1, 'GK', 0),
+    (13, 'David Vivar', 2, 9, 'FWD', 0, 1, 12, 'SUB', 0),
+    (14, 'David Málaga', 2, 12, 'SUB', 0, 2, 10, 'MID', 1),
+    (15, 'Andreow', 3, 1, 'GK', 0, 3, 12, 'SUB', 0),
+    (16, 'Fabian', 3, 4, 'DEF', 0, 3, 8, 'MID', 0),
+    (17, 'Álvaro', 3, 5, 'DEF', 1, 1, 1, 'GK', 0),
+    (18, 'Alexis', 3, 8, 'MID', 0, 2, 9, 'FWD', 0),
+    (19, 'Balicco', 3, 10, 'MID', 1, 3, 9, 'FWD', 0),
+    (20, 'Bryan', 3, 9, 'FWD', 0, 1, 4, 'DEF', 0)
   ) as r(ord, name, t1, n1, p1, s1, t2, n2, p2, s2);
 
   -- Solo lo que es de toda la noche: los "primer…" van por partido (copa_game_markets).

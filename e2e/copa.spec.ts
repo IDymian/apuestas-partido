@@ -95,11 +95,11 @@ test('cupón con apuestas desde Formaciones, Populares y Especiales; se ve en Mi
 
   await page.getByRole('tab', { name: 'Makanakis' }).click();
   await page.getByRole('button', { name: /El más leñero/ }).click();
-  await page.getByRole('button', { name: /^Digetto · apostado/ }).click();
+  await page.getByRole('button', { name: /^Diego · apostado/ }).click();
 
   await page.getByRole('button', { name: /Ver ticket/ }).click();
   await expect(page.getByRole('heading', { name: /Ticket \(4\)/ })).toBeVisible();
-  await page.getByRole('group', { name: /Monto para Digetto/ }).getByRole('button', { name: 'S/ 3' }).click();
+  await page.getByRole('group', { name: /Monto para Diego/ }).getByRole('button', { name: 'S/ 3' }).click();
   await expectNoHorizontalScroll(page);
   await shot(page, '03-cupon');
   await page.getByRole('button', { name: /Apostar S\/ 6\.00/ }).click();
@@ -153,9 +153,6 @@ test('registro con correo, depósito por Plin y el admin lo acredita', async ({ 
   await page.getByLabel('Contraseña', { exact: true }).fill(user.password);
   await page.getByLabel('Repite la contraseña').fill(user.password);
   await page.getByRole('button', { name: /Crear cuenta/ }).click();
-  await expect(page.getByRole('heading', { name: 'Revisa tu correo' })).toBeVisible();
-  await page.getByRole('button', { name: 'Confirmar mi cuenta' }).click();
-  await page.getByRole('button', { name: /Ir a la jornada/ }).click();
 
   // Sin saldo: el ticket pide depositar lo que falta
   await page.getByRole('button', { name: /^Empate · apostado/ }).first().click();
