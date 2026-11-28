@@ -7,12 +7,14 @@ import {
   SettlementRow,
   AdminMatchData,
   EventRow,
+  GameModeId,
   MarketRow,
   MarketType,
   MatchInput,
   MatchRow,
   MatchStatus,
   PaidRow,
+  PlayerRow,
   TicketRow,
   TicketStatus,
 } from './models';
@@ -22,6 +24,7 @@ import { uuid } from './uid';
 
 export type NewEvent = Pick<EventRow, 'match_id' | 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute' | 'game'>;
 export type EventPatch = Partial<Pick<EventRow, 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute' | 'game'>>;
+export type PlayerPatch = Partial<Pick<PlayerRow, 'name' | 'team_id' | 'shirt_number' | 'position' | 'slot' | 'modes' | 'photo_id' | 'costume_id'>>;
 
 /** Operaciones del organizador (requieren login de admin). */
 export abstract class AdminApi {
@@ -41,11 +44,18 @@ export abstract class AdminApi {
   abstract setCurrentGame(matchId: string, game: number, live?: boolean): Promise<void>;
   /** Prende o apaga "en vivo" para el partido actual. */
   abstract setGameLive(matchId: string, live: boolean): Promise<void>;
+  /** Crea e inicia el siguiente partido de la rotación (rey de la cancha) con sus mercados. */
+  abstract addGame(matchId: string, homeTeamId: string, awayTeamId: string, goLive?: boolean, mode?: GameModeId): Promise<number>;
   abstract uploadQr(matchId: string, file: Blob): Promise<void>;
   abstract removeQr(matchId: string): Promise<void>;
 
+  /** Crea un equipo al final del orden (color gris si no se elige; `kitId` del catálogo de camisetas). Devuelve su id. */
+  abstract addTeam(matchId: string, name: string, color?: string, kitId?: string | null): Promise<string>;
   abstract addPlayers(matchId: string, names: string[]): Promise<void>;
   abstract renamePlayer(id: string, name: string): Promise<void>;
+  /** Sube la foto del jugador (WebP, con su permiso) y la deja como su `photo_id`. */
+  abstract uploadPlayerPhoto(playerId: string, file: Blob): Promise<void>;
+  abstract updatePlayer(id: string, patch: PlayerPatch): Promise<void>;
   abstract deletePlayer(id: string): Promise<void>;
 
   abstract saveMarket(m: Partial<MarketRow> & { match_id: string }): Promise<void>;
@@ -219,6 +229,18 @@ export class SupabaseAdminApi extends AdminApi {
     if (error) throw error;
   }
 
+  async addGame(matchId: string, homeTeamId: string, awayTeamId: string, goLive = false, mode: GameModeId = 1): Promise<number> {
+    const { data, error } = await this.db.rpc('admin_add_game', {
+      p_match: matchId,
+      p_home: homeTeamId,
+      p_away: awayTeamId,
+      p_live: goLive,
+      p_mode: mode,
+    });
+    if (error) throw error;
+    return Number(data);
+  }
+
   async setStartingTeams(matchId: string, teamIds: [string, string]) {
     const { error } = await this.db.from('matches').update({ starting_team_ids: teamIds }).eq('id', matchId);
     if (error) throw error;
@@ -237,6 +259,12 @@ export class SupabaseAdminApi extends AdminApi {
     if (error) throw error;
   }
 
+  async addTeam(matchId: string, name: string, color?: string, kitId: string | null = null): Promise<string> {
+    const { data, error } = await this.db.rpc('admin_add_team', { p_match: matchId, p_name: name, p_color: color ?? null, p_kit: kitId });
+    if (error) throw error;
+    return String(data);
+  }
+
   async addPlayers(matchId: string, names: string[]) {
     const { data: last } = await this.db
       .from('players')
@@ -251,8 +279,22 @@ export class SupabaseAdminApi extends AdminApi {
     if (error) throw error;
   }
 
+  async uploadPlayerPhoto(playerId: string, file: Blob) {
+    const up = await this.db.storage
+      .from('avatares')
+      .upload(`jugadores/${playerId}.webp`, file, { contentType: 'image/webp', upsert: true, cacheControl: '60' });
+    if (up.error) throw up.error;
+    const { error } = await this.db.from('players').update({ photo_id: playerId }).eq('id', playerId);
+    if (error) throw error;
+  }
+
   async renamePlayer(id: string, name: string) {
     const { error } = await this.db.from('players').update({ name }).eq('id', id);
+    if (error) throw error;
+  }
+
+  async updatePlayer(id: string, patch: PlayerPatch) {
+    const { error } = await this.db.from('players').update(patch).eq('id', id);
     if (error) throw error;
   }
 

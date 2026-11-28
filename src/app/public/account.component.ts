@@ -2,6 +2,7 @@ import { Component, computed, inject, output, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { balanceLabel } from '../core/models';
 import { AuthApi } from '../core/auth';
+import { AvatarService } from '../core/avatars';
 import { WalletService } from '../core/wallet';
 import { formatSoles } from '../domain/settlement';
 import { MatchContext } from './match-context';
@@ -30,6 +31,8 @@ import { sound } from '../ui/sound';
           <p class="font-display text-3xl font-extrabold tabular-nums" data-testid="balance">{{ balanceText() }}</p>
           @if (pending() > 0) {
             <p class="text-xs font-semibold text-white/90">S/ {{ pending() }} por confirmar</p>
+          } @else if ((wallet.balance() ?? 1) < 1) {
+            <p class="text-xs font-semibold text-white/90">Estás misio, causa. Recarga y vuelve a la cancha.</p>
           }
         </div>
         <button type="button" class="inline-flex h-11 items-center gap-1.5 rounded-2xl bg-white px-4 font-extrabold text-lime active:scale-95" (click)="ctx.depositAsk.set({ amount: null })">
@@ -39,8 +42,36 @@ import { sound } from '../ui/sound';
 
       @if (wallet.credits().length) {
         <p class="mt-3 rounded-2xl bg-lime/10 p-3 text-sm font-semibold text-lime">
-          🏆 Te acreditaron {{ soles(creditsTotal()) }} en ganancias y devoluciones.
+          🏆 ¡Eso, tilín! Te cayeron {{ soles(creditsTotal()) }} al saldo.
         </p>
+      }
+
+      <!-- Especiales: los asigna el organizador; acá solo se ven y se avisa que primero hay que recargar -->
+      @if (avatars.costumes().length) {
+        <section class="glass mt-3 p-3.5">
+          <p class="font-bold">Avatares especiales</p>
+          <p class="text-xs text-mute">Toca uno para pedirlo.</p>
+          <div class="no-scrollbar -mx-1 mt-2.5 flex gap-2 overflow-x-auto px-1 py-0.5">
+            @for (c of avatars.costumes(); track c.id) {
+              <button
+                type="button"
+                class="h-14 w-14 shrink-0 overflow-hidden rounded-full border-2 bg-white transition active:scale-95"
+                [class]="wanted() === c.id ? 'border-lime' : 'border-ink/10'"
+                [attr.aria-label]="'Quiero el especial ' + c.id"
+                [attr.aria-pressed]="wanted() === c.id"
+                (click)="wanted.set(c.id)"
+              >
+                <img [src]="avatars.url(c.id)" alt="" width="56" height="56" loading="lazy" class="h-full w-full object-cover" />
+              </button>
+            }
+          </div>
+          @if (wanted()) {
+            <div class="mt-3 flex items-center gap-3 rounded-2xl bg-lime/10 p-3 anim-in">
+              <p class="min-w-0 flex-1 text-sm font-semibold text-ink">Para tener un especial, primero recarga tu saldo. Después el organizador te lo pone.</p>
+              <button type="button" class="btn-primary h-10 shrink-0 px-3 text-sm" (click)="ctx.depositAsk.set({ amount: null })">Recargar</button>
+            </div>
+          }
+        </section>
       }
 
       <div class="mt-5 anim-in" style="--i: 2">
@@ -68,6 +99,8 @@ export class AccountComponent {
   protected readonly auth = inject(AuthApi);
   protected readonly wallet = inject(WalletService);
   protected readonly ctx = inject(MatchContext);
+  protected readonly avatars = inject(AvatarService);
+  protected readonly wanted = signal<string | null>(null);
   private router = inject(Router);
   protected readonly soles = formatSoles;
   protected readonly muted = signal(sound.muted);

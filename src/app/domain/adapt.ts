@@ -1,4 +1,4 @@
-import { AdminMatchData, betSelection, MatchEvent, MarketTarget, Player, PublicMatchData, Team } from '../core/models';
+import { AdminMatchData, betSelection, MatchEvent, MarketTarget, Player, PublicMatchData, ScheduledGame, Team } from '../core/models';
 import { numberMaxOption, SettleInput, SettleMarket } from './settlement';
 import { sortEvents, TimelineEvent } from './timeline';
 import { fixture } from './league';
@@ -48,6 +48,7 @@ export function publicToSettleInput(d: PublicMatchData): SettleInput {
     currentGame: d.match.current_game ?? 1,
     finished: d.match.status === 'finished',
     live: !!d.match.game_live,
+    games: d.match.games ?? null,
     bets: d.bets.map((b) => ({
       ticketId: b.ticket_id,
       ticketStatus: 'approved',
@@ -71,6 +72,7 @@ export function adminToSettleInput(d: AdminMatchData): SettleInput {
     currentGame: d.match.current_game ?? 1,
     finished: d.match.status === 'finished',
     live: !!d.match.game_live,
+    games: d.match.games ?? null,
     bets: tickets.flatMap((t) =>
       t.bets.map((b) => ({
         ticketId: t.id,
@@ -85,10 +87,10 @@ export function adminToSettleInput(d: AdminMatchData): SettleInput {
 }
 
 /** Nombre legible de una selección: jugador, equipo, número ("racha de 3") o resultado de un partido. */
-export function makeSelectionLabel(players: Player[], teams: Team[]) {
+export function makeSelectionLabel(players: Player[], teams: Team[], explicitGames?: ScheduledGame[] | null) {
   const p = new Map(players.map((x) => [x.id, x.name]));
   const t = new Map(teams.map((x) => [x.id, x.name]));
-  const games = fixture(teamOrder(teams));
+  const games = explicitGames?.length ? explicitGames : fixture(teamOrder(teams));
   return (target: MarketTarget | undefined, selection: string | null, type?: string, param?: number | null): string => {
     if (selection == null) return '¿?';
     if (target === 'team') return t.get(selection) ?? '¿?';

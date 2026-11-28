@@ -2,10 +2,10 @@ import { Component, computed, effect, inject, input, output, signal, untracked }
 import { NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { AdminApi } from '../core/admin-api';
-import { AdminMatchData, elapsedMinutes, EventRow, EventType, isPlayerEvent, PLAYER_EVENT_TYPES, PLAYER_EVENTS, PlayerEventType, PlayerRow } from '../core/models';
+import { AdminMatchData, elapsedMinutes, EventRow, EventType, GAME_MODES, GameModeId, isPlayerEvent, PLAYER_EVENT_TYPES, PLAYER_EVENTS, PlayerEventType, PlayerRow } from '../core/models';
 import { friendlyError } from '../core/public-api';
 import { teamOrder, toTimelineEvents } from '../domain/adapt';
-import { league } from '../domain/league';
+import { league, nextRotationMatchup } from '../domain/league';
 
 type Action = 'goal' | 'own_goal' | PlayerEventType;
 
@@ -58,11 +58,58 @@ const ACTIONS: { id: Action; label: string; icon: string }[] = [
         }
       </div>
 
+      <!-- Rotación rey de la cancha: crear e iniciar el siguiente partido según quién ganó -->
+      @if (teams().length >= 2 && data().match.status !== 'finished') {
+        <div class="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50/70 p-3">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-extrabold text-emerald-950 uppercase">Siguiente partido (rey de la cancha)</p>
+            @if (suggested(); as sug) {
+              <span class="text-[11px] font-semibold text-emerald-800">
+                {{ sug.tied ? 'Empate: elige quién se queda' : 'Sugerido por ganador' }}
+              </span>
+            }
+          </div>
+          <div class="mt-2 flex flex-wrap gap-1.5">
+            @for (m of modes; track m.id) {
+              <button
+                type="button"
+                class="rounded-xl border px-2.5 py-1 text-xs font-bold transition"
+                [class]="nextMode() === m.id ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-emerald-200 bg-white text-emerald-950'"
+                (click)="pickNextMode(m.id)"
+              >
+                {{ m.short }} · {{ m.id === 1 ? 'Chocolateados' : m.id === 2 ? 'Cumpleañero' : 'Draft 👑' }}
+              </button>
+            }
+          </div>
+          <div class="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-1.5">
+            <select class="input h-10 text-sm font-semibold" [(ngModel)]="nextHome" name="nextHome" aria-label="Equipo local del siguiente partido">
+              @for (t of teams(); track t.id) {
+                <option [value]="t.id">{{ t.name }}</option>
+              }
+            </select>
+            <span class="text-xs font-bold text-slate-400">vs</span>
+            <select class="input h-10 text-sm font-semibold" [(ngModel)]="nextAway" name="nextAway" aria-label="Equipo visitante del siguiente partido">
+              @for (t of teams(); track t.id) {
+                <option [value]="t.id">{{ t.name }}</option>
+              }
+            </select>
+          </div>
+          <div class="mt-2 grid grid-cols-2 gap-2">
+            <button type="button" class="btn-secondary h-10 text-xs" [disabled]="busy() || !nextHome || !nextAway || nextHome === nextAway" (click)="createNextGame(false)">
+              + Crear partido {{ lg.games.length + 1 }}
+            </button>
+            <button type="button" class="btn-primary h-10 text-xs" [disabled]="busy() || !nextHome || !nextAway || nextHome === nextAway" (click)="createNextGame(true)">
+              ▶ Crear y poner en vivo
+            </button>
+          </div>
+        </div>
+      }
+
       <ul class="mt-3 divide-y divide-slate-100 text-sm">
         @for (g of lg.games; track g.number) {
           <li>
             <button type="button" class="flex w-full items-center gap-2 py-2 text-left" [class.font-bold]="g.number === data().match.current_game" (click)="setGame(g.number)">
-              <span class="w-6 shrink-0 text-xs text-slate-400">P{{ g.number }}</span>
+              <span class="w-11 shrink-0 text-xs text-slate-400">{{ g.mode ? 'M' + g.mode + '·' : '' }}P{{ g.number }}</span>
               <span class="min-w-0 flex-1 truncate">{{ teamName(g.home) }} vs {{ teamName(g.away) }}</span>
               <span class="shrink-0 font-mono">{{ g.status === 'pending' ? '—' : g.homeGoals + ' - ' + g.awayGoals }}</span>
               <span class="w-16 shrink-0 text-right text-[11px]" [class]="g.status === 'live' ? 'text-emerald-700' : 'text-slate-400'">
@@ -256,6 +303,7 @@ export class EventsTabComponent {
   private api = inject(AdminApi);
 
   protected actions = ACTIONS;
+  protected modes = GAME_MODES;
   protected playerEvents = PLAYER_EVENTS;
   protected playerEventTypes = PLAYER_EVENT_TYPES;
   protected minute: number | null = null;
@@ -268,6 +316,9 @@ export class EventsTabComponent {
   /** Último gol registrado desde aquí (para marcarlo como golazo con un toque). */
   protected lastGoal = signal<{ playerId: string; name: string; minute: number; game: number } | null>(null);
   protected edit = { type: 'goal' as EventType, minute: 0, game: 1, player_id: '', team_id: '', is_own_goal: false };
+  protected nextMode = signal<GameModeId>(1);
+  protected nextHome = '';
+  protected nextAway = '';
 
   protected teams = computed(() => [...this.data().teams].sort((a, b) => a.sort_order - b.sort_order));
   protected players = computed(() => this.data().players.filter((p) => !p.is_own_goal).sort((a, b) => a.sort_order - b.sort_order));
@@ -281,8 +332,10 @@ export class EventsTabComponent {
       this.data().match.current_game ?? 1,
       this.data().match.status === 'finished',
       !!this.data().match.game_live,
+      this.data().match.games ?? null,
     ),
   );
+  protected suggested = computed(() => nextRotationMatchup(this.liga().games, teamOrder(this.data().teams), this.nextMode()));
   protected currentGame = computed(() => this.liga().games.find((g) => g.number === (this.data().match.current_game ?? 1)) ?? null);
   protected curTeams = computed(() => {
     const g = this.currentGame();
@@ -296,6 +349,16 @@ export class EventsTabComponent {
       const closed = this.data().match.closed_at;
       untracked(() => {
         if (this.minute === null) this.minute = elapsedMinutes(closed);
+      });
+    });
+    // Pre-sugiere el cruce siguiente según el ganador del último partido.
+    effect(() => {
+      const sug = this.suggested();
+      untracked(() => {
+        if (sug) {
+          this.nextHome = sug.home;
+          this.nextAway = sug.away;
+        }
       });
     });
   }
@@ -363,10 +426,27 @@ export class EventsTabComponent {
     const g = this.currentGame();
     if (!g) return;
     if (!confirm(`¿Terminar el partido ${g.number}? Queda ${this.teamName(g.home)} ${g.homeGoals} - ${g.awayGoals} ${this.teamName(g.away)}.`)) return;
-    // current_game = siguiente; si era el último, queda "todos terminados".
+    // current_game = siguiente; si era el último, queda "todos terminados" hasta que el admin cree el siguiente.
     await this.run(() => this.api.setCurrentGame(this.data().match.id, g.number + 1, false), `🏁 Terminó el partido ${g.number}`);
     this.goalTeam.set(null);
     this.lastGoal.set(null);
+  }
+
+  pickNextMode(m: GameModeId) {
+    this.nextMode.set(m);
+  }
+
+  async createNextGame(goLive: boolean) {
+    if (!this.nextHome || !this.nextAway || this.nextHome === this.nextAway) return;
+    const mode = this.nextMode();
+    const label = `M${mode} · ${this.teamName(this.nextHome)} vs ${this.teamName(this.nextAway)}`;
+    await this.run(
+      () => this.api.addGame(this.data().match.id, this.nextHome, this.nextAway, goLive, mode),
+      goLive ? `▶ En vivo: ${label}` : `✓ Creado siguiente partido: ${label}`,
+    );
+    this.goalTeam.set(null);
+    this.lastGoal.set(null);
+    if (goLive) this.refreshMinute();
   }
 
   private validMinute(): number | null {

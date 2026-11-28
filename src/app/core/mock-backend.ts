@@ -6,13 +6,14 @@
  * Admin local: cualquier correo y contraseña.
  */
 import { inject, Injectable } from '@angular/core';
-import { AdminApi, EventPatch, NewEvent } from './admin-api';
+import { AdminApi, EventPatch, NewEvent, PlayerPatch } from './admin-api';
 import { AuthApi } from './auth';
-import { fixture, league, marketOpen } from '../domain/league';
+import { league, marketOpen } from '../domain/league';
 import { GAME_MARKETS } from '../domain/game-markets';
 import { numberMaxOption } from '../domain/settlement';
 import { teamOrder, toTimelineEvents } from '../domain/adapt';
 import { uuid } from './uid';
+import { DEFAULT_TEAM_KITS, KIT_BY_ID, kitAccent } from './kits';
 import {
   AdminMatchData,
   ChatMessage,
@@ -25,6 +26,7 @@ import {
   MyTicket,
   Wallet,
   EventRow,
+  GameModeId,
   MarketRow,
   MarketType,
   MatchInput,
@@ -32,8 +34,10 @@ import {
   MatchStatus,
   MAX_BETS_PER_TICKET,
   PaidRow,
+  PlayerPosition,
   PlayerRow,
   PublicMatchData,
+  ScheduledGame,
   TeamRow,
   TicketRow,
   TicketStatus,
@@ -47,7 +51,7 @@ const uid = (): string => uuid();
 export const MARKET_TYPES: MarketType[] = [
   { type: 'first_goal', label: 'Primer gol', target: 'player', section: 'goles', has_param: false, option_min: null, option_max: null, allows_own_goal: true },
   { type: 'last_goal', label: 'Último gol', target: 'player', section: 'goles', has_param: false, option_min: null, option_max: null, allows_own_goal: true },
-  { type: 'top_scorer', label: 'Pichichi (más goles)', target: 'player', section: 'goles', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
+  { type: 'top_scorer', label: 'Goleador (más goles)', target: 'player', section: 'goles', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'first_to_n_goals', label: 'Primero en llegar a N goles', target: 'player', section: 'goles', has_param: true, option_min: null, option_max: null, allows_own_goal: false },
   { type: 'nth_goal', label: 'Gol número N', target: 'player', section: 'goles', has_param: true, option_min: null, option_max: null, allows_own_goal: true },
   { type: 'first_yellow', label: 'Primera amarilla', target: 'player', section: 'amarillas', has_param: false, option_min: null, option_max: null, allows_own_goal: false },
@@ -75,29 +79,16 @@ export const MARKET_TYPES: MarketType[] = [
 
 /** Igual que los triggers de la BD: los mercados de toda la jornada (los de cada partido se agregan aparte). */
 const DEFAULT_MARKETS: [string, string, number | null][] = [
-  ['Primer gol de la noche', 'first_goal', null],
-  ['Último gol de la noche', 'last_goal', null],
-  ['Pichichi de la noche', 'top_scorer', null],
-  ['Primer cuartete', 'first_to_n_goals', 4],
-  ['Primer sextete', 'first_to_n_goals', 6],
+  ['Goleador de la noche', 'top_scorer', null],
+  ['Primero en meter 4', 'first_to_n_goals', 4],
+  ['Primero en meter 6', 'first_to_n_goals', 6],
   ['Gol número 15', 'nth_goal', 15],
   ['Gol número 28', 'nth_goal', 28],
-  ['Primera amarilla', 'first_yellow', null],
-  ['Última amarilla', 'last_yellow', null],
-  ['El más amonestado', 'most_yellows', null],
-  ['Primer autogol', 'first_own_goal', null],
-  ['Primera huacha', 'first_nutmeg_victim', null],
+  ['El más leñero (más amarillas)', 'most_yellows', null],
   ['Campeón de la liga', 'best_team', null],
-  ['Último de la tabla', 'worst_team', null],
+  ['El colero (peor equipo)', 'worst_team', null],
   ['Equipo más goleador', 'top_scoring_team', null],
   ['Equipo más goleado', 'most_conceded_team', null],
-  ['Primera roja', 'first_red', null],
-  ['Primer blooper', 'first_blooper', null],
-  ['Primer penal cometido', 'first_penalty_conceded', null],
-  ['Primer penal fallado', 'first_penalty_missed', null],
-  ['Primer palo', 'first_post', null],
-  ['Primer golazo', 'first_golazo', null],
-  ['Primer piscinazo', 'first_dive', null],
   ['¿Cuántos palos habrá?', 'total_posts', null],
 ];
 
@@ -105,13 +96,60 @@ const DEFAULT_MARKETS: [string, string, number | null][] = [
 export const TEST_CODE = 'COPA';
 export const TEST_USER_ID = 'prueba-user';
 
-export const DEFAULT_PLAYERS = [
-  'Victor Manuel Espino', 'Oscar Fernando Vara', 'Mate Italo Loechle', 'Angel Jose Pariona',
-  'Alexis Encalada', 'Adrian Ruiz', 'Iker Gabriel Barturen', 'Braden García',
-  'Victor Nicolas Ortiz', 'Diego Guevara', 'Nestor Rojas', 'Paul Espinoza',
-  'Fabian Jesus Sandoval', 'Manuel Tumi', 'Bryan Eduardo Barba', 'David Málaga',
-  'Lorenzo Balicco', 'Andreow Jomark Santiago', 'David Ignacio Vivar', 'Alvaro Fabrizzio Salazar',
+interface SeedSlot {
+  team: 1 | 2 | 3;
+  shirt: number;
+  position: PlayerPosition;
+  slot: number;
+}
+
+interface SeedPlayer {
+  name: string;
+  m1: SeedSlot;
+  m2: SeedSlot;
+  m3: SeedSlot;
+}
+
+const DEFAULT_TEAMS = DEFAULT_TEAM_KITS.map((t, i) => ({
+  key: String(i + 1),
+  name: t.name,
+  kit_id: t.kit,
+  color: kitAccent(KIT_BY_ID.get(t.kit)!),
+  formation: '2-2-1',
+}));
+
+/**
+ * Plantel confirmado (20). Modo 1 = Ronda 1; Modo 2 = Ronda 2; Modo 3 = Ronda 3 (Equipo 1 de Álvaro).
+ * Equipos de 7 y 6: en cada equipo el orden es ARQ, DEF, DEF, MED, MED, DEL y el 7º al banco (SUB).
+ * Posiciones, equipos y dorsales son editables desde el admin por modo.
+ */
+export const DEFAULT_ROSTER: SeedPlayer[] = [
+  // Ronda 1 · Equipo 1
+  { name: 'Diego', m1: { team: 1, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 2, shirt: 1, position: 'GK', slot: 0 }, m3: { team: 2, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Mate', m1: { team: 1, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 4, position: 'DEF', slot: 0 }, m3: { team: 2, shirt: 10, position: 'MID', slot: 1 } },
+  { name: 'Angel', m1: { team: 1, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 5, position: 'DEF', slot: 1 }, m3: { team: 3, shirt: 10, position: 'MID', slot: 1 } },
+  { name: 'Victor', m1: { team: 1, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 1, shirt: 8, position: 'MID', slot: 0 }, m3: { team: 3, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'Manuel', m1: { team: 1, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 10, position: 'MID', slot: 1 }, m3: { team: 1, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Iker', m1: { team: 1, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 2, shirt: 8, position: 'MID', slot: 0 }, m3: { team: 3, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'Nestor', m1: { team: 1, shirt: 12, position: 'SUB', slot: 0 }, m2: { team: 3, shirt: 4, position: 'DEF', slot: 0 }, m3: { team: 1, shirt: 4, position: 'DEF', slot: 0 } },
+  // Ronda 1 · Equipo 2
+  { name: 'Paul', m1: { team: 2, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 3, shirt: 5, position: 'DEF', slot: 1 }, m3: { team: 2, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'Nicolas', m1: { team: 2, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 5, position: 'DEF', slot: 1 }, m3: { team: 2, shirt: 4, position: 'DEF', slot: 0 } },
+  { name: 'Oscar', m1: { team: 2, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 10, position: 'MID', slot: 1 }, m3: { team: 3, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Braden', m1: { team: 2, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 1, shirt: 9, position: 'FWD', slot: 0 }, m3: { team: 2, shirt: 9, position: 'FWD', slot: 0 } },
+  { name: 'Adrian', m1: { team: 2, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 1, position: 'GK', slot: 0 }, m3: { team: 1, shirt: 12, position: 'SUB', slot: 0 } },
+  { name: 'David Vivar', m1: { team: 2, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 12, position: 'SUB', slot: 0 }, m3: { team: 2, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'David Málaga', m1: { team: 2, shirt: 12, position: 'SUB', slot: 0 }, m2: { team: 2, shirt: 10, position: 'MID', slot: 1 }, m3: { team: 3, shirt: 4, position: 'DEF', slot: 0 } },
+  // Ronda 1 · Equipo 3
+  { name: 'Andreow', m1: { team: 3, shirt: 1, position: 'GK', slot: 0 }, m2: { team: 3, shirt: 12, position: 'SUB', slot: 0 }, m3: { team: 1, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Fabian', m1: { team: 3, shirt: 4, position: 'DEF', slot: 0 }, m2: { team: 3, shirt: 8, position: 'MID', slot: 0 }, m3: { team: 2, shirt: 12, position: 'SUB', slot: 0 } },
+  { name: 'Álvaro', m1: { team: 3, shirt: 5, position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 1, position: 'GK', slot: 0 }, m3: { team: 1, shirt: 1, position: 'GK', slot: 0 } },
+  { name: 'Alexis', m1: { team: 3, shirt: 8, position: 'MID', slot: 0 }, m2: { team: 2, shirt: 9, position: 'FWD', slot: 0 }, m3: { team: 3, shirt: 8, position: 'MID', slot: 0 } },
+  { name: 'Balicco', m1: { team: 3, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 3, shirt: 9, position: 'FWD', slot: 0 }, m3: { team: 1, shirt: 5, position: 'DEF', slot: 1 } },
+  { name: 'Bryan', m1: { team: 3, shirt: 9, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 4, position: 'DEF', slot: 0 }, m3: { team: 1, shirt: 10, position: 'MID', slot: 1 } },
 ];
+
+export const DEFAULT_PLAYERS = DEFAULT_ROSTER.map((p) => p.name);
 
 @Injectable({ providedIn: 'root' })
 export class MockStore {
@@ -133,6 +171,8 @@ export class MockStore {
   private bus = new Map<string, Set<() => void>>();
   private chatListeners = new Map<string, Set<() => void>>();
   qrs = new Map<string, string>();
+  /** Fotos de jugadores subidas desde el admin (player_id → blob URL). */
+  photos = new Map<string, string>();
   private seq = 0;
   private listeners = new Map<string, Set<() => void>>();
 
@@ -192,13 +232,35 @@ export class MockStore {
     if (code) setTimeout(() => this.listeners.get(code)?.forEach((fn) => fn()), 50);
   }
 
-  /** Igual que el trigger de la BD: Equipo A/B/C, Autogol y los 15 mercados. */
+  /** Crea la jornada con 3 equipos 6v6, planteles para Rondas 1, 2 y 3, y los 9 partidos base (3+3+3). */
   createMatch(input: MatchInput, status: MatchStatus = 'open', id = uid()): MatchRow {
-    const teamIds = ['1', '2', '3', '4'].map((l, i) => {
-      const t: TeamRow = { id: `${id}-team-${l}`, match_id: id, name: `Equipo ${l}`, sort_order: i + 1, color: null };
+    const teamIds = DEFAULT_TEAMS.map((def, i) => {
+      const t: TeamRow = {
+        id: `${id}-team-${def.key}`,
+        match_id: id,
+        name: def.name,
+        sort_order: i + 1,
+        color: def.color,
+        formation: def.formation,
+        kit_id: def.kit_id,
+      };
       this.teams.push(t);
       return t.id;
     });
+    const initialGames: ScheduledGame[] = [
+      // Modo 1: Ronda 1 – Equipos al azar
+      { number: 1, home: teamIds[0], away: teamIds[1], mode: 1 },
+      { number: 2, home: teamIds[0], away: teamIds[2], mode: 1 },
+      { number: 3, home: teamIds[1], away: teamIds[2], mode: 1 },
+      // Modo 2: Ronda 2
+      { number: 4, home: teamIds[0], away: teamIds[1], mode: 2 },
+      { number: 5, home: teamIds[0], away: teamIds[2], mode: 2 },
+      { number: 6, home: teamIds[1], away: teamIds[2], mode: 2 },
+      // Modo 3: Ronda 3 – Equipo de Álvaro
+      { number: 7, home: teamIds[0], away: teamIds[1], mode: 3 },
+      { number: 8, home: teamIds[0], away: teamIds[2], mode: 3 },
+      { number: 9, home: teamIds[1], away: teamIds[2], mode: 3 },
+    ];
     const m: MatchRow = {
       id,
       title: input.title,
@@ -207,6 +269,7 @@ export class MockStore {
       status,
       closed_at: null,
       starting_team_ids: [teamIds[0], teamIds[1]],
+      games: initialGames,
       current_game: 1,
       game_live: false,
       pay_method: input.pay_method || DEFAULT_PAY_METHOD,
@@ -217,23 +280,49 @@ export class MockStore {
     };
     this.matches.unshift(m);
     this.players.push({ id: `${id}-og`, match_id: id, name: 'Autogol', is_own_goal: true, sort_order: 9999 });
-    // Igual que la BD: los 20 jugadores de siempre.
-    DEFAULT_PLAYERS.forEach((name, i) => this.players.push({ id: `${id}-p${i + 1}`, match_id: id, name, is_own_goal: false, sort_order: i + 1 }));
+    DEFAULT_ROSTER.forEach((p, i) =>
+      this.players.push({
+        id: `${id}-p${i + 1}`,
+        match_id: id,
+        name: p.name,
+        is_own_goal: false,
+        sort_order: i + 1,
+        team_id: teamIds[p.m1.team - 1],
+        shirt_number: p.m1.shirt,
+        position: p.m1.position,
+        slot: p.m1.slot,
+        modes: {
+          1: { team_id: teamIds[p.m1.team - 1], shirt_number: p.m1.shirt, position: p.m1.position, slot: p.m1.slot },
+          2: { team_id: teamIds[p.m2.team - 1], shirt_number: p.m2.shirt, position: p.m2.position, slot: p.m2.slot },
+          3: { team_id: teamIds[p.m3.team - 1], shirt_number: p.m3.shirt, position: p.m3.position, slot: p.m3.slot },
+        },
+      }),
+    );
     DEFAULT_MARKETS.forEach(([name, type, param], i) =>
       this.markets.push({ id: `${id}-m${i + 1}`, match_id: id, name, type, param, sort_order: i + 1, is_active: true, rollover_to_market_id: null, initial_pot: 0 }),
     );
-    // Igual que copa_extra_markets(): ganador y primer gol de cada partido.
-    const names = teamIds.map((_, i) => `Equipo ${i + 1}`);
-    fixture(teamIds).forEach((g) => {
-      const vs = `${names[teamIds.indexOf(g.home)]} vs ${names[teamIds.indexOf(g.away)]}`;
-      GAME_MARKETS.forEach((d, i) =>
-        this.markets.push({
-          id: `${id}-${d.type}-${g.number}`, match_id: id, name: `${d.label} · ${vs}`, type: d.type, param: g.number,
-          sort_order: 100 + g.number * 30 + i, is_active: true, rollover_to_market_id: null, initial_pot: 0,
-        }),
-      );
-    });
+    for (const g of initialGames) this.createGameMarkets(id, g.number, g.home, g.away, g.mode ?? 1);
     return m;
+  }
+
+  /** Crea los 19 mercados del partido N para el cruce `home` vs `away`. */
+  createGameMarkets(matchId: string, gameNumber: number, homeTeamId: string, awayTeamId: string, mode: GameModeId = 1) {
+    const homeName = this.teams.find((t) => t.id === homeTeamId)?.name ?? 'Equipo A';
+    const awayName = this.teams.find((t) => t.id === awayTeamId)?.name ?? 'Equipo B';
+    const vs = `M${mode} · ${homeName} vs ${awayName}`;
+    GAME_MARKETS.forEach((d, i) =>
+      this.markets.push({
+        id: `${matchId}-${d.type}-${gameNumber}`,
+        match_id: matchId,
+        name: `${d.label} · ${vs}`,
+        type: d.type,
+        param: gameNumber,
+        sort_order: 100 + gameNumber * 30 + i,
+        is_active: true,
+        rollover_to_market_id: null,
+        initial_pot: 0,
+      }),
+    );
   }
 
   addTicket(matchId: string, name: string, bets: { market: string; player?: string; team?: string; option?: number; amount: number }[], status: TicketStatus, minutesAgo: number, reason: string | null = null) {
@@ -349,6 +438,7 @@ export class MockPublicApi extends PublicApi {
       m.current_game,
       false,
       m.game_live,
+      m.games ?? null,
     );
     for (const b of bets) {
       const mk = this.s.markets.find((x) => x.id === b.marketId);
@@ -464,6 +554,10 @@ export class MockPublicApi extends PublicApi {
   qrUrl(path: string | null) {
     return path ? (this.s.qrs.get(path) ?? null) : null;
   }
+
+  photoUrl(photoId: string) {
+    return this.s.photos.get(photoId) ?? null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -552,6 +646,30 @@ export class MockAdminApi extends AdminApi {
     this.s.notify(matchId);
   }
 
+  async addGame(matchId: string, homeTeamId: string, awayTeamId: string, goLive = false, mode: GameModeId = 1): Promise<number> {
+    // Mismas reglas que admin_add_game en la BD.
+    if (homeTeamId === awayTeamId) throw new Error('Elige dos equipos distintos');
+    if (![1, 2, 3].includes(mode)) throw new Error('Modo inválido');
+    const m = this.s.matches.find((x) => x.id === matchId);
+    if (!m) throw new Error('Jornada no encontrada');
+    if (m.status === 'finished') throw new Error('La jornada ya terminó');
+    const own = (id: string) => this.s.teams.some((t) => t.id === id && t.match_id === matchId);
+    if (!own(homeTeamId) || !own(awayTeamId)) throw new Error('Los equipos tienen que ser del partido');
+    const list = m.games ? [...m.games] : [];
+    const nextNumber = list.reduce((max, g) => Math.max(max, g.number), 0) + 1;
+    if (nextNumber > 20) throw new Error('Máximo 20 partidos por jornada');
+    list.push({ number: nextNumber, home: homeTeamId, away: awayTeamId, mode });
+    m.games = list;
+    // Mover current_game marcaría como jugados todos los anteriores: solo si arranca en vivo.
+    if (goLive) {
+      m.current_game = nextNumber;
+      m.game_live = true;
+    }
+    this.s.createGameMarkets(matchId, nextNumber, homeTeamId, awayTeamId, mode);
+    this.s.notify(matchId);
+    return nextNumber;
+  }
+
   async setStartingTeams(matchId: string, teamIds: [string, string]) {
     this.s.matches.find((x) => x.id === matchId)!.starting_team_ids = teamIds;
     this.s.notify(matchId);
@@ -569,15 +687,41 @@ export class MockAdminApi extends AdminApi {
     this.s.notify(matchId);
   }
 
+  async addTeam(matchId: string, name: string, color?: string, kitId: string | null = null): Promise<string> {
+    await delay();
+    const clean = name.trim().replace(/\s+/g, ' ');
+    if (!clean) throw new Error('El equipo necesita nombre');
+    if (!this.s.matches.some((m) => m.id === matchId)) throw new Error('Jornada no encontrada');
+    const order = Math.max(0, ...this.s.teams.filter((t) => t.match_id === matchId).map((t) => t.sort_order)) + 1;
+    const id = uid();
+    this.s.teams.push({ id, match_id: matchId, name: clean.slice(0, 30), sort_order: order, color: color?.trim() || '#64748b', formation: '2-2-1', kit_id: kitId });
+    this.s.notify(matchId);
+    return id;
+  }
+
   async addPlayers(matchId: string, names: string[]) {
     let order = Math.max(0, ...this.s.players.filter((p) => p.match_id === matchId && !p.is_own_goal).map((p) => p.sort_order));
     for (const name of names) this.s.players.push({ id: uid(), match_id: matchId, name, is_own_goal: false, sort_order: ++order });
     this.s.notify(matchId);
   }
 
+  async uploadPlayerPhoto(playerId: string, file: Blob) {
+    const p = this.s.players.find((x) => x.id === playerId);
+    if (!p) throw new Error('Jugador no encontrado');
+    this.s.photos.set(playerId, URL.createObjectURL(file));
+    p.photo_id = playerId;
+    this.s.notify(p.match_id);
+  }
+
   async renamePlayer(id: string, name: string) {
     const p = this.s.players.find((x) => x.id === id)!;
     p.name = name;
+    this.s.notify(p.match_id);
+  }
+
+  async updatePlayer(id: string, patch: PlayerPatch) {
+    const p = this.s.players.find((x) => x.id === id)!;
+    Object.assign(p, patch);
     this.s.notify(p.match_id);
   }
 

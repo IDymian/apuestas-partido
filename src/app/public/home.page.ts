@@ -37,7 +37,7 @@ const MARQUEE = [
           La esférica<br /><span class="text-gradient">no se mancha</span>
         </h1>
         <p class="mx-auto mt-3 max-w-xs text-[15px] text-mute md:mx-0 md:max-w-md md:text-lg anim-in" style="--i: 3">
-          Recarga saldo plineando al QR, apuesta de S/ 1 a S/ 5 con tus amigos y mira el bote subir en vivo.
+          Plinea al QR, mete de S/ 1 a S/ 5 a tus patas y mira quién se lleva el pozo antes del fullvaso.
         </p>
       </div>
 
@@ -59,22 +59,38 @@ const MARQUEE = [
         </a>
       }
 
-      <form class="glass mt-4 anim-in" style="--i: 5" (submit)="$event.preventDefault(); go()">
-        <label for="code" class="field-label">¿Tienes un código de otra jornada?</label>
-        <input
-          id="code"
-          class="field h-16 text-center font-display text-3xl font-extrabold tracking-[0.35em] uppercase"
-          placeholder="COPA26"
-          autocomplete="off"
-          autocapitalize="characters"
-          maxlength="20"
-          [value]="code()"
-          (input)="code.set($any($event.target).value)"
-        />
-        <button type="submit" class="btn mt-3 w-full" [disabled]="code().trim().length < 4">
-          Entrar a la jornada <app-icon name="next" />
+      @if (showCode() || !activeCode()) {
+        <form class="glass mt-4 anim-in" style="--i: 5" (submit)="$event.preventDefault(); go()">
+          <label for="code" class="field-label">Código de la jornada</label>
+          <input
+            id="code"
+            class="field h-14 text-center font-display text-2xl font-extrabold tracking-[0.3em] uppercase"
+            placeholder="COPA26"
+            autocomplete="off"
+            autocapitalize="characters"
+            maxlength="20"
+            [value]="code()"
+            (input)="code.set($any($event.target).value)"
+          />
+          <div class="mt-3 flex gap-2">
+            @if (activeCode()) {
+              <button type="button" class="btn-ghost h-12 flex-1" (click)="showCode.set(false)">Cancelar</button>
+            }
+            <button type="submit" class="btn h-12 flex-1 text-[15px]" [disabled]="code().trim().length < 4">
+              Entrar <app-icon name="next" [size]="18" />
+            </button>
+          </div>
+        </form>
+      } @else {
+        <button
+          type="button"
+          class="anim-in mt-4 w-full rounded-2xl py-3 text-center text-sm font-bold text-mute transition hover:text-ink"
+          style="--i: 5"
+          (click)="showCode.set(true)"
+        >
+          ¿Tienes un código de otra jornada?
         </button>
-      </form>
+      }
       </div>
       </div>
 
@@ -106,7 +122,7 @@ const MARQUEE = [
       </section>
 
       <footer class="mt-auto pt-10 text-center text-xs text-faint">
-        <p>Copa Álvaro · La esférica no se mancha. Juega con responsabilidad, es entre amigos.</p>
+        <p>Copa Álvaro · La esférica no se mancha. Primero la pichanga, después el fullvaso — acá se juega entre patas.</p>
         <a routerLink="/admin" class="mt-2 inline-block font-semibold text-mute hover:text-ink">Soy el organizador</a>
       </footer>
     </div>
@@ -120,13 +136,15 @@ export class HomePage implements OnInit {
   protected readonly last = lastMatch();
   protected readonly marquee = [...MARQUEE, ...MARQUEE];
   protected readonly steps = [
-    { title: 'Crea tu cuenta', text: 'Correo, usuario y contraseña. Entras al toque, sin esperar ningún correo.', tone: 'bg-lime text-white' },
-    { title: 'Recarga saldo por Plin', text: 'Plineas al QR y subes la captura. Cuando el organizador lo confirma, el saldo aparece en tu cuenta.', tone: 'bg-candy text-white' },
-    { title: 'Apuesta y vive el partido', text: '25 apuestas: goles, rojas, palos, golazos, bloopers… Se descuentan de tu saldo. El bote sube en vivo y en Social comentan todos.', tone: 'bg-gold text-white' },
+    { title: 'Crea tu cuenta', text: 'Correo, usuario y contraseña. Entras al toque, sin vueltas ni burocracia.', tone: 'bg-lime text-white' },
+    { title: 'Recarga por Plin', text: 'Plineas al QR y subes la captura. Apenas el organizador lo confirme, cae tu saldo.', tone: 'bg-candy text-white' },
+    { title: 'Apuesta y pica a tus patas', text: 'Goles, rojas, palos, bloopers y huachas. El pozo sube en vivo y en Social tiran humo todos.', tone: 'bg-gold text-white' },
   ];
 
   /** Jornada activa: se muestra el botón "Entrar a la Copa" (la portada ya no salta sola a ella). */
   protected readonly activeCode = signal<string | null>(null);
+  /** El campo de código queda plegado: un solo CTA primario en la portada. */
+  protected readonly showCode = signal(false);
 
   async ngOnInit() {
     try {

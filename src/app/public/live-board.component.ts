@@ -1,17 +1,20 @@
 import { Component, computed, input } from '@angular/core';
-import { EVENT_ICON, HOUSE_WARNING, isPlayerEvent, MatchEvent, PLAYER_EVENTS, PublicMatchData, SECTIONS } from '../core/models';
+import { EVENT_ICON, GAME_MODES, GameModeId, HOUSE_WARNING, isPlayerEvent, MatchEvent, PLAYER_EVENTS, PublicMatchData, SECTIONS } from '../core/models';
 import { makeSelectionLabel, publicToSettleInput, teamOrder, toTimelineEvents } from '../domain/adapt';
 import { jornadaStats, PlayerCount } from '../domain/jornada-stats';
+import { tableForMode } from '../domain/league';
 import { formatSoles, MarketResult, personKey, settle } from '../domain/settlement';
 import { CountUpComponent } from '../ui/count-up.component';
 import { IconComponent } from '../ui/icon.component';
+import { KitComponent } from '../ui/kit.component';
+import { kitOf } from '../core/kits';
 
 const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 text-white', 'from-gold to-[#ffc266] text-white', 'from-[#ffd9bd] to-[#ffeadb] text-ink'];
 
 /** Pantalla pública: cancha, tabla de equipos, estadísticas, botes en vivo y resultados. */
 @Component({
   selector: 'app-live-board',
-  imports: [CountUpComponent, IconComponent],
+  imports: [CountUpComponent, IconComponent, KitComponent],
   template: `
     @let d = data();
     @let finished = d.match.status === 'finished';
@@ -25,10 +28,10 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
         } @else if (finished || result().league.games.every(g => g.status === 'played')) {
           🏁 Final
         } @else {
-          ⏳ Antes del pitazo
+          ⏳ Calentando motores
         }
       </p>
-      <p class="mt-1 text-sm text-white/85">Bote total de la jornada</p>
+      <p class="mt-1 text-sm text-white/85">Pozo total de la pichanga</p>
       <p class="font-display text-5xl font-extrabold tracking-tight"><app-count-up [cents]="totalPot()" /></p>
       <div class="mt-3 flex flex-wrap gap-2 text-xs">
         <span class="tag bg-white/20 text-white">👥 {{ byPerson().length }} apostadores</span>
@@ -68,13 +71,34 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
         </section>
       }
 
+      <!-- Rumbo al Draft (Top 3 goleadores acumulados de Modo 1 + Modo 2) -->
+      <section class="glass mt-4 border-gold/30 anim-in" style="--i: 2">
+        <div class="flex items-baseline justify-between gap-2">
+          <h2 class="font-display text-xl font-extrabold">👑 Rumbo al Draft</h2>
+          <span class="text-xs font-bold text-mute">Modo 1 + Modo 2</span>
+        </div>
+        <p class="mt-0.5 text-xs text-mute">Los 3 máximos goleadores serán los capitanes del Modo 3.</p>
+        <ol class="mt-2.5 space-y-1.5">
+          @for (slot of [0, 1, 2]; track slot) {
+            @let row = draftTop()[slot];
+            <li class="flex items-center gap-2.5 rounded-xl bg-night-3/70 px-3 py-2 text-sm">
+              <span class="text-base">{{ ['🥇', '🥈', '🥉'][slot] }}</span>
+              <span class="min-w-0 flex-1 truncate font-bold" [class.text-faint]="!row">{{ row ? player(row.playerId) : 'Por definirse' }}</span>
+              <span class="shrink-0 font-display text-xs font-extrabold tabular-nums" [class]="row ? 'text-lime-deep' : 'text-faint'">
+                {{ row ? row.count + (row.count === 1 ? ' gol' : ' goles') : '0 goles' }} · elige {{ slot + 1 }}°
+              </span>
+            </li>
+          }
+        </ol>
+      </section>
+
       <!-- Fixture -->
       <section class="glass mt-4 anim-in" style="--i: 2">
-        <h2 class="font-display text-xl font-extrabold">🆚 Fixture</h2>
+        <h2 class="font-display text-xl font-extrabold">🆚 Partidos</h2>
         <ol class="mt-2 divide-y divide-ink/[0.06]">
           @for (g of lg.games; track g.number) {
             <li class="flex items-center gap-2 py-2.5 text-sm" [class.font-bold]="g.status === 'live'">
-              <span class="w-7 shrink-0 text-xs font-bold text-faint">P{{ g.number }}</span>
+              <span class="w-12 shrink-0 text-xs font-bold text-faint">{{ g.mode ? 'M' + g.mode + '·' : '' }}P{{ g.number }}</span>
               <span class="min-w-0 flex-1 truncate text-right">{{ team(g.home) }}</span>
               <span class="w-14 shrink-0 rounded-lg py-0.5 text-center font-display font-extrabold tabular-nums" [class]="g.status === 'live' ? 'bg-lime text-white' : g.status === 'played' ? 'bg-ink/[0.06]' : 'text-faint'">
                 {{ g.status === 'pending' ? 'vs' : g.homeGoals + '-' + g.awayGoals }}
@@ -85,37 +109,39 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
         </ol>
       </section>
 
-      <!-- Tabla -->
-      <section class="glass mt-4 anim-in" style="--i: 3">
-        <h2 class="font-display text-xl font-extrabold">🏆 Tabla</h2>
-        <table class="mt-2 w-full text-sm">
-          <thead>
-            <tr class="text-left text-[11px] text-mute uppercase">
-              <th class="py-1 font-bold">Equipo</th>
-              <th class="py-1 text-center font-bold">PJ</th>
-              <th class="py-1 text-center font-bold">G</th>
-              <th class="py-1 text-center font-bold">E</th>
-              <th class="py-1 text-center font-bold">P</th>
-              <th class="py-1 text-center font-bold">DG</th>
-              <th class="py-1 text-center font-bold">Pts</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (r of lg.table; track r.teamId; let i = $index) {
-              <tr class="border-t border-ink/[0.06]" [class.bg-lime/10]="i === 0 && r.played > 0">
-                <td class="py-2 font-bold"><span class="mr-1 text-faint">{{ i + 1 }}</span> {{ team(r.teamId) }}</td>
-                <td class="py-2 text-center">{{ r.played }}</td>
-                <td class="py-2 text-center">{{ r.won }}</td>
-                <td class="py-2 text-center">{{ r.drawn }}</td>
-                <td class="py-2 text-center">{{ r.lost }}</td>
-                <td class="py-2 text-center">{{ r.gd > 0 ? '+' + r.gd : r.gd }}</td>
-                <td class="py-2 text-center font-display text-base font-extrabold">{{ r.points }}</td>
+      <!-- Tabla(s) por modo -->
+      @for (tb of modeTables(); track tb.id) {
+        <section class="glass mt-4 anim-in" style="--i: 3">
+          <h2 class="font-display text-xl font-extrabold">🏆 Tabla{{ tb.title ? ' · ' + tb.title : '' }}</h2>
+          <table class="mt-2 w-full text-sm">
+            <thead>
+              <tr class="text-left text-[11px] text-mute uppercase">
+                <th class="py-1 font-bold">Equipo</th>
+                <th class="py-1 text-center font-bold">PJ</th>
+                <th class="py-1 text-center font-bold">G</th>
+                <th class="py-1 text-center font-bold">E</th>
+                <th class="py-1 text-center font-bold">P</th>
+                <th class="py-1 text-center font-bold">DG</th>
+                <th class="py-1 text-center font-bold">Pts</th>
               </tr>
-            }
-          </tbody>
-        </table>
-        <p class="mt-2 text-[11px] text-faint">3 puntos por ganar, 1 por empatar. Desempate: diferencia de gol y goles a favor.</p>
-      </section>
+            </thead>
+            <tbody>
+              @for (r of tb.rows; track r.teamId; let i = $index) {
+                <tr class="border-t border-ink/[0.06]" [class.bg-lime/10]="i === 0 && r.played > 0">
+                  <td class="py-2 font-bold"><span class="flex items-center gap-1.5"><span class="text-faint">{{ i + 1 }}</span><app-kit class="h-4 w-4 shrink-0" [kit]="kit(r.teamId)" />{{ team(r.teamId) }}</span></td>
+                  <td class="py-2 text-center">{{ r.played }}</td>
+                  <td class="py-2 text-center">{{ r.won }}</td>
+                  <td class="py-2 text-center">{{ r.drawn }}</td>
+                  <td class="py-2 text-center">{{ r.lost }}</td>
+                  <td class="py-2 text-center">{{ r.gd > 0 ? '+' + r.gd : r.gd }}</td>
+                  <td class="py-2 text-center font-display text-base font-extrabold">{{ r.points }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+          <p class="mt-2 text-[11px] text-faint">3 puntos por ganar, 1 por empatar. Desempate: diferencia de gol y goles a favor.</p>
+        </section>
+      }
 
       <!-- Estadísticas de jugadores -->
       <section class="mt-4 grid grid-cols-2 gap-2.5">
@@ -177,8 +203,8 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
               }
               @case ('no_winner') {
                 <p class="mt-2.5 rounded-2xl bg-ink/[0.04] p-3 text-sm text-mute">
-                  {{ finished ? 'Ganó' : 'Va' }}: <b class="text-ink">{{ label(r) }}</b> · nadie le apostó.
-                  {{ r.rolledToMarketId ? 'El bote pasa a ' + marketName(r.rolledToMarketId) + '.' : finished ? 'El bote es del organizador.' : '' }}
+                  {{ finished ? 'Ganó' : 'Va' }}: <b class="text-ink">{{ label(r) }}</b> · nadie le atinó.
+                  {{ r.rolledToMarketId ? 'El pozo pasa a ' + marketName(r.rolledToMarketId) + '.' : finished ? 'El pozo auspicia el fullvaso de Álvaro.' : '' }}
                 </p>
               }
               @case ('refund') {
@@ -213,7 +239,7 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
     <section class="glass mt-6">
       <h2 class="font-display text-xl font-extrabold">Minuto a minuto</h2>
       @if (events().length === 0) {
-        <p class="mt-1 text-sm text-mute">{{ d.match.status === 'open' ? 'La jornada aún no empieza.' : 'Sin eventos por ahora.' }}</p>
+        <p class="mt-1 text-sm text-mute">{{ d.match.status === 'open' ? 'La pichanga aún no arranca.' : 'Sin jugadas por ahora.' }}</p>
       } @else {
         <ol class="relative mt-3 space-y-3 before:absolute before:top-2 before:bottom-2 before:left-[1.35rem] before:w-px before:bg-white/10">
           @for (e of events(); track e.id; let i = $index) {
@@ -234,7 +260,7 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
         <span class="tag">{{ byPerson().length }} personas</span>
       </div>
       @if (byPerson().length === 0) {
-        <p class="mt-1 text-sm text-mute">Todavía no hay apuestas aprobadas.</p>
+        <p class="mt-1 text-sm text-mute">Puro chihuán por acá. Nadie suelta ni una luca todavía.</p>
       } @else {
         <ul class="mt-2 divide-y divide-ink/[0.06]">
           @for (p of byPerson(); track p.name) {
@@ -271,10 +297,49 @@ export class LiveBoardComponent {
   protected readonly teamIds = computed(() => teamOrder(this.data().teams));
   private readonly players = computed(() => new Map(this.data().players.map((p) => [p.id, p.name])));
   private readonly teams = computed(() => new Map(this.data().teams.map((t) => [t.id, t.name])));
+  private readonly teamRows = computed(() => new Map(this.data().teams.map((t) => [t.id, t])));
+  protected kit(id: string) {
+    return kitOf(this.teamRows().get(id), '#a8968a');
+  }
   private readonly markets = computed(() => new Map(this.data().markets.map((m) => [m.id, m])));
-  private readonly labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams));
+  private readonly labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams, this.data().match.games ?? null));
   protected readonly currentGame = computed(() => this.result().league.games.find((g) => g.number === (this.data().match.current_game ?? 1)) ?? null);
   protected readonly totalPot = computed(() => this.result().markets.reduce((s, r) => s + r.totalPotCents, 0));
+
+  /** Goleadores acumulados solo de Modo 1 + Modo 2 (para definir los 3 capitanes del Draft). */
+  protected readonly draftTop = computed(() => {
+    const eligible = new Set(
+      this.result()
+        .league.games.filter((g) => (g.mode ?? 1) === 1 || (g.mode ?? 1) === 2)
+        .map((g) => g.number),
+    );
+    const counts = new Map<string, { count: number; firstSeq: number }>();
+    for (const e of this.data().events) {
+      if (e.type !== 'goal' || e.is_own_goal || !e.player_id) continue;
+      if (e.game != null && !eligible.has(e.game)) continue;
+      const cur = counts.get(e.player_id) ?? { count: 0, firstSeq: e.seq };
+      cur.count++;
+      counts.set(e.player_id, cur);
+    }
+    return [...counts.entries()]
+      .map(([playerId, v]) => ({ playerId, count: v.count, firstSeq: v.firstSeq }))
+      .sort((a, b) => b.count - a.count || a.firstSeq - b.firstSeq);
+  });
+
+  /** Tablas separadas por modo cuando hay más de un modo en la jornada. */
+  protected readonly modeTables = computed(() => {
+    const lg = this.result().league;
+    const present = [...new Set(lg.games.map((g) => (g.mode ?? 1) as GameModeId))].sort();
+    if (present.length <= 1) return [{ id: 0, title: '', rows: lg.table }];
+    return present.map((m) => {
+      const meta = GAME_MODES.find((x) => x.id === m);
+      return {
+        id: m,
+        title: meta ? `${meta.short} · ${meta.name}` : `Modo ${m}`,
+        rows: tableForMode(lg.games, this.teamIds(), m),
+      };
+    });
+  });
 
   protected readonly statBoxes = computed((): { title: string; rows: PlayerCount[] }[] => {
     const s = this.stats();

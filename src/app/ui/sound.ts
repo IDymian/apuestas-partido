@@ -5,6 +5,7 @@
 const MUTE_KEY = 'copa:sonido-apagado';
 let ctx: AudioContext | null = null;
 let muted = readMuted();
+let makanakiClip: HTMLAudioElement | null = null;
 
 function readMuted(): boolean {
   try {
@@ -76,4 +77,24 @@ export const sound = {
   },
   /** ¡Gol! (en vivo). */
   goal: () => [392, 523, 659, 784, 1047, 784, 1047].forEach((f, i) => tone(f, i * 0.06, 0.18, 'triangle', 0.12)),
+  /**
+   * Al entrar a la pestaña "Makanakis".
+   * Si existe `public/sounds/makanaki.mp3`, reproduce ese audio; si aún no se subió,
+   * suena una fanfarria sintetizada de respaldo.
+   */
+  makanaki: () => {
+    if (muted || typeof window === 'undefined') return;
+    const fallback = () => {
+      tone(330, 0, 0.09, 'square', 0.08, 440);
+      tone(440, 0.09, 0.09, 'square', 0.08, 554);
+      tone(659, 0.18, 0.24, 'triangle', 0.14, 880);
+    };
+    try {
+      makanakiClip ??= new Audio('sounds/makanaki.mp3');
+      makanakiClip.currentTime = 0;
+      void makanakiClip.play().catch(fallback);
+    } catch {
+      fallback();
+    }
+  },
 };

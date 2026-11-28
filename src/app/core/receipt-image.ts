@@ -5,7 +5,18 @@
  */
 export const MAX_INPUT_BYTES = 10 * 1024 * 1024;
 
-export async function prepareReceipt(file: File): Promise<Blob> {
+/** Foto de jugador para el avatar: WebP de 512 px y menos de 60 KB. */
+export const PHOTO_OPTIONS = { maxSizeMB: 0.058, maxWidthOrHeight: 512, fileType: 'image/webp', initialQuality: 0.82 };
+
+export async function prepareReceipt(
+  file: File,
+  opts: { maxSizeMB: number; maxWidthOrHeight: number; fileType: string; initialQuality: number } = {
+    maxSizeMB: 0.9,
+    maxWidthOrHeight: 1800,
+    fileType: 'image/jpeg',
+    initialQuality: 0.8,
+  },
+): Promise<Blob> {
   if (file.size > MAX_INPUT_BYTES) {
     throw new Error('La imagen pesa más de 10 MB. Toma una captura de pantalla en vez de una foto.');
   }
@@ -29,10 +40,7 @@ export async function prepareReceipt(file: File): Promise<Blob> {
   const asFile = input instanceof File ? input : new File([input], 'captura.jpg', { type: input.type || 'image/jpeg' });
   try {
     return await imageCompression(asFile, {
-      maxSizeMB: 0.9,
-      maxWidthOrHeight: 1800,
-      fileType: 'image/jpeg',
-      initialQuality: 0.8,
+      ...opts,
       // Sin web worker: evita que la librería descargue código de un CDN.
       useWebWorker: false,
     });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatSoles, personKey, SettleBet, SettleInput, SettleMarket, settle, splitProportional, TicketStatus } from './settlement';
 import { courtTimeline, TimelineEvent } from './timeline';
-import { fixture, league, liveGame, marketOpen } from './league';
+import { fixture, league, liveGame, marketOpen, nextRotationMatchup } from './league';
 
 // ---- Fixtures --------------------------------------------------------------
 
@@ -371,6 +371,25 @@ describe('liga todos contra todos', () => {
     settle({ markets: mk(), events, bets, teamIds: TEAMS4, startingTeamIds: [], ownGoalOptionId: OG, currentGame, finished });
   const w = (r: ReturnType<typeof settle>, id: string) => market(r, id);
 
+  it('mercados de liga con la tabla del Modo 1 aunque el Modo 2 tenga otro ganador', () => {
+    const T = [T1, T2, T3];
+    const games = [
+      { number: 1, home: T1, away: T2, mode: 1 as const },
+      { number: 2, home: T1, away: T3, mode: 1 as const },
+      { number: 3, home: T2, away: T3, mode: 2 as const },
+      { number: 4, home: T2, away: T1, mode: 2 as const },
+    ];
+    // Modo 1: E1 gana los dos (2 goles). Modo 2: E2 gana los dos por goleada (3 + 3).
+    const evs = [g(1, 'a', T1), g(2, 'a', T1), ...[3, 3, 3, 4, 4, 4].map((n) => g(n, 'b', T2))];
+    const r = settle({ markets: mk(), events: evs, bets: [], teamIds: T, startingTeamIds: [], ownGoalOptionId: OG, currentGame: 5, finished: true, games });
+    expect(w(r, 'Campeón').winnerSelection).toBe(T1);
+    expect(w(r, 'Más goleador').winnerSelection).toBe(T1);
+    // En Modo 1 E2 y E3 empatan abajo (0 pts, -1, 0 goles): último sin ganador único.
+    expect(w(r, 'Último').outcome).toBe('refund');
+    // Con la tabla global el campeón sería E2 (6 pts, +5).
+    expect(league(evs, T, 5, true, true, games).table[0].teamId).toBe(T2);
+  });
+
   it('fixture: 1v2, 3v4, 1v3, 2v4, 1v4, 2v3', () => {
     expect(fixture(TEAMS4).map((x) => `${x.home}-${x.away}`)).toEqual(['e1-e2', 'e3-e4', 'e1-e3', 'e2-e4', 'e1-e4', 'e2-e3']);
   });
@@ -518,6 +537,75 @@ describe('apuestas de cada partido', () => {
   it('partido por jugar: nada se resuelve y todo está abierto', () => {
     const r = run([], 1, false);
     expect(r.markets.every((m) => m.outcome === 'unresolved')).toBe(true);
+  });
+});
+
+describe('rotación rey de la cancha (3 equipos, partidos dinámicos)', () => {
+  const T = ['e1', 'e2', 'e3'];
+  const g1 = { number: 1, home: 'e1', away: 'e2' };
+
+  it('el ganador se queda y entra el equipo que descansaba', () => {
+    const l = league([ev({ type: 'goal', playerId: 'p1', teamId: 'e2', game: 1 })], T, 2, false, false, [g1]);
+    expect(nextRotationMatchup(l.games, T)).toEqual({ home: 'e2', away: 'e3', resting: ['e1'], tied: false });
+  });
+
+  it('en empate marca tied=true y sugiere que entre el que descansaba', () => {
+    const l = league([], T, 2, false, false, [g1]);
+    expect(nextRotationMatchup(l.games, T)).toEqual({ home: 'e1', away: 'e3', resting: ['e2'], tied: true });
+  });
+});
+
+describe('rotación rey de la cancha con N equipos', () => {
+  /** Juega `n` partidos siguiendo la sugerencia; `winner` decide quién gana cada uno ('home' | 'away' | 'tie'). */
+  const simulate = (T: string[], n: number, winner: (k: number) => 'home' | 'away' | 'tie') => {
+    const played: { number: number; home: string; away: string }[] = [{ number: 1, home: T[0], away: T[1] }];
+    const evs: ReturnType<typeof ev>[] = [];
+    for (let k = 1; k <= n; k++) {
+      const g = played[k - 1];
+      const w = winner(k);
+      if (w !== 'tie') evs.push(ev({ id: `g${k}`, type: 'goal', playerId: 'p1', teamId: w === 'home' ? g.home : g.away, game: k, minute: k }));
+      const l = league(evs, T, k + 1, false, false, played);
+      const sug = nextRotationMatchup(l.games, T)!;
+      played.push({ number: k + 1, home: sug.home, away: sug.away });
+    }
+    return played;
+  };
+
+  it('3 equipos: el ganador se queda y entra el que descansaba', () => {
+    const p = simulate(['e1', 'e2', 'e3'], 3, () => 'away');
+    expect(p.map((g) => `${g.home}-${g.away}`)).toEqual(['e1-e2', 'e2-e3', 'e3-e1', 'e1-e2']);
+  });
+
+  it('4 equipos: descansan dos y ninguno queda clavado', () => {
+    const T = ['e1', 'e2', 'e3', 'e4'];
+    const l = league([ev({ type: 'goal', playerId: 'p1', teamId: 'e1', game: 1 })], T, 2, false, false, [{ number: 1, home: 'e1', away: 'e2' }]);
+    expect(nextRotationMatchup(l.games, T)).toEqual({ home: 'e1', away: 'e3', resting: ['e2', 'e4'], tied: false });
+    // El local gana siempre (rey de la cancha eterno): igual todos los demás tienen que entrar.
+    const p = simulate(T, 6, () => 'home');
+    const entered = new Set(p.flatMap((g) => [g.home, g.away]));
+    expect([...entered].sort()).toEqual(T);
+    expect(p.map((g) => g.away)).toEqual(['e2', 'e3', 'e4', 'e2', 'e3', 'e4', 'e2']);
+  });
+
+  it('5 equipos: entra el que lleva más partidos sin jugar', () => {
+    const T = ['e1', 'e2', 'e3', 'e4', 'e5'];
+    const p = simulate(T, 8, (k) => (k % 2 ? 'away' : 'tie'));
+    const plays = new Map(T.map((t) => [t, 0]));
+    for (const g of p) for (const t of [g.home, g.away]) plays.set(t, plays.get(t)! + 1);
+    expect(Math.min(...plays.values())).toBeGreaterThan(0);
+    // Nadie espera más de 3 partidos seguidos (los otros 3 que no están en cancha).
+    for (const t of T) {
+      let wait = 0;
+      for (const g of p) {
+        wait = g.home === t || g.away === t ? 0 : wait + 1;
+        expect(wait).toBeLessThanOrEqual(3);
+      }
+    }
+  });
+
+  it('2 equipos: se repite el cruce', () => {
+    const l = league([], ['e1', 'e2'], 2, false, false, [{ number: 1, home: 'e1', away: 'e2' }]);
+    expect(nextRotationMatchup(l.games, ['e1', 'e2'])).toEqual({ home: 'e1', away: 'e2', resting: [], tied: true });
   });
 });
 

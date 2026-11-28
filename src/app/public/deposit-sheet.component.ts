@@ -43,9 +43,9 @@ const DEPOSIT_STATUS: Record<TicketStatus, { label: string; icon: IconName; tone
           @if (done()) {
             <section class="py-6 text-center anim-pop">
               <div class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-lime text-white"><app-icon name="check" [size]="30" [stroke]="3" /></div>
-              <p class="mt-3 font-display text-2xl font-extrabold">¡Depósito enviado!</p>
-              <p class="mt-1 text-sm text-mute">S/ {{ done() }} se suman a tu saldo cuando el organizador confirme el Plin. Te avisamos con un sonido.</p>
-              <button type="button" class="btn mt-5 w-full" (click)="closed.emit()">Listo</button>
+              <p class="mt-3 font-display text-2xl font-extrabold">¡Captura enviada!</p>
+              <p class="mt-1 text-sm text-mute">S/ {{ done() }} se suman a tu saldo apenas el organizador revise su Plin. Te avisamos con sonido.</p>
+              <button type="button" class="btn mt-5 w-full" (click)="closed.emit()">De una</button>
             </section>
           } @else {
             <p class="field-label">1. ¿Cuánto depositas?</p>
@@ -97,7 +97,7 @@ const DEPOSIT_STATUS: Record<TicketStatus, { label: string; icon: IconName; tone
             <button type="button" class="btn mt-4 w-full" [disabled]="!canSend() || sending()" (click)="send()">
               {{ sending() ? 'Enviando…' : 'Ya pliné S/ ' + (amount() ?? 0) }} <app-icon name="send" [size]="18" />
             </button>
-            <p class="mt-2 text-center text-xs text-faint">Se juega solo con lo que depositas: el organizador confirma tu Plin y recién ahí se suma a tu saldo.</p>
+            <p class="mt-2 text-center text-xs text-faint">Se juega solo con saldo depositado: el organizador confirma tu Plin y ahí ya puedes meter fichas (o auspiciar el fullvaso).</p>
           }
 
           @if (wallet.deposits().length) {

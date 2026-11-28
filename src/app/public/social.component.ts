@@ -17,7 +17,7 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
     <section class="anim-in">
       <p class="eyebrow">La tribuna</p>
       <h2 class="mt-1 font-display text-3xl font-extrabold">Social</h2>
-      <p class="mt-1 text-sm text-mute">Comenta el partido y pica a tus amigos. Toca un nombre para ver sus apuestas.</p>
+      <p class="mt-1 text-sm text-mute">Tira humo, pica a tus patas y toca cualquier nombre para sapear a qué le apostó.</p>
     </section>
 
     <!-- Buscar apostador -->
@@ -26,8 +26,8 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
       <input
         class="field h-11 pl-10 text-[15px]"
         type="search"
-        placeholder="Buscar apostador por usuario"
-        aria-label="Buscar apostador por usuario"
+        placeholder="Sapear apostador por usuario"
+        aria-label="Sapear apostador por usuario"
         autocapitalize="none"
         [value]="query()"
         (input)="query.set($any($event.target).value)"
@@ -56,8 +56,8 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
       } @else if (messages().length === 0) {
         <div class="glass py-10 text-center">
           <p class="text-5xl">⚽</p>
-          <p class="mt-2 font-bold">Nadie ha escrito todavía</p>
-          <p class="text-sm text-mute">Rompe el hielo.</p>
+          <p class="mt-2 font-bold">Más callado que el grupo cuando piden la cuota</p>
+          <p class="text-sm text-mute">Rompe el hielo antes que arranque el partido.</p>
         </div>
       }
       @for (g of groups(); track g.key) {
@@ -94,7 +94,8 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
     <!-- Escribir -->
     <div class="fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-night from-75% to-night/0 pt-5 pb-[calc(5.6rem+env(safe-area-inset-bottom))]">
     <div class="mx-auto max-w-md px-3 md:max-w-2xl" data-testid="composer">
-      <div class="no-scrollbar -mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3">
+      <!-- Desvanecido en los bordes: se nota que la fila sigue y se desliza -->
+      <div class="no-scrollbar -mx-3 mb-1 flex gap-1.5 overflow-x-auto px-3 py-1 [mask-image:linear-gradient(to_right,transparent,#000_14px,#000_calc(100%-40px),transparent)]">
         @for (r of reactions; track r) {
           <button type="button" class="shrink-0 rounded-full border border-ink/10 bg-white/95 px-3 py-1.5 text-xs font-bold shadow-sm backdrop-blur-xl transition hover:border-lime/50 active:scale-95" [disabled]="sending()" (click)="send(r)">
             {{ r }}
@@ -108,7 +109,7 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
           rows="1"
           maxlength="500"
           class="max-h-28 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-[15px] text-ink outline-none placeholder:text-faint"
-          placeholder="Escribe algo, {{ auth.user()?.username }}…"
+          placeholder="Tira tu comentario, {{ auth.user()?.username }}…"
           [value]="draft()"
           (input)="onInput($event)"
           (keydown.enter)="onEnter($event)"

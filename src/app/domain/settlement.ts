@@ -8,7 +8,7 @@
  * o un número (como texto), según el `target` del tipo de mercado.
  */
 import { courtTimeline, CourtTimeline, leaderFirstToReach, sortEvents, TimelineEvent } from './timeline';
-import { champion, lastPlace, league, League, uniqueMax } from './league';
+import { champion, FixtureGame, lastPlace, league, League, tableForMode, uniqueMax } from './league';
 import { GAME_GOALS_MAX, GAME_MARKETS, GameMarketDef } from './game-markets';
 
 export type TicketStatus = 'pending' | 'approved' | 'rejected';
@@ -54,6 +54,8 @@ export interface SettleInput {
   finished?: boolean;
   /** El partido actual está en vivo (si no, todavía no empieza). */
   live?: boolean;
+  /** Partidos creados dinámicamente (si falta, usa el fixture automático). */
+  games?: FixtureGame[] | null;
 }
 
 export interface ResolveContext {
@@ -393,7 +395,16 @@ function processingOrder(markets: SettleMarket[]): { order: SettleMarket[]; targ
 export function settle(input: SettleInput, resolvers: Record<string, Resolver> = RESOLVERS): SettlementResult {
   const events = sortEvents(input.events);
   const timeline = courtTimeline(events, input.teamIds, input.startingTeamIds);
-  const lg = league(events, input.teamIds, input.currentGame ?? Number.MAX_SAFE_INTEGER, input.finished ?? true, input.live ?? true);
+  const lg = league(
+    events,
+    input.teamIds,
+    input.currentGame ?? Number.MAX_SAFE_INTEGER,
+    input.finished ?? true,
+    input.live ?? true,
+    input.games,
+  );
+  // Los mercados de liga (campeón, último, goleador, goleado) se liquidan con la tabla del Modo 1, la que ve el usuario.
+  const lgM1: League = { ...lg, table: tableForMode(lg.games, input.teamIds, 1) };
   const active = input.markets.filter((m) => m.isActive);
   const approved = input.bets.filter((b) => b.ticketStatus === 'approved');
   const { order, target } = processingOrder(active);
@@ -428,7 +439,7 @@ export function settle(input: SettleInput, resolvers: Record<string, Resolver> =
 
     const resolver = resolvers[m.type];
     const res: Resolution = resolver
-      ? resolver({ events, timeline, param: m.param, ownGoalOptionId: input.ownGoalOptionId, league: lg })
+      ? resolver({ events, timeline, param: m.param, ownGoalOptionId: input.ownGoalOptionId, league: lgM1 })
       : { kind: 'unresolved', reason: `Tipo de mercado desconocido: ${m.type}` };
 
     if (res.kind === 'unresolved') {

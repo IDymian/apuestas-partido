@@ -46,7 +46,7 @@ export abstract class AuthApi {
 /** Mensajes de Supabase Auth en español. */
 export function authError(e: unknown): string {
   const msg = (e as { message?: string })?.message ?? String(e);
-  if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'Sin conexión. Revisa tu internet e inténtalo otra vez.';
+  if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'Se cayó la señal, causa. Revisa tu internet y dale otra vez.';
   if (/Invalid login credentials/i.test(msg)) return 'Correo o contraseña incorrectos.';
   if (/Email not confirmed/i.test(msg)) return 'Primero confirma tu correo: revisa tu bandeja (y la carpeta de spam).';
   if (/already registered|already been registered/i.test(msg)) return 'Ese correo ya tiene cuenta. Inicia sesión o recupera tu contraseña.';
@@ -235,9 +235,11 @@ export class MockAuthApi extends AuthApi {
     const e = email.trim().toLowerCase();
     if (list.some((u) => u.email === e)) throw new Error(authError('already registered'));
     if (!(await this.usernameAvailable(username))) throw new Error('Ese usuario ya está tomado. Prueba con otro.');
-    const u: LocalUser = { id: uuid(), email: e, username: username.trim(), passHash: await hash(password), confirmed: false };
+    const u: LocalUser = { id: uuid(), email: e, username: username.trim(), passHash: await hash(password), confirmed: true };
     this.saveUsers([...list, u]);
-    return { needsConfirm: true, testToken: u.id };
+    // Sin confirmación por correo (igual que Supabase con "Confirm email" apagado): entra directo.
+    this.login(u);
+    return { needsConfirm: false };
   }
 
   /** "Abrir" el correo de confirmación de prueba. */

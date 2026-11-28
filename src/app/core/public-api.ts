@@ -17,6 +17,8 @@ export abstract class PublicApi {
   /** Avisa cuando algo de la jornada cambió. Devuelve la función para desuscribirse. */
   abstract subscribe(code: string, onChange: () => void): () => void;
   abstract qrUrl(path: string | null): string | null;
+  /** URL de la foto subida de un jugador (`players.photo_id`). */
+  abstract photoUrl(photoId: string): string | null;
 
   // Billetera
   abstract getWallet(): Promise<Wallet>;
@@ -33,7 +35,7 @@ export abstract class PublicApi {
 /** Traduce errores de Postgres/Supabase a un mensaje legible. */
 export function friendlyError(e: unknown): string {
   const msg = (e as { message?: string })?.message ?? String(e);
-  if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'Sin conexión. Revisa tu internet e inténtalo otra vez.';
+  if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'Se cayó la señal, causa. Revisa tu internet y dale otra vez.';
   return msg;
 }
 
@@ -124,5 +126,9 @@ export class SupabasePublicApi extends PublicApi {
 
   qrUrl(path: string | null): string | null {
     return path ? this.sb.client.storage.from('pay-qr').getPublicUrl(path).data.publicUrl : null;
+  }
+
+  photoUrl(photoId: string): string | null {
+    return this.sb.client.storage.from('avatares').getPublicUrl(`jugadores/${photoId}.webp`).data.publicUrl;
   }
 }
