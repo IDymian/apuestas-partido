@@ -7,12 +7,14 @@ import {
   SettlementRow,
   AdminMatchData,
   EventRow,
+  GameModeId,
   MarketRow,
   MarketType,
   MatchInput,
   MatchRow,
   MatchStatus,
   PaidRow,
+  PlayerRow,
   TicketRow,
   TicketStatus,
 } from './models';
@@ -22,6 +24,7 @@ import { uuid } from './uid';
 
 export type NewEvent = Pick<EventRow, 'match_id' | 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute' | 'game'>;
 export type EventPatch = Partial<Pick<EventRow, 'type' | 'player_id' | 'team_id' | 'is_own_goal' | 'team_out_id' | 'minute' | 'game'>>;
+export type PlayerPatch = Partial<Pick<PlayerRow, 'name' | 'team_id' | 'shirt_number' | 'position' | 'slot' | 'modes'>>;
 
 /** Operaciones del organizador (requieren login de admin). */
 export abstract class AdminApi {
@@ -41,11 +44,14 @@ export abstract class AdminApi {
   abstract setCurrentGame(matchId: string, game: number, live?: boolean): Promise<void>;
   /** Prende o apaga "en vivo" para el partido actual. */
   abstract setGameLive(matchId: string, live: boolean): Promise<void>;
+  /** Crea e inicia el siguiente partido de la rotación (rey de la cancha) con sus mercados. */
+  abstract addGame(matchId: string, homeTeamId: string, awayTeamId: string, goLive?: boolean, mode?: GameModeId): Promise<number>;
   abstract uploadQr(matchId: string, file: Blob): Promise<void>;
   abstract removeQr(matchId: string): Promise<void>;
 
   abstract addPlayers(matchId: string, names: string[]): Promise<void>;
   abstract renamePlayer(id: string, name: string): Promise<void>;
+  abstract updatePlayer(id: string, patch: PlayerPatch): Promise<void>;
   abstract deletePlayer(id: string): Promise<void>;
 
   abstract saveMarket(m: Partial<MarketRow> & { match_id: string }): Promise<void>;
@@ -219,6 +225,18 @@ export class SupabaseAdminApi extends AdminApi {
     if (error) throw error;
   }
 
+  async addGame(matchId: string, homeTeamId: string, awayTeamId: string, goLive = false, mode: GameModeId = 1): Promise<number> {
+    const { data, error } = await this.db.rpc('admin_add_game', {
+      p_match: matchId,
+      p_home: homeTeamId,
+      p_away: awayTeamId,
+      p_live: goLive,
+      p_mode: mode,
+    });
+    if (error) throw error;
+    return Number(data);
+  }
+
   async setStartingTeams(matchId: string, teamIds: [string, string]) {
     const { error } = await this.db.from('matches').update({ starting_team_ids: teamIds }).eq('id', matchId);
     if (error) throw error;
@@ -253,6 +271,11 @@ export class SupabaseAdminApi extends AdminApi {
 
   async renamePlayer(id: string, name: string) {
     const { error } = await this.db.from('players').update({ name }).eq('id', id);
+    if (error) throw error;
+  }
+
+  async updatePlayer(id: string, patch: PlayerPatch) {
+    const { error } = await this.db.from('players').update(patch).eq('id', id);
     if (error) throw error;
   }
 

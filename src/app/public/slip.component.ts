@@ -23,8 +23,8 @@ import { sound } from '../ui/sound';
         <div class="mx-auto grid h-20 w-20 place-items-center rounded-full bg-lime text-white shadow-[0_16px_40px_-10px_rgb(242_98_0/0.7)]">
           <svg class="draw-check" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5" /></svg>
         </div>
-        <h2 class="mt-4 font-display text-3xl font-extrabold">¡Apuesta hecha!</h2>
-        <p class="mt-1 text-mute">Se descontó de tu saldo. Te quedan <b class="text-lime">{{ balanceText() }}</b>.</p>
+        <h2 class="mt-4 font-display text-3xl font-extrabold">¡Ticket adentro!</h2>
+        <p class="mt-1 text-mute">Se descontó de tu saldo. Te quedan <b class="text-lime">{{ balanceText() }}</b> — ahora reza que no te la malogren.</p>
         <ul class="mt-4 divide-y divide-ink/[0.06] text-left">
           @for (b of done(); track b.marketId + b.selection) {
             <li class="flex justify-between gap-2 py-2 text-sm">
@@ -41,13 +41,13 @@ import { sound } from '../ui/sound';
     } @else if (slip.count() === 0) {
       <section class="mt-6 flex flex-col items-center px-6 text-center anim-in">
         <div class="grid h-20 w-20 place-items-center rounded-[28px] bg-night-3 text-lime"><app-icon name="ticket" [size]="38" /></div>
-        <h2 class="mt-4 font-display text-2xl font-extrabold">Tu cupón está vacío</h2>
-        <p class="mt-1 text-mute">Toca una cuota en Partidos o Especiales y aparece aquí.</p>
+        <h2 class="mt-4 font-display text-2xl font-extrabold">Ticket más vacío que billetera a fin de mes</h2>
+        <p class="mt-1 text-mute">Toca una opción en Partidos o Formaciones y arma tu jugada antes del pitazo.</p>
         <button type="button" class="btn mt-5" (click)="goGames.emit()">Ver partidos <app-icon name="next" [size]="18" /></button>
       </section>
     } @else {
       <div class="flex items-center justify-between px-1">
-        <h2 class="font-display text-2xl font-extrabold">Cupón <span class="text-lime">({{ slip.count() }})</span></h2>
+        <h2 class="font-display text-2xl font-extrabold">Ticket <span class="text-lime">({{ slip.count() }})</span></h2>
         <button type="button" class="text-sm font-bold text-mute hover:text-candy" (click)="slip.clear()">Vaciar</button>
       </div>
 
@@ -64,8 +64,8 @@ import { sound } from '../ui/sound';
                   <p class="mt-1 text-xs font-bold text-candy">🔒 {{ st.reason }}: quítala para apostar</p>
                 }
               </div>
-              <span class="shrink-0 rounded-lg bg-ink/[0.05] px-2 py-1 text-[11px] font-bold text-mute">bote {{ pot(b.marketId) }}</span>
-              <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint hover:bg-candy/10 hover:text-candy" (click)="slip.remove(b.marketId, b.selection)" aria-label="Quitar del cupón">
+              <span class="shrink-0 rounded-lg bg-ink/[0.05] px-2 py-1 text-[11px] font-bold text-mute">pozo {{ pot(b.marketId) }}</span>
+              <button type="button" class="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-faint hover:bg-candy/10 hover:text-candy" (click)="slip.remove(b.marketId, b.selection)" aria-label="Quitar del ticket">
                 <app-icon name="x" [size]="16" />
               </button>
             </div>
@@ -88,17 +88,17 @@ import { sound } from '../ui/sound';
 
       <section class="glass mt-3">
         <dl class="space-y-2 text-sm">
-          <div class="flex justify-between"><dt class="text-mute">Total del cupón</dt><dd class="font-display text-xl font-extrabold"><app-count-up [cents]="slip.totalCents()" /></dd></div>
+          <div class="flex justify-between"><dt class="text-mute">Total del ticket</dt><dd class="font-display text-xl font-extrabold"><app-count-up [cents]="slip.totalCents()" /></dd></div>
           @if (auth.user()) {
             <div class="flex justify-between"><dt class="text-mute">Tu saldo</dt><dd class="font-bold">{{ balanceText() }}</dd></div>
           }
         </dl>
-        <p class="mt-3 text-xs text-faint">Todo es por bote: lo que se apuesta a un mercado se reparte entre los que aciertan, en proporción a lo que apostaron. {{ warning }}</p>
+        <p class="mt-3 text-xs text-faint">Todo es por pozo: lo que se apuesta a un mercado se reparte entre los que aciertan, en proporción a lo que apostaron. {{ warning }}</p>
       </section>
 
       @if (!auth.user()) {
         <section class="glass mt-3 text-center">
-          <p class="font-bold">Entra para apostar</p>
+          <p class="font-bold">Entra para meter tu jugada</p>
           <div class="mt-3 grid grid-cols-2 gap-2">
             <a [routerLink]="['/entrar']" [queryParams]="{ next: '/p/' + ctx.code() + '?tab=slip' }" class="btn-ghost h-12">Entrar</a>
             <a [routerLink]="['/registro']" [queryParams]="{ next: '/p/' + ctx.code() + '?tab=slip' }" class="btn h-12 text-[15px]">Registrarme</a>
@@ -106,8 +106,8 @@ import { sound } from '../ui/sound';
         </section>
       } @else if (shortfall() > 0) {
         <section class="mt-3 rounded-3xl border border-candy/20 bg-candy/5 p-4 text-center anim-pop" role="alert">
-          <p class="font-bold text-candy">Te faltan {{ soles(shortfall() * 100) }} de saldo</p>
-          <p class="mt-1 text-sm text-mute">Recarga plineando al QR. Cuando el organizador la confirme, el saldo aparece y apuestas.</p>
+          <p class="font-bold text-candy">Estás chihuán: te faltan {{ soles(shortfall() * 100) }}</p>
+          <p class="mt-1 text-sm text-mute">Plinea al QR al toque. Apenas el organizador confirme, cae tu saldo y cierras el ticket.</p>
           <button type="button" class="btn mt-3 w-full" (click)="recharge.emit(shortfall())"><app-icon name="wallet" [size]="18" /> Recargar S/ {{ shortfall() }}</button>
         </section>
       } @else {

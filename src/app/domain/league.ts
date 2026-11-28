@@ -27,6 +27,8 @@ export interface FixtureGame {
   number: number;
   home: string;
   away: string;
+  /** Modo/formato al que pertenece el partido (1, 2 o 3). */
+  mode?: 1 | 2 | 3;
 }
 
 /** Fixture de la jornada a partir del orden de los equipos. */
@@ -77,9 +79,17 @@ const cmp = (a: Standing, b: Standing) => b.points - a.points || b.gd - a.gd || 
  * @param currentGame partido actual (los anteriores ya terminaron; mayor que el último = todos terminados).
  * @param finished true si la jornada terminó (el partido actual también cuenta como jugado).
  * @param live true si el partido actual está en vivo (si no, todavía no empieza).
+ * @param explicitGames partidos creados dinámicamente (rotación rey de la cancha).
  */
-export function league(events: TimelineEvent[], teamIds: string[], currentGame: number, finished: boolean, live = true): League {
-  const fx = fixture(teamIds);
+export function league(
+  events: TimelineEvent[],
+  teamIds: string[],
+  currentGame: number,
+  finished: boolean,
+  live = true,
+  explicitGames?: FixtureGame[] | null,
+): League {
+  const fx = explicitGames?.length ? explicitGames : fixture(teamIds);
   const invalid: string[] = [];
   const games: LeagueGame[] = fx.map((g) => ({
     ...g,
@@ -203,4 +213,61 @@ export function uniqueMax(l: League, key: 'gf' | 'ga'): string | null {
   const max = Math.max(...rows.map((r) => r[key]));
   const top = rows.filter((r) => r[key] === max);
   return top.length === 1 ? top[0].teamId : null;
+}
+
+/**
+ * Sugerencia del siguiente partido en formato rey de la cancha (3+ equipos):
+ * el que ganó se queda en cancha, el que perdió sale y entra el que descansaba.
+ * Si se indica `mode`, solo considera los partidos de ese modo.
+ */
+export function nextRotationMatchup(
+  games: LeagueGame[],
+  teamIds: string[],
+  mode?: 1 | 2 | 3,
+): { home: string; away: string; resting: string | null; tied: boolean } | null {
+  if (teamIds.length < 2) return null;
+  const scoped = mode != null ? games.filter((g) => (g.mode ?? 1) === mode) : games;
+  const last = [...scoped].reverse().find((g) => g.status !== 'pending') ?? scoped.at(-1);
+  if (!last) return { home: teamIds[0], away: teamIds[1], resting: teamIds[2] ?? null, tied: false };
+  const waiting = teamIds.find((t) => t !== last.home && t !== last.away);
+  if (!waiting) return { home: last.home, away: last.away, resting: null, tied: last.homeGoals === last.awayGoals };
+  if (last.homeGoals > last.awayGoals) return { home: last.home, away: waiting, resting: last.away, tied: false };
+  if (last.awayGoals > last.homeGoals) return { home: last.away, away: waiting, resting: last.home, tied: false };
+  return { home: last.home, away: waiting, resting: last.away, tied: true };
+}
+
+/** Tabla de posiciones filtrada a los partidos de un modo concreto (1, 2 o 3). */
+export function tableForMode(games: LeagueGame[], teamIds: string[], mode: 1 | 2 | 3): Standing[] {
+  const rows = new Map<string, Standing>(
+    teamIds.map((t) => [t, { teamId: t, played: 0, won: 0, drawn: 0, lost: 0, gf: 0, ga: 0, gd: 0, points: 0 }]),
+  );
+  for (const g of games) {
+    if ((g.mode ?? 1) !== mode || g.status === 'pending') continue;
+    const h = rows.get(g.home);
+    const a = rows.get(g.away);
+    if (!h || !a) continue;
+    h.played++;
+    a.played++;
+    h.gf += g.homeGoals;
+    h.ga += g.awayGoals;
+    a.gf += g.awayGoals;
+    a.ga += g.homeGoals;
+    if (g.homeGoals > g.awayGoals) {
+      h.won++;
+      a.lost++;
+      h.points += 3;
+    } else if (g.homeGoals < g.awayGoals) {
+      a.won++;
+      h.lost++;
+      a.points += 3;
+    } else {
+      h.drawn++;
+      a.drawn++;
+      h.points++;
+      a.points++;
+    }
+  }
+  for (const r of rows.values()) r.gd = r.gf - r.ga;
+  const order = new Map(teamIds.map((t, i) => [t, i]));
+  return [...rows.values()].sort((a, b) => cmp(a, b) || order.get(a.teamId)! - order.get(b.teamId)!);
 }

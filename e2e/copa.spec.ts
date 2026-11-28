@@ -47,7 +47,7 @@ test.beforeEach(async ({ page }) => {
   page.on('dialog', (d) => d.accept());
 });
 
-test('inicio: portada, entra a la jornada con los 6 partidos y "En vivo" vacío', async ({ page }) => {
+test('inicio: portada, entra a la jornada con Partido 1, descanso y "En vivo" vacío', async ({ page }) => {
   await page.goto('/');
   // La portada es la landing (no salta sola); se entra con el botón.
   await expect(page.getByRole('heading', { name: 'La esférica no se mancha' })).toBeVisible();
@@ -56,39 +56,51 @@ test('inicio: portada, entra a la jornada con los 6 partidos y "En vivo" vacío'
   await page.getByRole('link', { name: /Entrar a la Copa/ }).click();
   await expect(page).toHaveURL(/\/p\/COPA/);
   await expect(page.getByText('6 partidos · 138 mercados')).toBeVisible();
-  for (const n of [1, 2, 3, 4, 5, 6]) await expect(page.getByText(`Partido ${n} · Próximo`)).toBeVisible();
-  // Todo es por bote: cada opción muestra lo apostado, no "cuotas"
+  await expect(page.getByText('Partido 1 · Próximo')).toBeVisible();
+  await expect(page.getByText('Partido 4 · Próximo')).toBeVisible();
+  await expect(page.getByText('Modo 3 · Draft de goleadores')).toBeVisible();
+  await expect(page.getByText('Calentando el asiento · espera al ganador')).toBeVisible();
+  // Todo es por bote: cada opción conserva el apostado accesible
   await expect(page.getByRole('button', { name: /^Gana Equipo 1 · apostado S\/ 0/ }).first()).toBeVisible();
   await expectNoHorizontalScroll(page);
   await shot(page, '01-partidos');
 
   await tab(page, /En vivo/).click();
-  await expect(page.getByRole('heading', { name: 'No hay partidos en vivo' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Todavía no sueltan el balón' })).toBeVisible();
 });
 
-test('cupón con apuestas de partido y especiales; se ve en Mi perfil', async ({ page }) => {
+test('cupón con apuestas desde Formaciones, Populares y Especiales; se ve en Mi perfil', async ({ page }) => {
   await loginTest(page);
   await page.getByRole('button', { name: /^Gana Equipo 1 · apostado/ }).first().click();
   await page.getByRole('button', { name: 'Ver mercados del partido 1' }).click();
-  await expect(page.getByRole('dialog')).toContainText('¿Habrá palo?');
-  await page.getByRole('dialog').getByRole('button', { name: /^Primer gol bote/ }).click();
-  await page.getByRole('dialog').getByRole('button', { name: /^Adrian Ruiz · apostado/ }).click();
-  await page.getByRole('dialog').getByRole('button', { name: /¿Habrá penal\?/ }).click();
-  await page.getByRole('dialog').getByRole('button', { name: /^Sí · apostado/ }).click();
-  await shot(page, '02-mercados-partido');
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toContainText('¿Habrá palo?');
+  await dialog.getByRole('button', { name: /¿Habrá penal\? · Sí · apostado/ }).click();
+
+  // Pestaña Formaciones (cancha 6v6 + link WhatsApp de reclamo)
+  await dialog.getByRole('tab', { name: 'Formaciones' }).click();
+  await expect(dialog.getByText('Alineación al ojo')).toBeVisible();
+  await expect(dialog.getByRole('link', { name: /Reclamar en WhatsApp/ })).toBeVisible();
+  await dialog.getByRole('button', { name: /^Nicolas · Primer gol/ }).click();
+  await shot(page, '02-formaciones');
+
+  // Pestaña Jugadores (tabla responsiva)
+  await dialog.getByRole('tab', { name: 'Jugadores' }).click();
+  await expect(dialog.getByRole('region', { name: 'Apuestas por jugador del partido' })).toBeVisible();
+  await shot(page, '02b-jugadores');
   await page.getByRole('button', { name: 'Cerrar' }).click();
 
-  await page.getByRole('tab', { name: 'Especiales' }).click();
+  await page.getByRole('tab', { name: 'Makanakis' }).click();
   await page.getByRole('button', { name: /Primera roja/ }).click();
-  await page.getByRole('button', { name: /^Diego Guevara · apostado/ }).click();
+  await page.getByRole('button', { name: /^Digetto · apostado/ }).click();
 
-  await page.getByRole('button', { name: /Ver cupón/ }).click();
-  await expect(page.getByRole('heading', { name: /Cupón \(4\)/ })).toBeVisible();
-  await page.getByRole('group', { name: /Monto para Diego Guevara/ }).getByRole('button', { name: 'S/ 3' }).click();
+  await page.getByRole('button', { name: /Ver ticket/ }).click();
+  await expect(page.getByRole('heading', { name: /Ticket \(4\)/ })).toBeVisible();
+  await page.getByRole('group', { name: /Monto para Digetto/ }).getByRole('button', { name: 'S/ 3' }).click();
   await expectNoHorizontalScroll(page);
   await shot(page, '03-cupon');
   await page.getByRole('button', { name: /Apostar S\/ 6\.00/ }).click();
-  await expect(page.getByRole('heading', { name: '¡Apuesta hecha!' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '¡Ticket adentro!' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Mi saldo' })).toContainText('S/ 44');
 
   // El bote se actualiza con lo apostado
@@ -121,7 +133,7 @@ test('Social: la barra de escribir no tapa los mensajes y se puede ver el perfil
   await shot(page, '05-social');
 
   // Buscar apostador por usuario y abrir su perfil
-  await page.getByLabel('Buscar apostador por usuario').fill('prue');
+  await page.getByLabel('Sapear apostador por usuario').fill('prue');
   await page.getByRole('button', { name: /^P\s*prueba$/ }).click();
   await expect(page.getByRole('dialog', { name: 'Perfil de prueba' })).toBeVisible();
   await expect(page.getByRole('dialog')).toContainText('Apuestas');
@@ -142,17 +154,17 @@ test('registro con correo, depósito por Plin y el admin lo acredita', async ({ 
   await page.getByRole('button', { name: 'Confirmar mi cuenta' }).click();
   await page.getByRole('button', { name: /Ir a la jornada/ }).click();
 
-  // Sin saldo: el cupón pide depositar lo que falta
+  // Sin saldo: el ticket pide depositar lo que falta
   await page.getByRole('button', { name: /^Empate · apostado/ }).first().click();
-  await tab(page, /Cupón/).click();
-  await expect(page.getByText('Te faltan S/ 1.00 de saldo')).toBeVisible();
+  await tab(page, /Ticket/).click();
+  await expect(page.getByText('Estás chihuán: te faltan S/ 1.00')).toBeVisible();
   await page.getByRole('button', { name: /Recargar S\/ 1/ }).click();
   await expect(page.getByRole('heading', { name: 'Depositar por Plin' })).toBeVisible();
   await page.getByRole('button', { name: '20', exact: true }).click();
   await page.setInputFiles('input[type=file]', RECEIPT);
   await shot(page, '06-deposito');
   await page.getByRole('button', { name: /Ya pliné S\/ 20/ }).click();
-  await expect(page.getByText('¡Depósito enviado!')).toBeVisible();
+  await expect(page.getByText('¡Captura enviada!')).toBeVisible();
   await page.getByRole('button', { name: 'Listo' }).click();
 
   await adminLogin(page);
@@ -170,19 +182,19 @@ test('bote: en vivo, liquidar acredita la ganancia al saldo y el admin devuelve 
   await loginTest(page);
   // Única apuesta del partido 1: S/ 5 a que gana el Equipo 1 → el bote es S/ 5
   await page.getByRole('button', { name: /^Gana Equipo 1 · apostado/ }).first().click();
-  await tab(page, /Cupón/).click();
+  await tab(page, /Ticket/).click();
   await page.getByRole('group', { name: /Monto para Gana Equipo 1/ }).getByRole('button', { name: 'S/ 5' }).click();
   await page.getByRole('button', { name: /Apostar S\/ 5\.00/ }).click();
   await expect(page.getByRole('button', { name: 'Mi saldo' })).toContainText('S/ 45');
 
-  // El organizador: partido 1 en vivo, gol del Equipo 1, terminar
+  // El organizador: partido 1 en vivo, gol del Equipo 1, terminar y crear partido 2 (rey de la cancha)
   await adminLogin(page);
   await page.getByRole('link', { name: /Copa Álvaro/ }).click();
   await page.getByRole('button', { name: /^Eventos/ }).click();
   await page.getByRole('button', { name: /Poner en vivo el partido 1/ }).click();
   await page.getByRole('button', { name: /Gol para Equipo 1/ }).click();
-  await page.getByRole('button', { name: 'Victor Manuel Espino', exact: true }).click();
-  await expect(page.getByText(/Gol de Victor Manuel Espino para Equipo 1/)).toBeVisible();
+  await page.getByRole('button', { name: 'Nicolas', exact: true }).click();
+  await expect(page.getByText(/Gol de Nicolas para Equipo 1/)).toBeVisible();
 
   await goInApp(page, '/p/COPA?tab=live');
   await expect(page.getByText(/En vivo · Partido 1/)).toBeVisible();
@@ -193,7 +205,8 @@ test('bote: en vivo, liquidar acredita la ganancia al saldo y el admin devuelve 
   await page.getByRole('link', { name: /Copa Álvaro/ }).click();
   await page.getByRole('button', { name: /^Eventos/ }).click();
   await page.getByRole('button', { name: /Terminar partido 1/ }).click();
-  await expect(page.getByText('Partido actual · 2 de 6')).toBeVisible();
+  await page.getByRole('button', { name: /\+ Crear partido 7/ }).click();
+  await expect(page.getByText('Partido actual · 7 de 7')).toBeVisible();
 
   // Liquidar: se acredita al saldo del ganador
   await page.getByRole('button', { name: /^Liquidación/ }).click();
@@ -203,7 +216,7 @@ test('bote: en vivo, liquidar acredita la ganancia al saldo y el admin devuelve 
 
   await goInApp(page, '/p/COPA?tab=mine');
   await expect(page.getByTestId('balance')).toHaveText('S/ 50');
-  await expect(page.getByText(/Te acreditaron S\/ 5\.00/)).toBeVisible();
+  await expect(page.getByText(/Plata como cancha: te cayeron S\/ 5\.00/)).toBeVisible();
   await expect(page.getByText('✓ Ganó').first()).toBeVisible();
 
   // Al final, el organizador devuelve el saldo por Plin

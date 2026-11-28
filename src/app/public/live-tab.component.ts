@@ -26,7 +26,7 @@ import { IconComponent } from '../ui/icon.component';
       <section class="glass mt-3">
         <h3 class="font-display text-lg font-extrabold">Minuto a minuto</h3>
         @if (events().length === 0) {
-          <p class="mt-1 text-sm text-mute">Sin jugadas todavía.</p>
+          <p class="mt-1 text-sm text-mute">Sin jugadas todavía. Pura marca por ahora.</p>
         } @else {
           <ol class="mt-2 space-y-2">
             @for (e of events(); track e.id) {
@@ -42,15 +42,15 @@ import { IconComponent } from '../ui/icon.component';
     } @else {
       <section class="mt-6 flex flex-col items-center px-6 text-center anim-in">
         <div class="grid h-20 w-20 place-items-center rounded-[28px] bg-night-3 text-lime"><app-icon name="live" [size]="38" /></div>
-        <h2 class="mt-4 font-display text-2xl font-extrabold">No hay partidos en vivo</h2>
-        <p class="mt-1 text-mute">Cuando empiece un partido, el organizador lo pone en vivo y aparece aquí con su marcador.</p>
+        <h2 class="mt-4 font-display text-2xl font-extrabold">Todavía no sueltan el balón</h2>
+        <p class="mt-1 text-mute">Apenas el organizador dé el pitazo, el marcador y las jugadas aparecen aquí en vivo.</p>
         @if (next(); as n) {
           <div class="glass mt-5 w-full text-left">
             <p class="eyebrow">Próximo · Partido {{ n.number }}</p>
             <p class="mt-1 font-display text-xl font-extrabold">{{ ctx.team(n.home) }} <span class="text-faint">vs</span> {{ ctx.team(n.away) }}</p>
           </div>
         }
-        <button type="button" class="btn mt-5" (click)="goGames.emit()">Apostar antes del partido <app-icon name="next" [size]="18" /></button>
+        <button type="button" class="btn mt-5" (click)="goGames.emit()">Meter fichas antes del pitazo <app-icon name="next" [size]="18" /></button>
       </section>
     }
   `,

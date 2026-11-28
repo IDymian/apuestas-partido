@@ -56,6 +56,4 @@ src/environments/env.generated.ts
 
 # Skills de diseño (solo locales, no se versionan)
 /.agents/
-/.opencode/skills/
-/.opencode/commands/impeccable.md
 /skills-lock.json

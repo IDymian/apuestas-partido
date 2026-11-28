@@ -19,17 +19,20 @@ import { IconComponent } from '../ui/icon.component';
             @if (g.status === 'live') {
               <span class="live-dot"></span>
             }
+            @if (g.mode) {
+              <span class="rounded bg-ink/[0.06] px-1.5 py-0.5 text-[10px] text-ink">M{{ g.mode }}</span>
+            }
             Partido {{ g.number }} · {{ statusText() }}
           </p>
           <div class="mt-1 space-y-0.5">
             <p class="flex items-center justify-between gap-2 leading-tight font-bold">
-              <span class="flex min-w-0 items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" [class]="dot(0)"></span><span class="truncate">{{ ctx.team(g.home) }}</span></span>
+              <span class="flex min-w-0 items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" [style.background]="ctx.teamColor(g.home)"></span><span class="truncate">{{ ctx.team(g.home) }}</span></span>
               @if (g.status !== 'pending') {
                 <span class="font-display text-base font-extrabold tabular-nums">{{ g.homeGoals }}</span>
               }
             </p>
             <p class="flex items-center justify-between gap-2 leading-tight font-bold">
-              <span class="flex min-w-0 items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" [class]="dot(1)"></span><span class="truncate">{{ ctx.team(g.away) }}</span></span>
+              <span class="flex min-w-0 items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" [style.background]="ctx.teamColor(g.away)"></span><span class="truncate">{{ ctx.team(g.away) }}</span></span>
               @if (g.status !== 'pending') {
                 <span class="font-display text-base font-extrabold tabular-nums">{{ g.awayGoals }}</span>
               }
@@ -37,10 +40,10 @@ import { IconComponent } from '../ui/icon.component';
           </div>
         </div>
         <span class="flex shrink-0 flex-col items-end gap-1">
-          <span class="flex items-center gap-0.5 rounded-lg bg-lime/10 px-1.5 py-0.5 text-[11px] font-extrabold text-lime">
-            +{{ ctx.gameMarkets(g).length }} mercados <app-icon name="chevron" [size]="14" class="-rotate-90" />
+          <span class="flex items-center gap-0.5 rounded-lg bg-lime/10 px-1.5 py-0.5 text-[11px] font-extrabold text-lime-deep">
+            Formaciones · +{{ ctx.gameMarkets(g).length }} <app-icon name="chevron" [size]="14" class="-rotate-90" />
           </span>
-          <span class="text-[11px] font-semibold text-mute">bote {{ gamePot() }}</span>
+          <span class="text-[11px] font-semibold text-mute">pozo {{ gamePot() }}</span>
         </span>
       </button>
       @if (winner(); as w) {
@@ -63,10 +66,4 @@ export class GameCardComponent {
   );
   protected readonly statusText = computed(() => ({ pending: 'Próximo', live: 'En vivo', played: 'Finalizado' })[this.game().status]);
   protected readonly tone = computed(() => ({ pending: 'text-mute', live: 'text-candy', played: 'text-faint' })[this.game().status]);
-  private readonly order = computed(() => (this.ctx.data()?.teams ?? []).slice().sort((a, b) => a.sort_order - b.sort_order).map((t) => t.id));
-
-  protected dot(side: 0 | 1) {
-    const id = side === 0 ? this.game().home : this.game().away;
-    return ['bg-lime', 'bg-ink', 'bg-gold', 'bg-sky'][Math.max(0, this.order().indexOf(id)) % 4];
-  }
 }

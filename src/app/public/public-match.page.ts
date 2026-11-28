@@ -24,7 +24,7 @@ type Tab = 'games' | 'live' | 'slip' | 'social' | 'mine';
 const TABS: { id: Tab; label: string; icon: IconName }[] = [
   { id: 'games', label: 'Partidos', icon: 'home' },
   { id: 'live', label: 'En vivo', icon: 'live' },
-  { id: 'slip', label: 'Cupón', icon: 'ticket' },
+  { id: 'slip', label: 'Ticket', icon: 'ticket' },
   { id: 'social', label: 'Social', icon: 'chat' },
   { id: 'mine', label: 'Mi perfil', icon: 'user' },
 ];
@@ -81,16 +81,16 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
       </header>
 
       @if (d.match.status !== 'open') {
-        <p class="mx-auto mt-2 max-w-md px-4 text-center text-xs font-bold text-candy md:max-w-2xl">{{ statusLabel() }}: las apuestas están cerradas.</p>
+        <p class="mx-auto mt-2 max-w-md px-4 text-center text-xs font-bold text-candy md:max-w-2xl">{{ statusLabel() }}: se cerraron las apuestas, ya no entra ninguna ficha.</p>
       }
 
       <main class="mx-auto max-w-md px-4 pt-3 pb-40 md:max-w-2xl">
         @switch (tab()) {
           @case ('games') {
-            <div class="anim-tab"><app-lobby (full)="flash('Máximo 20 apuestas por cupón')" /></div>
+            <div class="anim-tab"><app-lobby (full)="flash('Máximo 20 apuestas por ticket')" /></div>
           }
           @case ('live') {
-            <div class="anim-tab"><app-live-tab (goGames)="setTab('games')" (full)="flash('Máximo 20 apuestas por cupón')" /></div>
+            <div class="anim-tab"><app-live-tab (goGames)="setTab('games')" (full)="flash('Máximo 20 apuestas por ticket')" /></div>
           }
           @case ('slip') {
             <div class="anim-tab"><app-slip (goGames)="setTab('games')" (viewAccount)="setTab('mine')" (recharge)="openRecharge($event)" /></div>
@@ -102,8 +102,8 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
               } @else {
                 <section class="mt-6 flex flex-col items-center px-6 text-center anim-in">
                   <div class="grid h-20 w-20 place-items-center rounded-[28px] bg-night-3 text-lime"><app-icon name="chat" [size]="36" /></div>
-                  <h2 class="mt-4 font-display text-2xl font-extrabold">Entra para comentar</h2>
-                  <p class="mt-1 text-mute">El chat de la Copa es para los que tienen cuenta.</p>
+                  <h2 class="mt-4 font-display text-2xl font-extrabold">Entra para tirar humo</h2>
+                  <p class="mt-1 text-mute">El chat de la Copa es para los patas con cuenta.</p>
                   <a [routerLink]="['/entrar']" [queryParams]="{ next: '/p/' + code() + '?tab=social' }" class="btn mt-5">Entrar</a>
                 </section>
               }
@@ -116,8 +116,8 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
               } @else {
                 <section class="mt-6 flex flex-col items-center px-6 text-center anim-in">
                   <div class="grid h-20 w-20 place-items-center rounded-[28px] bg-night-3 text-lime"><app-icon name="user" [size]="36" /></div>
-                  <h2 class="mt-4 font-display text-2xl font-extrabold">Tu cuenta</h2>
-                  <p class="mt-1 text-mute">Entra para ver tu saldo, recargar por Plin y ver tus apuestas.</p>
+                  <h2 class="mt-4 font-display text-2xl font-extrabold">Tu perfil pichanguero</h2>
+                  <p class="mt-1 text-mute">Entra para ver tu saldo, plinear y revisar si vas cobrando o auspiciando el fullvaso.</p>
                   <div class="mt-5 grid w-full grid-cols-2 gap-2">
                     <a [routerLink]="['/entrar']" [queryParams]="{ next: '/p/' + code() + '?tab=mine' }" class="btn-ghost h-12">Entrar</a>
                     <a [routerLink]="['/registro']" [queryParams]="{ next: '/p/' + code() + '?tab=mine' }" class="btn h-12 text-[15px]">Registrarme</a>
@@ -137,7 +137,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
           (click)="setTab('slip')"
         >
           <span class="grid h-8 min-w-8 place-items-center rounded-full bg-lime px-2 font-display font-extrabold" [class.anim-bump]="bumping()">{{ slip.count() }}</span>
-          <span class="min-w-0 flex-1 text-sm font-bold">Ver cupón</span>
+          <span class="min-w-0 flex-1 text-sm font-bold">Ver ticket</span>
           <span class="font-display text-lg font-extrabold">S/ {{ slip.totalCents() / 100 }}</span>
           <app-icon name="next" [size]="18" />
         </button>
@@ -169,7 +169,7 @@ const TABS: { id: Tab; label: string; icon: IconName }[] = [
       </nav>
 
       @if (ctx.openSheet(); as g) {
-        <app-game-sheet [game]="g" (closed)="ctx.sheetGame.set(null)" (full)="flash('Máximo 20 apuestas por cupón')" />
+        <app-game-sheet [game]="g" (closed)="ctx.sheetGame.set(null)" (openSlip)="ctx.sheetGame.set(null); setTab('slip')" (full)="flash('Máximo 20 apuestas por ticket')" />
       }
       @if (ctx.profileOf(); as who) {
         <app-profile-sheet [username]="who" (closed)="ctx.profileOf.set(null)" />

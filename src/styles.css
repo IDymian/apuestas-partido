@@ -76,16 +76,26 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior: none;
     color-scheme: light;
     scroll-behavior: smooth;
   }
   body {
     @apply min-h-dvh bg-night font-sans text-ink antialiased;
+    overscroll-behavior: none;
     background-image:
       radial-gradient(60rem 40rem at 110% -10%, rgb(255 122 26 / 0.16), transparent 60%),
       radial-gradient(50rem 30rem at -20% 10%, rgb(255 176 92 / 0.14), transparent 60%),
       radial-gradient(40rem 30rem at 50% 120%, rgb(242 98 0 / 0.06), transparent 60%);
     background-attachment: fixed;
+  }
+  button, a, [role="button"], [role="tab"] {
+    touch-action: manipulation;
+  }
+  button, [role="button"], [role="tab"] {
+    user-select: none;
+    -webkit-user-select: none;
   }
   /* Panel del organizador: tema claro de trabajo. */
   body.theme-admin {
@@ -335,6 +345,89 @@
 
 @utility h-13 {
   height: 3.25rem;
+}
+
+/* =============================================================================
+   Pestañas horizontales con fade en bordes + cancha de Formaciones (6 vs 6)
+   ============================================================================= */
+@property --fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@property --fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.tab-scroller {
+  scroll-snap-type: inline proximity;
+  scroll-padding-inline: 1.5rem;
+  --fade-size: 1.75rem;
+}
+
+@supports (animation-timeline: scroll()) {
+  .tab-scroller {
+    mask:
+      linear-gradient(black, black) no-clip subtract,
+      linear-gradient(to right, black, transparent) 0 0 / var(--fade-start) 100% no-repeat no-clip,
+      linear-gradient(to right, transparent, black) 100% 0 / var(--fade-end) 100% no-repeat no-clip;
+    animation: reveal-fade-start linear both, hide-fade-end linear both;
+    animation-timeline: scroll(self inline);
+    animation-range: 0 var(--fade-size), calc(100% - var(--fade-size)) 100%;
+  }
+}
+
+@keyframes reveal-fade-start {
+  to {
+    --fade-start: var(--fade-size);
+  }
+}
+
+@keyframes hide-fade-end {
+  from {
+    --fade-end: var(--fade-size);
+  }
+}
+
+.match-tab,
+.pitch-market-tab {
+  scroll-snap-align: start;
+}
+
+.match-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0.5rem 0;
+  border-block-end: 3px solid var(--color-lime);
+  border-radius: 999px;
+}
+
+.pitch-market-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  inset: auto 0.35rem 0;
+  border-block-end: 2.5px solid #ffffff;
+  border-radius: 999px;
+}
+
+.pitch-surface {
+  background-color: #13542a;
+  background-image:
+    linear-gradient(180deg, rgb(6 29 15 / 0.25) 0%, transparent 18%, transparent 82%, rgb(6 29 15 / 0.28) 100%),
+    repeating-linear-gradient(
+      180deg,
+      rgb(255 255 255 / 0.045) 0px,
+      rgb(255 255 255 / 0.045) 42px,
+      transparent 42px,
+      transparent 84px
+    );
+}
+
+.player-table-wrap {
+  overscroll-behavior-x: contain;
 }
 
 @media (prefers-reduced-motion: reduce) {

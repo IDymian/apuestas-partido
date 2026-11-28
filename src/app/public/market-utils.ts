@@ -1,5 +1,6 @@
 import { Market, PublicMatchData } from '../core/models';
 import { makeSelectionLabel, teamOrder, toTimelineEvents } from '../domain/adapt';
+import { isGameMarket } from '../domain/game-markets';
 import { league, League, marketOpen } from '../domain/league';
 import { numberMaxOption } from '../domain/settlement';
 
@@ -14,7 +15,14 @@ export type MarketState = { open: boolean; reason: string | null };
 
 /** Liga de la jornada (partido actual, en vivo y marcadores). */
 export function leagueOf(d: PublicMatchData): League {
-  return league(toTimelineEvents(d.events), teamOrder(d.teams), d.match.current_game ?? 1, d.match.status === 'finished', !!d.match.game_live);
+  return league(
+    toTimelineEvents(d.events),
+    teamOrder(d.teams),
+    d.match.current_game ?? 1,
+    d.match.status === 'finished',
+    !!d.match.game_live,
+    d.match.games ?? null,
+  );
 }
 
 /** ¿Qué mercados reciben apuestas ahora? (misma regla que la base de datos) */
@@ -51,12 +59,23 @@ export function choicesFor(m: Market, d: PublicMatchData, label: Labeler): Choic
       return { selection: String(n), label: n === max ? `${n}+` : String(n) };
     });
   }
-  const players = d.players
-    .filter((p) => !p.is_own_goal)
+  let pool = d.players.filter((p) => !p.is_own_goal);
+  if (isGameMarket(m.type) && m.param != null) {
+    const g = leagueOf(d).games.find((x) => x.number === m.param);
+    if (g) {
+      const mode = g.mode ?? 1;
+      const playing = pool.filter((p) => {
+        const tid = p.modes?.[mode]?.team_id ?? (mode === 1 ? p.team_id : null);
+        return tid === g.home || tid === g.away;
+      });
+      if (playing.length > 0) pool = playing;
+    }
+  }
+  const players = pool
     .sort((a, b) => a.sort_order - b.sort_order)
     .map((p) => ({ selection: p.id, label: p.name }));
   const og = d.players.find((p) => p.is_own_goal);
-  return m.allows_own_goal && og ? [...players, { selection: og.id, label: '🙈 Autogol' }] : players;
+  return m.allows_own_goal && og ? [...players, { selection: og.id, label: 'Autogol' }] : players;
 }
 
 /** Bote de cada mercado y lo apostado a cada opción (céntimos, solo apuestas aprobadas). */

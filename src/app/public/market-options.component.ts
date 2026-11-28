@@ -29,7 +29,7 @@ import { IconComponent } from '../ui/icon.component';
           (click)="pick(c.selection)"
         >
           <span class="odd-label">{{ compact() && c.short ? c.short : c.label }}</span>
-          <span class="odd-value">{{ ctx.stakedText(market().id, c.selection) }}</span>
+          <span class="odd-value">{{ ctx.oddText(market().id, c.selection, compact() ? '—' : 'Apostar') }}</span>
         </button>
       }
     </div>

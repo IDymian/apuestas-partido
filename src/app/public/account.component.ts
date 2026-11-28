@@ -39,7 +39,7 @@ import { sound } from '../ui/sound';
 
       @if (wallet.credits().length) {
         <p class="mt-3 rounded-2xl bg-lime/10 p-3 text-sm font-semibold text-lime">
-          🏆 Te acreditaron {{ soles(creditsTotal()) }} en ganancias y devoluciones.
+          🏆 Plata como cancha: te cayeron {{ soles(creditsTotal()) }} al saldo.
         </p>
       }
 

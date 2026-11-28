@@ -1,10 +1,40 @@
 export type MatchStatus = 'open' | 'closed' | 'finished';
 export type MarketTarget = 'player' | 'team' | 'number';
 export type MarketSection = 'partidos' | 'goles' | 'equipos' | 'amarillas' | 'pichanga' | 'show';
+export type PlayerPosition = 'GK' | 'DEF' | 'MID' | 'FWD';
+export type GameModeId = 1 | 2 | 3;
 /** Eventos de un solo jugador (se registran con dos toques). */
 export type PlayerEventType = 'yellow' | 'red' | 'nutmeg' | 'blooper' | 'penalty' | 'penalty_miss' | 'post' | 'golazo' | 'dive';
 export type EventType = 'goal' | 'rotation' | PlayerEventType;
 export type TicketStatus = 'pending' | 'approved' | 'rejected';
+
+export interface GameModeMeta {
+  id: GameModeId;
+  short: string;
+  name: string;
+  blurb: string;
+}
+
+export const GAME_MODES: GameModeMeta[] = [
+  { id: 1, short: 'Modo 1', name: 'Equipos chocolateados', blurb: '3 equipos 6v6 sorteados · todos contra todos y rotación' },
+  { id: 2, short: 'Modo 2', name: 'Equipo del cumpleañero', blurb: 'Álvaro arma su equipo y se cambian las camisetas' },
+  { id: 3, short: 'Modo 3', name: 'Draft de goleadores', blurb: 'Los 3 máximos goleadores de Modo 1 + 2 son capitanes y eligen' },
+];
+
+export interface ScheduledGame {
+  number: number;
+  home: string;
+  away: string;
+  /** Modo/formato de la pichanga (1 = Chocolateados, 2 = Cumpleañero, 3 = Draft). */
+  mode?: GameModeId;
+}
+
+export interface PlayerModeSlot {
+  team_id: string | null;
+  position: PlayerPosition | null;
+  shirt_number: number | null;
+  slot: number | null;
+}
 
 export interface PublicMatch {
   id: string;
@@ -14,7 +44,9 @@ export interface PublicMatch {
   status: MatchStatus;
   closed_at: string | null;
   starting_team_ids: string[] | null;
-  /** Partido actual de la liga (1–6; 7 = todos terminados). */
+  /** Partidos creados dinámicamente (rotación rey de la cancha). Si falta, usa el fixture automático. */
+  games?: ScheduledGame[] | null;
+  /** Partido actual de la jornada. */
   current_game: number;
   /** El partido actual está en vivo. */
   game_live: boolean;
@@ -29,6 +61,8 @@ export interface Team {
   name: string;
   sort_order: number;
   color: string | null;
+  /** Formación táctica para cancha 6v6 (ej. "2-2-1"). */
+  formation?: string | null;
 }
 
 export interface Player {
@@ -36,6 +70,12 @@ export interface Player {
   name: string;
   is_own_goal: boolean;
   sort_order: number;
+  team_id?: string | null;
+  shirt_number?: number | null;
+  position?: PlayerPosition | null;
+  slot?: number | null;
+  /** Asignación por modo (Modo 1 / Modo 2 / Modo 3). Si falta, se usa team_id/position raíz. */
+  modes?: Partial<Record<GameModeId, PlayerModeSlot>>;
 }
 
 export interface Market {
@@ -107,12 +147,12 @@ export const STATUS_LABEL: Record<MatchStatus, string> = {
 };
 
 export const SECTIONS: { id: MarketSection; label: string; icon: string; blurb: string }[] = [
-  { id: 'partidos', label: 'Partidos', icon: '🆚', blurb: 'Ganador y primer gol de cada partido' },
-  { id: 'goles', label: 'Goles', icon: '⚽', blurb: 'Quién la mete y cuándo (toda la liga)' },
-  { id: 'equipos', label: 'Liga', icon: '🏆', blurb: 'Campeón, último, más goleador y más goleado' },
-  { id: 'amarillas', label: 'Tarjetas', icon: '🟨', blurb: 'Amarillas y rojas' },
-  { id: 'show', label: 'Show', icon: '🎬', blurb: 'Palos, golazos, penales y bloopers' },
-  { id: 'pichanga', label: 'Pichanga', icon: '🤡', blurb: 'Autogoles y huachas' },
+  { id: 'partidos', label: 'Partidos', icon: '🆚', blurb: 'Ganador, goles y primer gol de cada choque' },
+  { id: 'goles', label: 'Goles', icon: '⚽', blurb: 'Quién la mete, quién es el lauchero y cuándo cae' },
+  { id: 'equipos', label: 'Liga', icon: '🏆', blurb: 'Campeón, colero, el que más mete y el más goleado' },
+  { id: 'amarillas', label: 'Tarjetas', icon: '🟨', blurb: 'Patadones, amarillas y rojas' },
+  { id: 'show', label: 'Show', icon: '🎬', blurb: 'Palos, golazos, penales y manos de mantequilla' },
+  { id: 'pichanga', label: 'Pichanga', icon: '🤡', blurb: 'Autogoles, huachas y momentos de tronco' },
 ];
 
 /** Cómo se muestra y se registra cada evento de un jugador. */
@@ -246,10 +286,21 @@ export interface ChatMessage {
 }
 
 /** Respuestas rápidas del chat Social. */
-export const QUICK_REACTIONS = ['⚽ ¡GOOOL!', '⚪ ¡La esférica no se mancha!', '🔥 Golazo', '🤡 Qué blooper', '🥅 ¡Palo!', '🟥 ¡Roja!', '💸 Ya plineé'];
+export const QUICK_REACTIONS = [
+  '⚽ ¡GOOOL!',
+  '⚪ ¡La esférica no se mancha!',
+  '🔥 Qué golazo',
+  '🧈 Manos de mantequilla',
+  '🤡 Qué blooper',
+  '🥅 ¡Palo, salado!',
+  '🥜 ¡Qué huacha!',
+  '💨 Puro humo',
+  '🍺 Se viene el fullvaso',
+  '💸 Ya plineé',
+];
 
 /** Mensaje que ve todo apostador. */
-export const HOUSE_WARNING = 'Si nadie acierta en una apuesta, ese bote se lo queda el organizador.';
+export const HOUSE_WARNING = 'Si nadie le atina, ese pozo auspicia el fullvaso de Álvaro.';
 
 /** Selección guardada en una apuesta (jugador, equipo o número). */
 export function betSelection(b: { player_id: string | null; team_id: string | null; option_value: number | null }): string {

@@ -1,4 +1,5 @@
 import { Component, computed, HostListener, inject, input, output } from '@angular/core';
+import { SlipService } from '../core/slip';
 import { LeagueGame } from '../domain/league';
 import { MatchContext } from './match-context';
 import { GameMarketsComponent } from './game-markets.component';
@@ -22,25 +23,56 @@ import { IconComponent } from '../ui/icon.component';
         [attr.aria-label]="'Partido ' + g.number"
         (click)="$event.stopPropagation()"
       >
-        <div class="shrink-0 border-b border-ink/[0.06] bg-white px-5 pt-2.5 pb-4">
-          <div class="mx-auto mb-3 h-1.5 w-12 rounded-full bg-ink/15 md:hidden"></div>
+        <div class="shrink-0 border-b border-ink/[0.06] bg-white px-5 pt-2.5 pb-3.5">
+          <div class="mx-auto mb-2.5 h-1.5 w-12 rounded-full bg-ink/15 md:hidden"></div>
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
-              <p class="eyebrow">Partido {{ g.number }} · {{ status() }}</p>
-              <h3 class="mt-1 font-display text-2xl leading-tight font-extrabold">{{ ctx.team(g.home) }} <span class="text-faint">vs</span> {{ ctx.team(g.away) }}</h3>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="inline-flex items-center gap-1.5 rounded-full bg-night-3 px-2.5 py-0.5 text-[11px] font-extrabold text-ink">
+                  @if (g.status === 'live') {
+                    <span class="live-dot"></span>
+                  }
+                  {{ g.mode ? ctx.modeMeta(g.mode).short + ' · ' : '' }}Partido {{ g.number }} · {{ status() }}
+                </span>
+                <span class="text-xs font-semibold text-mute">{{ count() }} mercados · por pozo</span>
+              </div>
+              <h3 class="mt-1.5 flex flex-wrap items-center gap-1.5 font-display text-xl leading-tight font-extrabold">
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="h-3 w-3 shrink-0 rounded-full" [style.background]="ctx.teamColor(g.home)" aria-hidden="true"></span>
+                  {{ ctx.team(g.home) }}
+                </span>
+                <span class="text-sm font-bold text-faint">vs</span>
+                <span class="inline-flex items-center gap-1.5">
+                  <span class="h-3 w-3 shrink-0 rounded-full" [style.background]="ctx.teamColor(g.away)" aria-hidden="true"></span>
+                  {{ ctx.team(g.away) }}
+                </span>
+              </h3>
               @if (g.status !== 'pending') {
-                <p class="font-display text-3xl font-extrabold text-lime tabular-nums">{{ g.homeGoals }} - {{ g.awayGoals }}</p>
+                <p class="mt-0.5 font-display text-3xl font-extrabold text-lime tabular-nums">{{ g.homeGoals }} - {{ g.awayGoals }}</p>
               }
-              <p class="mt-1 text-xs text-mute">{{ count() }} mercados de este partido · todo es por bote</p>
             </div>
-            <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink/[0.05]" (click)="closed.emit()" aria-label="Cerrar">
+            <button type="button" class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-ink/[0.05] active:scale-95" (click)="closed.emit()" aria-label="Cerrar">
               <app-icon name="x" [size]="18" />
             </button>
           </div>
         </div>
-        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 pt-3 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           <app-game-markets [game]="g" (full)="full.emit()" />
         </div>
+        @if (slip.count() > 0) {
+          <div class="shrink-0 border-t border-ink/[0.08] bg-white px-4 pt-2.5 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+            <button
+              type="button"
+              class="flex w-full items-center gap-3 rounded-2xl bg-ink px-4 py-3 text-left text-white shadow-[0_12px_28px_-10px_rgb(31_20_13/0.55)] active:scale-[0.98]"
+              (click)="openSlip.emit()"
+            >
+              <span class="grid h-7 min-w-7 place-items-center rounded-full bg-lime px-2 font-display text-sm font-extrabold tabular-nums">{{ slip.count() }}</span>
+              <span class="min-w-0 flex-1 text-sm font-bold">Ir al ticket</span>
+              <span class="font-display text-base font-extrabold tabular-nums">S/ {{ slip.totalCents() / 100 }}</span>
+              <app-icon name="next" [size]="18" />
+            </button>
+          </div>
+        }
       </div>
     </div>
   `,
@@ -49,7 +81,9 @@ export class GameSheetComponent {
   readonly game = input.required<LeagueGame>();
   readonly closed = output<void>();
   readonly full = output<void>();
+  readonly openSlip = output<void>();
   protected readonly ctx = inject(MatchContext);
+  protected readonly slip = inject(SlipService);
   protected readonly count = computed(() => this.ctx.gameMarkets(this.game()).length);
   protected readonly status = computed(() => ({ pending: 'Próximo', live: 'En vivo', played: 'Finalizado' })[this.game().status]);
 

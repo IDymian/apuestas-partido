@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { formatSoles, personKey, SettleBet, SettleInput, SettleMarket, settle, splitProportional, TicketStatus } from './settlement';
 import { courtTimeline, TimelineEvent } from './timeline';
-import { fixture, league, liveGame, marketOpen } from './league';
+import { fixture, league, liveGame, marketOpen, nextRotationMatchup } from './league';
 
 // ---- Fixtures --------------------------------------------------------------
 
@@ -518,6 +518,21 @@ describe('apuestas de cada partido', () => {
   it('partido por jugar: nada se resuelve y todo está abierto', () => {
     const r = run([], 1, false);
     expect(r.markets.every((m) => m.outcome === 'unresolved')).toBe(true);
+  });
+});
+
+describe('rotación rey de la cancha (3 equipos, partidos dinámicos)', () => {
+  const T = ['e1', 'e2', 'e3'];
+  const g1 = { number: 1, home: 'e1', away: 'e2' };
+
+  it('el ganador se queda y entra el equipo que descansaba', () => {
+    const l = league([ev({ type: 'goal', playerId: 'p1', teamId: 'e2', game: 1 })], T, 2, false, false, [g1]);
+    expect(nextRotationMatchup(l.games, T)).toEqual({ home: 'e2', away: 'e3', resting: 'e1', tied: false });
+  });
+
+  it('en empate marca tied=true y sugiere que entre el que descansaba', () => {
+    const l = league([], T, 2, false, false, [g1]);
+    expect(nextRotationMatchup(l.games, T)).toEqual({ home: 'e1', away: 'e3', resting: 'e2', tied: true });
   });
 });
 
