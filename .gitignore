@@ -51,9 +51,12 @@ src/environments/env.generated.ts
 
 # Pruebas en navegador
 /e2e/screenshots/
+/e2e/*.tmp.*
 /test-results/
 /playwright-report/
 
-# Skills de diseño (solo locales, no se versionan)
+# Notas locales, temporales de Supabase y skills (no se versionan)
+/docs/
+/supabase/.temp/
 /.agents/
 /skills-lock.json
