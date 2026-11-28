@@ -80,7 +80,7 @@ test('cupón con apuestas desde Formaciones, Populares y Especiales; se ve en Mi
   // Pestaña Formaciones (cancha 6v6 + link WhatsApp de reclamo)
   await dialog.getByRole('tab', { name: 'Formaciones' }).click();
   await expect(dialog.getByText('Alineación al ojo')).toBeVisible();
-  await expect(dialog.getByRole('link', { name: /Reclamar en WhatsApp/ })).toBeVisible();
+  await expect(dialog.getByRole('link', { name: /Reclamar en el grupo/ })).toHaveAttribute('href', 'https://chat.whatsapp.com/Hh8NdE8Luv61OJuoIckDVA');
   // Los dos equipos en la misma cancha: 12 chips, sin scroll horizontal
   await expect(dialog.getByRole('button', { name: / · Primer gol · apostado/ })).toHaveCount(12);
   await expectNoHorizontalScroll(page);

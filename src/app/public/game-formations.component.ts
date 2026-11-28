@@ -80,12 +80,12 @@ const BOARD_LINES = ['¡Eso, tilín!', 'Qué lechero', 'Al toque, causa', 'Se mu
           <b class="text-white">¿Te mandaron al arco y eres manos de mantequilla?</b> Si vas a llorar, pasa por el libro de reclamaciones:
         </p>
         <a
-          [href]="whatsappComplaintUrl()"
+          [href]="whatsappComplaintUrl"
           target="_blank"
           rel="noopener noreferrer"
           class="inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-xl bg-[#25D366] px-3 py-1.5 text-xs font-extrabold text-[#062111] shadow-sm transition active:scale-95"
         >
-          Reclamar en WhatsApp
+          Reclamar en el grupo
           <app-icon name="external" [size]="13" [stroke]="2.5" />
         </a>
       </div>
@@ -361,22 +361,8 @@ export class GameFormationsComponent {
 
   protected readonly ownGoalPlayer = computed(() => this.ctx.data()?.players.find((p) => p.is_own_goal) ?? null);
 
-  protected readonly whatsappComplaintUrl = computed(() => {
-    const raw = (this.ctx.data()?.match.pay_number ?? '').replace(/\D+/g, '');
-    const phone = raw.length === 9 ? `51${raw}` : raw;
-    const modeMeta = this.ctx.modeMeta(this.game().mode ?? 1);
-    const gks = this.halvesByRole()
-      .map((h) => {
-        const gk = h.rows.find((r) => r.key === 'GK')?.players[0]?.name;
-        return gk ? `${gk} en ${h.name}` : null;
-      })
-      .filter(Boolean);
-    const text = gks.length
-      ? `Oye, reclamo de la Copa Álvaro (${modeMeta.short}): pusieron de arquero a ${gks.join(' y a ')} y ya están llorando 😅🧤`
-      : `Oye, tengo un reclamo con mi posición en la Copa Álvaro (${modeMeta.short}) 😅🧤`;
-    const base = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
-    return `${base}?text=${encodeURIComponent(text)}`;
-  });
+  /** Grupo de WhatsApp de la Copa: ahí van los reclamos. */
+  protected readonly whatsappComplaintUrl = 'https://chat.whatsapp.com/Hh8NdE8Luv61OJuoIckDVA';
 
   /** Filas tácticas de un equipo, de delanteros a arquero. */
   private rowsOf(teamPlayers: Player[]): PitchRow[] {
