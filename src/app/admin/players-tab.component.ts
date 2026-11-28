@@ -36,6 +36,15 @@ const POSITIONS: { id: PlayerPosition; label: string }[] = [
     </section>
 
     <section class="card mt-4">
+      <span class="label">Nuevo equipo ({{ teams().length }} en la jornada)</span>
+      <div class="mt-1 flex gap-2">
+        <input class="input h-11 flex-1" maxlength="30" placeholder="Equipo {{ teams().length + 1 }}" [(ngModel)]="teamName" name="teamName" aria-label="Nombre del equipo nuevo" />
+        <input type="color" class="h-11 w-12 shrink-0 cursor-pointer rounded-lg border border-slate-300" [(ngModel)]="teamColor" name="teamColor" aria-label="Color del equipo nuevo" />
+        <button type="button" class="btn-primary h-11 px-4" [disabled]="busy() || !teamName.trim()" (click)="addTeam()">Nuevo equipo</button>
+      </div>
+    </section>
+
+    <section class="card mt-4">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="font-bold">Jugadores y formaciones <span class="text-sm font-normal text-slate-500">({{ list().length }})</span></h2>
         <div class="flex gap-1">
@@ -129,6 +138,8 @@ export class PlayersTabComponent {
   protected error = signal<string | null>(null);
   protected renaming = signal<string | null>(null);
   protected newName = '';
+  protected teamName = '';
+  protected teamColor = '#64748b';
 
   protected teams = computed(() => [...this.data().teams].sort((a, b) => a.sort_order - b.sort_order));
   protected list = computed(() => this.data().players.filter((p) => !p.is_own_goal).sort((a, b) => a.sort_order - b.sort_order));
@@ -188,6 +199,22 @@ export class PlayersTabComponent {
     try {
       await this.api.addPlayers(this.data().match.id, names);
       this.paste = '';
+      this.changed.emit();
+    } catch (e) {
+      this.error.set(friendlyError(e));
+    } finally {
+      this.busy.set(false);
+    }
+  }
+
+  async addTeam() {
+    const name = this.teamName.trim();
+    if (!name) return;
+    this.busy.set(true);
+    this.error.set(null);
+    try {
+      await this.api.addTeam(this.data().match.id, name, this.teamColor);
+      this.teamName = '';
       this.changed.emit();
     } catch (e) {
       this.error.set(friendlyError(e));

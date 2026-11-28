@@ -1,0 +1,11 @@
+[
+  { "id": "base-01", "tipo": "base", "archivo": "base/base-01.webp" },
+  { "id": "base-02", "tipo": "base", "archivo": "base/base-02.webp" },
+  { "id": "base-03", "tipo": "base", "archivo": "base/base-03.webp" },
+  { "id": "makanaky", "tipo": "especial", "archivo": "especiales/makanaky.webp" },
+  { "id": "errorr", "tipo": "especial", "archivo": "especiales/errorr.webp" },
+  { "id": "sideral", "tipo": "especial", "archivo": "especiales/sideral.webp" },
+  { "id": "paletazo-1", "tipo": "especial", "archivo": "especiales/paletazo-1.webp" },
+  { "id": "paletazo-2", "tipo": "especial", "archivo": "especiales/paletazo-2.webp" },
+  { "id": "pantera", "tipo": "especial", "archivo": "especiales/pantera.webp" }
+]

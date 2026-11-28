@@ -642,14 +642,24 @@ export class MockAdminApi extends AdminApi {
   }
 
   async addGame(matchId: string, homeTeamId: string, awayTeamId: string, goLive = false, mode: GameModeId = 1): Promise<number> {
+    // Mismas reglas que admin_add_game en la BD.
     if (homeTeamId === awayTeamId) throw new Error('Elige dos equipos distintos');
-    const m = this.s.matches.find((x) => x.id === matchId)!;
+    if (![1, 2, 3].includes(mode)) throw new Error('Modo inválido');
+    const m = this.s.matches.find((x) => x.id === matchId);
+    if (!m) throw new Error('Jornada no encontrada');
+    if (m.status === 'finished') throw new Error('La jornada ya terminó');
+    const own = (id: string) => this.s.teams.some((t) => t.id === id && t.match_id === matchId);
+    if (!own(homeTeamId) || !own(awayTeamId)) throw new Error('Los equipos tienen que ser del partido');
     const list = m.games ? [...m.games] : [];
     const nextNumber = list.reduce((max, g) => Math.max(max, g.number), 0) + 1;
+    if (nextNumber > 20) throw new Error('Máximo 20 partidos por jornada');
     list.push({ number: nextNumber, home: homeTeamId, away: awayTeamId, mode });
     m.games = list;
-    m.current_game = nextNumber;
-    m.game_live = goLive;
+    // Mover current_game marcaría como jugados todos los anteriores: solo si arranca en vivo.
+    if (goLive) {
+      m.current_game = nextNumber;
+      m.game_live = true;
+    }
     this.s.createGameMarkets(matchId, nextNumber, homeTeamId, awayTeamId, mode);
     this.s.notify(matchId);
     return nextNumber;
@@ -670,6 +680,18 @@ export class MockAdminApi extends AdminApi {
   async removeQr(matchId: string) {
     this.s.matches.find((m) => m.id === matchId)!.pay_qr_path = null;
     this.s.notify(matchId);
+  }
+
+  async addTeam(matchId: string, name: string, color?: string): Promise<string> {
+    await delay();
+    const clean = name.trim().replace(/\s+/g, ' ');
+    if (!clean) throw new Error('El equipo necesita nombre');
+    if (!this.s.matches.some((m) => m.id === matchId)) throw new Error('Jornada no encontrada');
+    const order = Math.max(0, ...this.s.teams.filter((t) => t.match_id === matchId).map((t) => t.sort_order)) + 1;
+    const id = uid();
+    this.s.teams.push({ id, match_id: matchId, name: clean.slice(0, 30), sort_order: order, color: color?.trim() || '#64748b', formation: '2-2-1' });
+    this.s.notify(matchId);
+    return id;
   }
 
   async addPlayers(matchId: string, names: string[]) {

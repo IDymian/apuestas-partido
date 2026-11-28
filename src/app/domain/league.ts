@@ -216,24 +216,33 @@ export function uniqueMax(l: League, key: 'gf' | 'ga'): string | null {
 }
 
 /**
- * Sugerencia del siguiente partido en formato rey de la cancha (3+ equipos):
- * el que ganó se queda en cancha, el que perdió sale y entra el que descansaba.
+ * Sugerencia del siguiente partido en formato rey de la cancha (N equipos):
+ * el que ganó se queda (en empate, el local), el que perdió sale y entra el que
+ * lleva más partidos sin jugar entre los que no estaban (desempate: orden de equipo).
  * Si se indica `mode`, solo considera los partidos de ese modo.
  */
 export function nextRotationMatchup(
   games: LeagueGame[],
   teamIds: string[],
   mode?: 1 | 2 | 3,
-): { home: string; away: string; resting: string | null; tied: boolean } | null {
+): { home: string; away: string; resting: string[]; tied: boolean } | null {
   if (teamIds.length < 2) return null;
   const scoped = mode != null ? games.filter((g) => (g.mode ?? 1) === mode) : games;
   const last = [...scoped].reverse().find((g) => g.status !== 'pending') ?? scoped.at(-1);
-  if (!last) return { home: teamIds[0], away: teamIds[1], resting: teamIds[2] ?? null, tied: false };
-  const waiting = teamIds.find((t) => t !== last.home && t !== last.away);
-  if (!waiting) return { home: last.home, away: last.away, resting: null, tied: last.homeGoals === last.awayGoals };
-  if (last.homeGoals > last.awayGoals) return { home: last.home, away: waiting, resting: last.away, tied: false };
-  if (last.awayGoals > last.homeGoals) return { home: last.away, away: waiting, resting: last.home, tied: false };
-  return { home: last.home, away: waiting, resting: last.away, tied: true };
+  if (!last) return { home: teamIds[0], away: teamIds[1], resting: teamIds.slice(2), tied: false };
+  const tied = last.homeGoals === last.awayGoals;
+  const waiting = teamIds.filter((t) => t !== last.home && t !== last.away);
+  if (!waiting.length) return { home: last.home, away: last.away, resting: [], tied };
+  const stays = last.awayGoals > last.homeGoals ? last.away : last.home;
+  const history = scoped.slice(0, scoped.indexOf(last) + 1);
+  const idle = (t: string) => {
+    let i = history.length - 1;
+    while (i >= 0 && history[i].home !== t && history[i].away !== t) i--;
+    return history.length - 1 - i;
+  };
+  // reduce con ">" estricto: ante empate se queda el primero en el orden de equipos.
+  const enters = waiting.reduce((best, t) => (idle(t) > idle(best) ? t : best));
+  return { home: stays, away: enters, resting: teamIds.filter((t) => t !== stays && t !== enters), tied };
 }
 
 /** Tabla de posiciones filtrada a los partidos de un modo concreto (1, 2 o 3). */

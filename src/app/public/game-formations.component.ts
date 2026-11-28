@@ -1,5 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
 import { Market, Player, PlayerPosition } from '../core/models';
+import { AvatarService } from '../core/avatars';
 import { SlipService } from '../core/slip';
 import { GAME_MARKET_BY_TYPE } from '../domain/game-markets';
 import { LeagueGame } from '../domain/league';
@@ -159,29 +160,67 @@ interface PitchRow {
                     [attr.aria-label]="p.name + (isGk ? ' (Arquero)' : '') + (mk ? ' · ' + shortLabel(mk.type) + ' · apostado ' + ctx.stakedText(mk.id, p.id) : '')"
                     (click)="mk && pick(mk.id, p.id)"
                   >
-                    <!-- Camiseta SVG con dorsal -->
-                    <span class="relative inline-flex items-center justify-center drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]">
-                      <svg class="h-9 w-10" viewBox="0 0 48 44" aria-hidden="true">
-                        <path
-                          d="M15 4 L20 7 Q24 9 28 7 L33 4 L44 12 L39 21 L34 18 L34 40 L14 40 L14 18 L9 21 L4 12 Z"
-                          [attr.fill]="isGk ? gkKitColor() : activeTeamColor()"
-                          stroke="rgba(255,255,255,0.9)"
-                          stroke-width="1.8"
-                          stroke-linejoin="round"
-                        />
-                        <path d="M19 6 Q24 11 29 6" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="1.6" />
-                      </svg>
+                    @let kit = isGk ? gkKitColor() : activeTeamColor();
+                    @let av = avatars.urlFor(p);
+                    @if (av) {
+                      <!-- Avatar: círculo de 44 px con anillo del equipo, hombros pintados por la app y dorsal en badge -->
                       <span
-                        class="pointer-events-none absolute inset-0 flex items-center justify-center pt-1 font-display text-[12px] font-extrabold text-white tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]"
+                        class="relative inline-flex h-11 w-11 shrink-0 rounded-full border-2 bg-night-3 drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]"
+                        [style.border-color]="kit"
+                        [style.color]="kit"
                       >
-                        {{ p.shirt_number ?? '•' }}
-                      </span>
-                      @if (isGk) {
-                        <span class="absolute -top-1 -right-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-ink shadow">
-                          ARQ
+                        <span class="absolute inset-0 overflow-hidden rounded-full">
+                          <svg class="absolute inset-0 h-full w-full" viewBox="0 0 512 512" aria-hidden="true">
+                            <path [attr.d]="shouldersPath" fill="currentColor" stroke="#1b1210" stroke-width="12" stroke-linejoin="round" />
+                          </svg>
+                          <img
+                            class="absolute inset-0 h-full w-full object-cover"
+                            [src]="av"
+                            alt=""
+                            width="44"
+                            height="44"
+                            loading="lazy"
+                            decoding="async"
+                            (error)="avatars.markBroken(av)"
+                          />
                         </span>
-                      }
-                    </span>
+                        <span
+                          class="absolute -right-1.5 -bottom-1 grid h-4 min-w-4 place-items-center rounded-full border border-white/80 px-1 font-display text-[9.5px] font-extrabold text-white tabular-nums shadow"
+                          [style.background]="kit"
+                        >
+                          {{ p.shirt_number ?? '•' }}
+                        </span>
+                        @if (isGk) {
+                          <span class="absolute -top-1 -right-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-ink shadow">
+                            ARQ
+                          </span>
+                        }
+                      </span>
+                    } @else {
+                      <!-- Camiseta SVG con dorsal (sin avatar o si el manifiesto no carga) -->
+                      <span class="relative inline-flex items-center justify-center drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]">
+                        <svg class="h-9 w-10" viewBox="0 0 48 44" aria-hidden="true">
+                          <path
+                            d="M15 4 L20 7 Q24 9 28 7 L33 4 L44 12 L39 21 L34 18 L34 40 L14 40 L14 18 L9 21 L4 12 Z"
+                            [attr.fill]="kit"
+                            stroke="rgba(255,255,255,0.9)"
+                            stroke-width="1.8"
+                            stroke-linejoin="round"
+                          />
+                          <path d="M19 6 Q24 11 29 6" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="1.6" />
+                        </svg>
+                        <span
+                          class="pointer-events-none absolute inset-0 flex items-center justify-center pt-1 font-display text-[12px] font-extrabold text-white tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]"
+                        >
+                          {{ p.shirt_number ?? '•' }}
+                        </span>
+                        @if (isGk) {
+                          <span class="absolute -top-1 -right-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-ink shadow">
+                            ARQ
+                          </span>
+                        }
+                      </span>
+                    }
 
                     <!-- Nombre del jugador -->
                     <span class="mt-0.5 line-clamp-1 max-w-full rounded-full bg-black/35 px-2 py-0.5 text-[11px] leading-tight font-bold text-white">
@@ -251,6 +290,9 @@ export class GameFormationsComponent {
 
   protected readonly ctx = inject(MatchContext);
   protected readonly slip = inject(SlipService);
+  protected readonly avatars = inject(AvatarService);
+  /** Silueta de hombros (hombros.svg del agente de arte, viewBox 512): los avatares ilustrados vienen sin torso. */
+  protected readonly shouldersPath = 'M40 512 C48 460 120 428 196 420 Q256 474 316 420 C392 428 464 460 472 512 Z';
 
   private readonly selectedTeamOverride = signal<string | null>(null);
   private readonly selectedMarketId = signal<string | null>(null);

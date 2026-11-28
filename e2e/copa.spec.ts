@@ -206,7 +206,8 @@ test('bote: en vivo, liquidar acredita la ganancia al saldo y el admin devuelve 
   await page.getByRole('button', { name: /^Eventos/ }).click();
   await page.getByRole('button', { name: /Terminar partido 1/ }).click();
   await page.getByRole('button', { name: /\+ Crear partido 7/ }).click();
-  await expect(page.getByText('Partido actual · 7 de 7')).toBeVisible();
+  // Crear el 7 sin ponerlo en vivo no da por jugados los pendientes (2 a 6).
+  await expect(page.getByText('Partido actual · 2 de 7')).toBeVisible();
 
   // Liquidar: se acredita al saldo del ganador
   await page.getByRole('button', { name: /^Liquidación/ }).click();

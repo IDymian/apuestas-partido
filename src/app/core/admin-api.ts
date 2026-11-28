@@ -49,6 +49,8 @@ export abstract class AdminApi {
   abstract uploadQr(matchId: string, file: Blob): Promise<void>;
   abstract removeQr(matchId: string): Promise<void>;
 
+  /** Crea un equipo al final del orden (color gris si no se elige). Devuelve su id. */
+  abstract addTeam(matchId: string, name: string, color?: string): Promise<string>;
   abstract addPlayers(matchId: string, names: string[]): Promise<void>;
   abstract renamePlayer(id: string, name: string): Promise<void>;
   abstract updatePlayer(id: string, patch: PlayerPatch): Promise<void>;
@@ -253,6 +255,12 @@ export class SupabaseAdminApi extends AdminApi {
   async removeQr(matchId: string) {
     const { error } = await this.db.from('matches').update({ pay_qr_path: null }).eq('id', matchId);
     if (error) throw error;
+  }
+
+  async addTeam(matchId: string, name: string, color?: string): Promise<string> {
+    const { data, error } = await this.db.rpc('admin_add_team', { p_match: matchId, p_name: name, p_color: color ?? null });
+    if (error) throw error;
+    return String(data);
   }
 
   async addPlayers(matchId: string, names: string[]) {

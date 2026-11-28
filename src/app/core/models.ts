@@ -16,7 +16,7 @@ export interface GameModeMeta {
 }
 
 export const GAME_MODES: GameModeMeta[] = [
-  { id: 1, short: 'Modo 1', name: 'Equipos chocolateados', blurb: '3 equipos 6v6 sorteados · todos contra todos y rotación' },
+  { id: 1, short: 'Modo 1', name: 'Equipos chocolateados', blurb: 'Equipos 6v6 sorteados · todos contra todos y rotación' },
   { id: 2, short: 'Modo 2', name: 'Equipo del cumpleañero', blurb: 'Álvaro arma su equipo y se cambian las camisetas' },
   { id: 3, short: 'Modo 3', name: 'Draft de goleadores', blurb: 'Los 3 máximos goleadores de Modo 1 + 2 son capitanes y eligen' },
 ];
@@ -76,6 +76,10 @@ export interface Player {
   slot?: number | null;
   /** Asignación por modo (Modo 1 / Modo 2 / Modo 3). Si falta, se usa team_id/position raíz. */
   modes?: Partial<Record<GameModeId, PlayerModeSlot>>;
+  /** Id de manifiesto de la foto del jugador (con su permiso). */
+  photo_id?: string | null;
+  /** Id de manifiesto del especial (disfraz); manda sobre la foto. */
+  costume_id?: string | null;
 }
 
 export interface Market {
