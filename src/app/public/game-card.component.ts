@@ -44,7 +44,9 @@ import { KitComponent } from '../ui/kit.component';
           <span class="flex items-center gap-0.5 rounded-lg bg-lime/10 px-1.5 py-0.5 text-[11px] font-extrabold text-lime-deep">
             Formaciones · +{{ ctx.gameMarkets(g).length }} <app-icon name="chevron" [size]="14" class="-rotate-90" />
           </span>
-          <span class="text-[11px] font-semibold text-mute">pozo {{ gamePot() }}</span>
+          @if (gamePotCents() > 0) {
+            <span class="text-[11px] font-semibold text-mute">pozo {{ soles(gamePotCents()) }}</span>
+          }
         </span>
       </button>
       @if (winner(); as w) {
@@ -62,9 +64,8 @@ export class GameCardComponent {
   protected readonly ctx = inject(MatchContext);
   protected readonly winner = computed(() => this.ctx.winnerMarket(this.game()));
   /** Suma de los botes de todas las apuestas del partido. */
-  protected readonly gamePot = computed(() =>
-    formatSoles(this.ctx.gameMarkets(this.game()).reduce((s, m) => s + (this.ctx.pots().get(m.id)?.pot ?? 0), 0)),
-  );
+  protected readonly gamePotCents = computed(() => this.ctx.gameMarkets(this.game()).reduce((s, m) => s + (this.ctx.pots().get(m.id)?.pot ?? 0), 0));
+  protected readonly soles = formatSoles;
   protected readonly statusText = computed(() => ({ pending: 'Próximo', live: 'En vivo', played: 'Finalizado' })[this.game().status]);
   protected readonly tone = computed(() => ({ pending: 'text-mute', live: 'text-candy', played: 'text-faint' })[this.game().status]);
 }

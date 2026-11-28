@@ -170,7 +170,14 @@ export class MatchContext {
   }
 
   /** Texto corto para mostrar en botones de cuota/formación: "x2.4" o "Apostar" (sin S/ 0 vacío). */
-  oddText(marketId: string, selection: string, emptyLabel = 'Apostar'): string {
+  /** "pozo S/ 12.00", o una frase si nadie apostó todavía. */
+  potLabel(marketId: string): string {
+    const c = this.pots().get(marketId)?.pot ?? 0;
+    return c > 0 ? `pozo ${formatSoles(c)}` : 'Nadie le entró todavía';
+  }
+
+  /** Multiplicador estimado (x2.5); vacío si el mercado no tiene plata todavía. */
+  oddText(marketId: string, selection: string, emptyLabel = ''): string {
     const mult = this.estimatedMultiplier(marketId, selection);
     if (mult === null) return emptyLabel;
     return mult >= 10 ? `x${mult.toFixed(0)}` : `x${mult.toFixed(1)}`;

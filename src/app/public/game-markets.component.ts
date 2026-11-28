@@ -82,7 +82,7 @@ const PLAYER_SUBGROUPS: { id: PlayerSubGroup; label: string }[] = [
                 <div class="mb-2.5 flex items-center justify-between gap-2">
                   <div class="min-w-0">
                     <h4 class="font-bold leading-tight">{{ label(m.type) }}</h4>
-                    <p class="text-xs text-mute">pozo {{ pot(m.id) }}{{ ctx.state(m.id).open ? '' : ' · ' + ctx.state(m.id).reason }}</p>
+                    <p class="text-xs text-mute">{{ ctx.potLabel(m.id) }}{{ ctx.state(m.id).open ? '' : ' · ' + ctx.state(m.id).reason }}</p>
                   </div>
                   @if (picked) {
                     <span class="grid h-6 min-w-6 place-items-center rounded-full bg-lime px-1.5 text-xs font-extrabold text-white tabular-nums">{{ picked }}</span>
@@ -101,7 +101,7 @@ const PLAYER_SUBGROUPS: { id: PlayerSubGroup; label: string }[] = [
                     <div class="flex items-center justify-between gap-2 py-2 first:pt-0 last:pb-0">
                       <div class="min-w-0 flex-1">
                         <p class="truncate text-sm font-bold">{{ label(m.type) }}</p>
-                        <p class="text-[11px] text-mute">pozo {{ pot(m.id) }}{{ st.open ? '' : ' · ' + st.reason }}</p>
+                        <p class="text-[11px] text-mute">{{ ctx.potLabel(m.id) }}{{ st.open ? '' : ' · ' + st.reason }}</p>
                       </div>
                       <div class="grid w-36 shrink-0 grid-cols-2 gap-1.5">
                         @for (c of ctx.choices(m); track c.selection) {
@@ -116,7 +116,9 @@ const PLAYER_SUBGROUPS: { id: PlayerSubGroup; label: string }[] = [
                             (click)="pick(m.id, c.selection)"
                           >
                             <span class="odd-label text-[11px]">{{ c.label }}</span>
-                            <span class="odd-value text-[12.5px]">{{ ctx.oddText(m.id, c.selection, '—') }}</span>
+                            @if (ctx.oddText(m.id, c.selection); as odd) {
+                              <span class="odd-value text-[12.5px]">{{ odd }}</span>
+                            }
                           </button>
                         }
                       </div>
@@ -234,7 +236,7 @@ const PLAYER_SUBGROUPS: { id: PlayerSubGroup; label: string }[] = [
                 >
                   <span class="min-w-0 flex-1">
                     <span class="block font-bold leading-tight">{{ label(m.type) }}</span>
-                    <span class="block text-xs text-mute">pozo {{ pot(m.id) }}{{ ctx.state(m.id).open ? '' : ' · ' + ctx.state(m.id).reason }}</span>
+                    <span class="block text-xs text-mute">{{ ctx.potLabel(m.id) }}{{ ctx.state(m.id).open ? '' : ' · ' + ctx.state(m.id).reason }}</span>
                   </span>
                   @if (picked) {
                     <span class="grid h-6 min-w-6 place-items-center rounded-full bg-lime px-1.5 text-xs font-extrabold text-white tabular-nums">{{ picked }}</span>

@@ -208,7 +208,7 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
                   <span class="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-night-3 text-lg">{{ icon(m.type) }}</span>
                   <span class="min-w-0 flex-1">
                     <span class="block font-bold leading-tight">{{ m.name }}</span>
-                    <span class="block text-xs text-mute">pozo {{ pot(m.id) }}</span>
+                    <span class="block text-xs text-mute">{{ ctx.potLabel(m.id) }}</span>
                   </span>
                   @if (picked) {
                     <span class="grid h-6 min-w-6 place-items-center rounded-full bg-lime px-1.5 text-xs font-extrabold text-white anim-pop">{{ picked }}</span>
@@ -312,9 +312,6 @@ export class LobbyComponent {
   }
   protected icon(type: string) {
     return MARKET_ICON[type] ?? '🎲';
-  }
-  protected pot(marketId: string) {
-    return formatSoles(this.ctx.pots().get(marketId)?.pot ?? 0);
   }
   protected teamPlayerNames(teamId: string, mode: GameModeId = 1) {
     return this.ctx

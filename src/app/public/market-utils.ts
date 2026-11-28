@@ -9,6 +9,10 @@ export interface Choice {
   label: string;
   /** Texto corto para botones 1 / X / 2. */
   short?: string;
+  /** Equipo de la opción (local/visitante en "Ganador"; equipo del jugador en ese modo). */
+  teamId?: string | null;
+  /** La opción es un jugador (o Autogol). */
+  player?: boolean;
 }
 
 export type MarketState = { open: boolean; reason: string | null };
@@ -41,11 +45,12 @@ export function choicesFor(m: Market, d: PublicMatchData, label: Labeler): Choic
       { selection: '0', label: 'No' },
     ];
   }
+  const game = isGameMarket(m.type) && m.param != null ? leagueOf(d).games.find((x) => x.number === m.param) : undefined;
   if (m.type === 'game_winner') {
     return [
-      { selection: '1', label: label('number', '1', m.type, m.param), short: '1' },
+      { selection: '1', label: label('number', '1', m.type, m.param), short: '1', teamId: game?.home },
       { selection: '0', label: 'Empate', short: 'X' },
-      { selection: '2', label: label('number', '2', m.type, m.param), short: '2' },
+      { selection: '2', label: label('number', '2', m.type, m.param), short: '2', teamId: game?.away },
     ];
   }
   if (m.target === 'team') {
@@ -60,22 +65,18 @@ export function choicesFor(m: Market, d: PublicMatchData, label: Labeler): Choic
     });
   }
   let pool = d.players.filter((p) => !p.is_own_goal);
-  if (isGameMarket(m.type) && m.param != null) {
-    const g = leagueOf(d).games.find((x) => x.number === m.param);
-    if (g) {
-      const mode = g.mode ?? 1;
-      const playing = pool.filter((p) => {
-        const tid = p.modes?.[mode]?.team_id ?? (mode === 1 ? p.team_id : null);
-        return tid === g.home || tid === g.away;
-      });
-      if (playing.length > 0) pool = playing;
-    }
+  // Equipo de cada jugador en el modo del partido (mercados de la jornada: Modo 1).
+  const mode = game?.mode ?? 1;
+  const teamOf = (p: (typeof pool)[number]) => p.modes?.[mode]?.team_id ?? (mode === 1 ? (p.team_id ?? null) : null);
+  if (game) {
+    const playing = pool.filter((p) => teamOf(p) === game.home || teamOf(p) === game.away);
+    if (playing.length > 0) pool = playing;
   }
-  const players = pool
+  const players: Choice[] = pool
     .sort((a, b) => a.sort_order - b.sort_order)
-    .map((p) => ({ selection: p.id, label: p.name }));
+    .map((p) => ({ selection: p.id, label: p.name, teamId: teamOf(p), player: true }));
   const og = d.players.find((p) => p.is_own_goal);
-  return m.allows_own_goal && og ? [...players, { selection: og.id, label: 'Autogol' }] : players;
+  return m.allows_own_goal && og ? [...players, { selection: og.id, label: 'Autogol', player: true }] : players;
 }
 
 /** Bote de cada mercado y lo apostado a cada opción (céntimos, solo apuestas aprobadas). */

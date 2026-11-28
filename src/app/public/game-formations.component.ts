@@ -251,8 +251,9 @@ const BOARD_LINES = ['¡Eso, tilín!', 'Qué lechero', 'Al toque, causa', 'Se mu
                         {{ p.name }}
                       </span>
 
-                      <!-- Pago estimado -->
-                      @if (mk) {
+                      <!-- Pago estimado (sin plata en el pozo no se muestra, salvo que esté en el cupón) -->
+                      @let odd = mk ? ctx.oddText(mk.id, p.id) : '';
+                      @if (mk && (odd || picked)) {
                         <span
                           class="mt-0.5 flex min-h-7 w-full max-w-[84px] flex-col items-center justify-center rounded-xl border px-1.5 py-0.5 leading-none transition"
                           [class]="picked ? 'border-white/50 bg-lime text-white shadow-[0_6px_16px_-4px_rgb(242_98_0/0.9)] anim-pop' : 'border-white/15 bg-[#1b2434]/95 text-amber-300'"
@@ -261,7 +262,7 @@ const BOARD_LINES = ['¡Eso, tilín!', 'Qué lechero', 'Al toque, causa', 'Se mu
                             @if (picked) {
                               <app-icon name="check" [size]="11" [stroke]="3" />
                             }
-                            {{ ctx.oddText(mk.id, p.id) }}
+                            {{ odd || 'En tu ticket' }}
                           </span>
                           @if (staked > 0) {
                             <span class="mt-0.5 text-[9px] font-semibold tabular-nums" [class]="picked ? 'text-white/90' : 'text-slate-300'">
@@ -298,7 +299,7 @@ const BOARD_LINES = ['¡Eso, tilín!', 'Qué lechero', 'Al toque, causa', 'Se mu
             @if (ogOn) {
               <app-icon name="check" [size]="12" [stroke]="3" />
             }
-            Autogol · {{ ctx.oddText(mk.id, og.id) }}
+            Autogol{{ ctx.oddText(mk.id, og.id) ? ' · ' + ctx.oddText(mk.id, og.id) : '' }}
           </button>
         </div>
       }
