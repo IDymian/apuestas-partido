@@ -9,6 +9,7 @@ import { formatSoles } from '../domain/settlement';
 import { MatchContext } from './match-context';
 import { MARKET_ICON } from './market-utils';
 import { IconComponent } from '../ui/icon.component';
+import { ErrorrComponent } from '../ui/errorr.component';
 import { CountUpComponent } from '../ui/count-up.component';
 import { confetti } from '../ui/confetti';
 import { sound } from '../ui/sound';
@@ -16,7 +17,7 @@ import { sound } from '../ui/sound';
 /** Cupón: monto por selección, total, saldo y apostar. */
 @Component({
   selector: 'app-slip',
-  imports: [RouterLink, IconComponent, CountUpComponent],
+  imports: [RouterLink, IconComponent, CountUpComponent, ErrorrComponent],
   template: `
     @if (done().length) {
       <section class="glass text-center anim-pop">
@@ -106,13 +107,13 @@ import { sound } from '../ui/sound';
         </section>
       } @else if (shortfall() > 0) {
         <section class="mt-3 rounded-3xl border border-candy/20 bg-candy/5 p-4 text-center anim-pop" role="alert">
-          <p class="font-bold text-candy">Estás chihuán: te faltan {{ soles(shortfall() * 100) }}</p>
+          <p class="font-bold text-candy">Estás misio: te faltan {{ soles(shortfall() * 100) }}</p>
           <p class="mt-1 text-sm text-mute">Plinea al QR al toque. Apenas el organizador confirme, cae tu saldo y cierras el ticket.</p>
           <button type="button" class="btn mt-3 w-full" (click)="recharge.emit(shortfall())"><app-icon name="wallet" [size]="18" /> Recargar S/ {{ shortfall() }}</button>
         </section>
       } @else {
         @if (error()) {
-          <p class="mt-3 rounded-2xl bg-candy/10 p-3 text-sm text-candy anim-pop" role="alert">{{ error() }}</p>
+          <div class="mt-3 rounded-2xl bg-candy/10 p-3 anim-pop" role="alert"><app-errorr>{{ error() }}</app-errorr></div>
         }
         <button type="button" class="btn mt-4 w-full" [disabled]="sending() || hasClosed() || wallet.balance() === null" (click)="submit()">
           {{ sending() ? 'Apostando…' : 'Apostar ' + soles(slip.totalCents()) }} <app-icon name="check" [size]="18" [stroke]="2.6" />

@@ -4,6 +4,7 @@ import { LeagueGame } from '../domain/league';
 import { MatchContext } from './match-context';
 import { GameMarketsComponent } from './game-markets.component';
 import { IconComponent } from '../ui/icon.component';
+import { KitComponent } from '../ui/kit.component';
 
 /**
  * Hoja con todas las apuestas de un partido. Se dibuja al nivel de la página
@@ -12,7 +13,7 @@ import { IconComponent } from '../ui/icon.component';
  */
 @Component({
   selector: 'app-game-sheet',
-  imports: [GameMarketsComponent, IconComponent],
+  imports: [GameMarketsComponent, IconComponent, KitComponent],
   template: `
     @let g = game();
     <div class="fixed inset-0 z-[60] flex items-end justify-center bg-ink/40 backdrop-blur-sm anim-backdrop md:items-center md:p-6" (click)="closed.emit()">
@@ -38,12 +39,12 @@ import { IconComponent } from '../ui/icon.component';
               </div>
               <h3 class="mt-1.5 flex flex-wrap items-center gap-1.5 font-display text-xl leading-tight font-extrabold">
                 <span class="inline-flex items-center gap-1.5">
-                  <span class="h-3 w-3 shrink-0 rounded-full" [style.background]="ctx.teamColor(g.home)" aria-hidden="true"></span>
+                  <app-kit class="h-5 w-5 shrink-0" [kit]="ctx.teamKit(g.home)" />
                   {{ ctx.team(g.home) }}
                 </span>
                 <span class="text-sm font-bold text-faint">vs</span>
                 <span class="inline-flex items-center gap-1.5">
-                  <span class="h-3 w-3 shrink-0 rounded-full" [style.background]="ctx.teamColor(g.away)" aria-hidden="true"></span>
+                  <app-kit class="h-5 w-5 shrink-0" [kit]="ctx.teamKit(g.away)" />
                   {{ ctx.team(g.away) }}
                 </span>
               </h3>

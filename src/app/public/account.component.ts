@@ -30,6 +30,8 @@ import { sound } from '../ui/sound';
           <p class="font-display text-3xl font-extrabold tabular-nums" data-testid="balance">{{ balanceText() }}</p>
           @if (pending() > 0) {
             <p class="text-xs font-semibold text-white/90">S/ {{ pending() }} por confirmar</p>
+          } @else if ((wallet.balance() ?? 1) < 1) {
+            <p class="text-xs font-semibold text-white/90">Estás misio, causa. Recarga y vuelve a la cancha.</p>
           }
         </div>
         <button type="button" class="inline-flex h-11 items-center gap-1.5 rounded-2xl bg-white px-4 font-extrabold text-lime active:scale-95" (click)="ctx.depositAsk.set({ amount: null })">
@@ -39,7 +41,7 @@ import { sound } from '../ui/sound';
 
       @if (wallet.credits().length) {
         <p class="mt-3 rounded-2xl bg-lime/10 p-3 text-sm font-semibold text-lime">
-          🏆 Plata como cancha: te cayeron {{ soles(creditsTotal()) }} al saldo.
+          🏆 ¡Eso, tilín! Te cayeron {{ soles(creditsTotal()) }} al saldo.
         </p>
       }
 

@@ -63,6 +63,8 @@ export interface Team {
   color: string | null;
   /** Formación táctica para cancha 6v6 (ej. "2-2-1"). */
   formation?: string | null;
+  /** Camiseta del catálogo (`core/kits.ts`). */
+  kit_id?: string | null;
 }
 
 export interface Player {
@@ -291,6 +293,14 @@ export interface ChatMessage {
 
 /** Respuestas rápidas del chat Social. */
 export const QUICK_REACTIONS = [
+  '🤑 ¡Eso, tilín!',
+  '🐢 Quedaste como Donatello',
+  '🥛 Qué lechero',
+  '🍍 Qué piña',
+  '🤡 Se murió el payaso',
+  '😳 Qué palta',
+  '🙈 Qué roche',
+  '🪙 Estoy misio',
   '⚽ ¡GOOOL!',
   '⚪ ¡La esférica no se mancha!',
   '🔥 Qué golazo',

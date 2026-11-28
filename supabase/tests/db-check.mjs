@@ -320,10 +320,10 @@ const pubT = (await q(`select get_public_match('TEST01') j`))[0].j;
 const krul = pubT.players.find((p) => p.name === 'Krul');
 const fields = ['team_id', 'shirt_number', 'position', 'slot', 'modes', 'photo_id', 'costume_id'];
 check('T2: jugador con los 7 campos nuevos', fields.every((k) => k in krul), JSON.stringify(Object.keys(krul)));
-check('T2: Krul arquero del Equipo 1 en Modo 1, defensa del 3 en Modo 2',
+check('T2: Krul arquero de Equipo 1 en Modo 1, defensa de Equipo 3 en Modo 2',
   krul.team_id === teams[0].id && krul.position === 'GK' && krul.shirt_number === 1 && krul.modes['1'].team_id === teams[0].id && krul.modes['2'].team_id === teams[2].id && krul.modes['2'].position === 'DEF');
 check('T2: 6 partidos base (3 Modo 1 + 3 Modo 2)', pubT.match.games.length === 6 && pubT.match.games.filter((g) => g.mode === 2).length === 3 && pubT.match.games[2].home === teams[1].id);
-check('T2: equipos con formación', pubT.teams.every((t) => t.formation === '2-2-1' && 'kit_id' in t));
+check('B1: equipos con formación y kit', pubT.teams.every((t) => t.formation === '2-2-1') && pubT.teams.map((t) => t.kit_id).join() === 'barca,madrid,alianza');
 check('T2: 6 por equipo en Modo 1', teams.every((t) => pubT.players.filter((p) => p.team_id === t.id).length === 6));
 await expectErr('T2: jugador en un equipo de otra jornada', () => q(`update players set team_id=$1 where id=$2`, [otherTeam, pl['Pepe']]), /no pertenece al partido/);
 
@@ -343,6 +343,9 @@ const [{ n: g8 }] = await q(`select admin_add_game($1,$2,$3,true,1) n`, [mid, te
 check('T3: en vivo mueve current_game', (await q(`select current_game, game_live from matches where id=$1`, [mid]))[0].current_game === g8 && g8 === 8);
 
 const [{ id: t4 }] = await q(`select admin_add_team($1, '  Equipo 4 ', null) id`, [mid]);
+const [{ id: tU }] = await q(`select admin_add_team($1, 'Los Camotito', '#b91c1c', 'u') id`, [mid]);
+check('B1: Los Camotito con la camiseta de la U', (await q(`select kit_id from teams where id=$1`, [tU]))[0].kit_id === 'u');
+await expectErr('B1: kit con caracteres raros', () => q(`select admin_add_team($1, 'X', null, 'U FC!')`, [mid]), /Camiseta inválida/);
 const t4row = (await q(`select name, sort_order, color from teams where id=$1`, [t4]))[0];
 check('T4: equipo nuevo al final y con color por defecto', t4row.name === 'Equipo 4' && t4row.sort_order === 4 && t4row.color === '#64748b');
 await q(`update players set team_id=$1 where id=$2`, [t4, pl['Pepe']]);
@@ -372,5 +375,6 @@ await q(`insert into teams (match_id, name, sort_order) values ($1, 'Equipo 5', 
 check('T5: fixture_pair con 5 equipos', await fxPairs(5));
 check('T5: con games manda la lista', (await q(`select fixture_pair($1, 7) p`, [mid]))[0].p.join() === [teams[1].id, teams[0].id].join());
 
+check('B5: bucket público de fotos (solo WebP)', (await q(`select allowed_mime_types from storage.buckets where id='avatares'`))[0]?.allowed_mime_types?.join() === 'image/webp');
 console.log(fails === 0 ? '\nTodas las pruebas de BD pasaron' : `\n${fails} prueba(s) de BD fallaron`);
 process.exit(fails === 0 ? 0 : 1);

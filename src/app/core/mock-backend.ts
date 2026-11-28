@@ -13,6 +13,7 @@ import { GAME_MARKETS } from '../domain/game-markets';
 import { numberMaxOption } from '../domain/settlement';
 import { teamOrder, toTimelineEvents } from '../domain/adapt';
 import { uuid } from './uid';
+import { DEFAULT_TEAM_KITS, KIT_BY_ID, kitAccent } from './kits';
 import {
   AdminMatchData,
   ChatMessage,
@@ -121,11 +122,13 @@ interface SeedPlayer {
   m2: SeedSlot;
 }
 
-const DEFAULT_TEAMS: { key: '1' | '2' | '3'; name: string; color: string; formation: string }[] = [
-  { key: '1', name: 'Equipo 1', color: '#e11d48', formation: '2-2-1' },
-  { key: '2', name: 'Equipo 2', color: '#2563eb', formation: '2-2-1' },
-  { key: '3', name: 'Equipo 3', color: '#16a34a', formation: '2-2-1' },
-];
+const DEFAULT_TEAMS = DEFAULT_TEAM_KITS.map((t, i) => ({
+  key: String(i + 1),
+  name: t.name,
+  kit_id: t.kit,
+  color: kitAccent(KIT_BY_ID.get(t.kit)!),
+  formation: '2-2-1',
+}));
 
 /**
  * Plantel real de los 18 confirmados (6 vs 6 por equipo) en:
@@ -133,21 +136,21 @@ const DEFAULT_TEAMS: { key: '1' | '2' | '3'; name: string; color: string; format
  *  - Modo 2 (Equipo del cumpleañero): E1 Braden ARQ · E2 Adrix ARQ · E3 David Arquero ARQ
  */
 export const DEFAULT_ROSTER: SeedPlayer[] = [
-  // Modo 1 · Equipo 1 (Rojo)
+  // Modo 1 · Equipo 1 (Equipo 1)
   { name: 'Krul',        m1: { team: 1, shirt: 1,  position: 'GK',  slot: 0 }, m2: { team: 3, shirt: 5,  position: 'DEF', slot: 1 } },
   { name: 'Manuel',      m1: { team: 1, shirt: 4,  position: 'DEF', slot: 0 }, m2: { team: 3, shirt: 4,  position: 'DEF', slot: 0 } },
   { name: 'David Vivar', m1: { team: 1, shirt: 5,  position: 'DEF', slot: 1 }, m2: { team: 2, shirt: 3,  position: 'DEF', slot: 0 } },
   { name: 'Fabian',      m1: { team: 1, shirt: 8,  position: 'MID', slot: 0 }, m2: { team: 2, shirt: 8,  position: 'MID', slot: 0 } },
   { name: 'Alexis',      m1: { team: 1, shirt: 10, position: 'MID', slot: 1 }, m2: { team: 2, shirt: 10, position: 'FWD', slot: 0 } },
   { name: 'Nicolas',     m1: { team: 1, shirt: 9,  position: 'FWD', slot: 0 }, m2: { team: 3, shirt: 9,  position: 'FWD', slot: 0 } },
-  // Modo 1 · Equipo 2 (Azul)
+  // Modo 1 · Equipo 2 (Equipo 2)
   { name: 'Balicco',     m1: { team: 2, shirt: 1,  position: 'GK',  slot: 0 }, m2: { team: 2, shirt: 6,  position: 'DEF', slot: 1 } },
   { name: 'Braden',      m1: { team: 2, shirt: 3,  position: 'DEF', slot: 0 }, m2: { team: 1, shirt: 1,  position: 'GK',  slot: 0 } },
   { name: 'Victor',      m1: { team: 2, shirt: 6,  position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 4,  position: 'DEF', slot: 0 } },
   { name: 'Iker',        m1: { team: 2, shirt: 7,  position: 'MID', slot: 0 }, m2: { team: 3, shirt: 7,  position: 'MID', slot: 1 } },
   { name: 'Angel',       m1: { team: 2, shirt: 11, position: 'MID', slot: 1 }, m2: { team: 1, shirt: 8,  position: 'MID', slot: 0 } },
   { name: 'Álvaro',      m1: { team: 2, shirt: 10, position: 'FWD', slot: 0 }, m2: { team: 1, shirt: 10, position: 'FWD', slot: 0 } },
-  // Modo 1 · Equipo 3 (Verde) — David Arquero siempre al arco
+  // Modo 1 · Equipo 3 (Equipo 3) — David Arquero siempre al arco
   { name: 'David Arquero', m1: { team: 3, shirt: 1,  position: 'GK',  slot: 0 }, m2: { team: 3, shirt: 1,  position: 'GK',  slot: 0 } },
   { name: 'Adrix',         m1: { team: 3, shirt: 2,  position: 'DEF', slot: 0 }, m2: { team: 2, shirt: 1,  position: 'GK',  slot: 0 } },
   { name: 'Oscar',         m1: { team: 3, shirt: 4,  position: 'DEF', slot: 1 }, m2: { team: 1, shirt: 5,  position: 'DEF', slot: 1 } },
@@ -178,6 +181,8 @@ export class MockStore {
   private bus = new Map<string, Set<() => void>>();
   private chatListeners = new Map<string, Set<() => void>>();
   qrs = new Map<string, string>();
+  /** Fotos de jugadores subidas desde el admin (player_id → blob URL). */
+  photos = new Map<string, string>();
   private seq = 0;
   private listeners = new Map<string, Set<() => void>>();
 
@@ -247,6 +252,7 @@ export class MockStore {
         sort_order: i + 1,
         color: def.color,
         formation: def.formation,
+        kit_id: def.kit_id,
       };
       this.teams.push(t);
       return t.id;
@@ -553,6 +559,10 @@ export class MockPublicApi extends PublicApi {
   qrUrl(path: string | null) {
     return path ? (this.s.qrs.get(path) ?? null) : null;
   }
+
+  photoUrl(photoId: string) {
+    return this.s.photos.get(photoId) ?? null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -682,14 +692,14 @@ export class MockAdminApi extends AdminApi {
     this.s.notify(matchId);
   }
 
-  async addTeam(matchId: string, name: string, color?: string): Promise<string> {
+  async addTeam(matchId: string, name: string, color?: string, kitId: string | null = null): Promise<string> {
     await delay();
     const clean = name.trim().replace(/\s+/g, ' ');
     if (!clean) throw new Error('El equipo necesita nombre');
     if (!this.s.matches.some((m) => m.id === matchId)) throw new Error('Jornada no encontrada');
     const order = Math.max(0, ...this.s.teams.filter((t) => t.match_id === matchId).map((t) => t.sort_order)) + 1;
     const id = uid();
-    this.s.teams.push({ id, match_id: matchId, name: clean.slice(0, 30), sort_order: order, color: color?.trim() || '#64748b', formation: '2-2-1' });
+    this.s.teams.push({ id, match_id: matchId, name: clean.slice(0, 30), sort_order: order, color: color?.trim() || '#64748b', formation: '2-2-1', kit_id: kitId });
     this.s.notify(matchId);
     return id;
   }
@@ -698,6 +708,14 @@ export class MockAdminApi extends AdminApi {
     let order = Math.max(0, ...this.s.players.filter((p) => p.match_id === matchId && !p.is_own_goal).map((p) => p.sort_order));
     for (const name of names) this.s.players.push({ id: uid(), match_id: matchId, name, is_own_goal: false, sort_order: ++order });
     this.s.notify(matchId);
+  }
+
+  async uploadPlayerPhoto(playerId: string, file: Blob) {
+    const p = this.s.players.find((x) => x.id === playerId);
+    if (!p) throw new Error('Jugador no encontrado');
+    this.s.photos.set(playerId, URL.createObjectURL(file));
+    p.photo_id = playerId;
+    this.s.notify(p.match_id);
   }
 
   async renamePlayer(id: string, name: string) {

@@ -1,27 +1,74 @@
-import { ChangeDetectionStrategy, Component, computed, effect, inject, input, output, signal, untracked } from '@angular/core';
-import { Market, Player, PlayerPosition } from '../core/models';
+import { ChangeDetectionStrategy, Component, computed, inject, input, output, signal } from '@angular/core';
 import { AvatarService } from '../core/avatars';
+import { Kit } from '../core/kits';
+import { Market, Player, PlayerPosition } from '../core/models';
 import { SlipService } from '../core/slip';
+import { BADGE_META, playerBadges } from '../domain/badges';
 import { GAME_MARKET_BY_TYPE } from '../domain/game-markets';
 import { LeagueGame } from '../domain/league';
 import { formatSoles } from '../domain/settlement';
 import { IconComponent } from '../ui/icon.component';
+import { KitComponent } from '../ui/kit.component';
 import { MatchContext } from './match-context';
 
 interface PitchRow {
-  key: string;
-  label: string;
+  key: PlayerPosition;
   players: Player[];
 }
 
+interface Half {
+  id: string;
+  name: string;
+  formation: string;
+  kit: Kit;
+  ring: string;
+  gkKit: Kit;
+  /** Filas de arriba hacia abajo (visitante: arco arriba; local: arco abajo). */
+  rows: PitchRow[];
+}
+
+/** Arquero de magenta (salvo que la camiseta ya sea magenta). */
+const gkKitFor = (accent: string): Kit => {
+  const c = accent.toLowerCase();
+  const primary = c === '#d946ef' || c === '#c026d3' ? '#f59e0b' : '#c026d3';
+  return { id: 'gk', name: 'Arquero', primary, secondary: '#ffffff', pattern: 'solid' };
+};
+
+/** Frases del tablero rotativo (glosario de la Copa). */
+const BOARD_LINES = ['¡Eso, tilín!', 'Qué lechero', 'Al toque, causa', 'Se murió el payaso'];
+
 /**
- * Vista "Formaciones" de un partido (6 vs 6: 5 de campo + 1 arquero),
- * inspirada en casas de apuestas y adaptada a la Copa Álvaro.
+ * Vista "Formaciones" de un partido: los dos equipos en la misma cancha (6 vs 6),
+ * visitante arriba y local abajo. 12 chips sin scroll horizontal en 390 px.
  */
 @Component({
   selector: 'app-game-formations',
-  imports: [IconComponent],
+  imports: [IconComponent, KitComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: `
+    .grass {
+      background: repeating-linear-gradient(180deg, #17602f 0 44px, #145529 44px 88px);
+    }
+    .worn {
+      border-color: rgb(255 255 255 / 0.22);
+    }
+    .board-rot span {
+      grid-area: 1 / 1;
+      opacity: 0;
+      animation: board-rot 12s infinite;
+    }
+    .board-rot span:nth-child(2) { animation-delay: 3s; }
+    .board-rot span:nth-child(3) { animation-delay: 6s; }
+    .board-rot span:nth-child(4) { animation-delay: 9s; }
+    @keyframes board-rot {
+      0%, 22% { opacity: 1; }
+      27%, 100% { opacity: 0; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .board-rot span { animation: none; }
+      .board-rot span:first-child { opacity: 1; }
+    }
+  `,
   template: `
     @let mk = activeMarket();
     @let st = mk ? ctx.state(mk.id) : { open: false, reason: null };
@@ -43,28 +90,19 @@ interface PitchRow {
         </a>
       </div>
 
-      <!-- Selector de equipo (2 equipos del partido) -->
-      <div class="grid grid-cols-2 gap-2 p-3 pb-2" role="tablist" aria-label="Equipos del partido">
-        @for (side of sides(); track side.id) {
-          @let selected = selectedTeamId() === side.id;
+      <!-- Equipos del partido: camiseta, nombre y formación (toca para ir a su mitad) -->
+      <div class="grid grid-cols-2 gap-2 p-3 pb-2" aria-label="Equipos del partido">
+        @for (h of halvesByRole(); track h.id) {
           <button
             type="button"
-            role="tab"
-            class="flex min-h-13 items-center gap-2.5 rounded-2xl border px-3 py-2 text-left transition duration-150 active:scale-[0.98]"
-            [class]="selected ? 'border-white/50 bg-[#17512e] text-white shadow-sm' : 'border-white/10 bg-black/20 text-white/75'"
-            [attr.aria-selected]="selected"
-            (click)="selectTeam(side.id)"
+            class="flex min-h-13 items-center gap-2.5 rounded-2xl border border-white/15 bg-black/20 px-3 py-2 text-left text-white transition duration-150 active:scale-[0.98]"
+            [attr.aria-label]="'Ver ' + h.name + ' en la cancha'"
+            (click)="scrollTo(h.id)"
           >
-            <span
-              class="grid h-8 w-8 shrink-0 place-items-center rounded-xl border border-white/25 font-display text-xs font-extrabold text-white shadow-inner"
-              [style.background]="side.color"
-              aria-hidden="true"
-            >
-              {{ side.badge }}
-            </span>
+            <app-kit class="h-8 w-9 shrink-0" [kit]="h.kit" outline="rgba(255,255,255,0.9)" />
             <span class="min-w-0 flex-1 leading-tight">
-              <span class="block truncate text-[13px] font-extrabold">{{ side.name }}</span>
-              <span class="block text-[11px] font-semibold text-emerald-100/75">{{ side.formation }} · 6v6</span>
+              <span class="block truncate text-[13px] font-extrabold">{{ h.name }}</span>
+              <span class="block text-[11px] font-semibold text-emerald-100/75">{{ h.formation }} · 6v6</span>
             </span>
           </button>
         }
@@ -72,11 +110,7 @@ interface PitchRow {
 
       <!-- Selector horizontal de mercado a jugador -->
       @if (playerMarkets().length) {
-        <div
-          class="tab-scroller no-scrollbar flex items-center gap-1 overflow-x-auto border-b border-white/10 px-3"
-          role="tablist"
-          aria-label="Mercado en cancha"
-        >
+        <div class="tab-scroller no-scrollbar flex items-center gap-1 overflow-x-auto border-b border-white/10 px-3" role="tablist" aria-label="Mercado en cancha">
           @for (m of playerMarkets(); track m.id) {
             @let active = mk?.id === m.id;
             @let picks = countFor(m.id);
@@ -116,145 +150,132 @@ interface PitchRow {
         </div>
       }
 
-      <!-- Cancha verde vertical (6 vs 6: FWD / MID / DEF / GK) -->
-      <div class="pitch-surface relative px-2 pt-3 pb-3.5">
-        <!-- Líneas de cancha (SVG decorativo) -->
-        <svg
-          class="pointer-events-none absolute inset-0 h-full w-full"
-          viewBox="0 0 360 440"
-          preserveAspectRatio="none"
+      <!-- Tableros de publicidad al 70%: un tablero por equipo de la jornada + uno rotativo -->
+      <div class="flex gap-1 overflow-hidden bg-[#092414] px-2 py-1.5 opacity-70" aria-hidden="true">
+        @for (b of boards(); track b) {
+          <span class="min-w-0 flex-1 truncate rounded bg-white px-1 py-0.5 text-center font-display text-[10px] font-extrabold tracking-wider text-[#0d331c]">
+            {{ b }}
+          </span>
+        }
+        <span class="board-rot grid min-w-0 flex-1 rounded bg-lime px-1 py-0.5 text-center font-display text-[10px] font-extrabold tracking-wide text-white">
+          @for (l of boardLines; track l) {
+            <span class="truncate">{{ l }}</span>
+          }
+        </span>
+      </div>
+
+      <!-- Cancha completa: grass de dos tonos y líneas gastadas (HTML: el círculo central nunca se ovala) -->
+      <div class="grass relative px-1.5 py-2">
+        <div class="worn pointer-events-none absolute inset-1.5 rounded-md border-[1.5px]" aria-hidden="true"></div>
+        <div class="worn pointer-events-none absolute top-1.5 left-1/2 h-11 w-[52%] -translate-x-1/2 border-x-[1.5px] border-b-[1.5px]" aria-hidden="true"></div>
+        <div class="worn pointer-events-none absolute bottom-1.5 left-1/2 h-11 w-[52%] -translate-x-1/2 border-x-[1.5px] border-t-[1.5px]" aria-hidden="true"></div>
+        <div class="worn pointer-events-none absolute inset-x-1.5 top-1/2 border-t-[1.5px] border-dashed" aria-hidden="true"></div>
+        <!-- Sello de la Copa en el círculo central -->
+        <div
+          class="worn pointer-events-none absolute top-1/2 left-1/2 grid h-20 w-20 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full border-[1.5px] bg-[#0d331c]/40"
           aria-hidden="true"
         >
-          <!-- Marco exterior -->
-          <rect x="12" y="10" width="336" height="420" rx="6" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.5" />
-          <!-- Línea de mediocampo arriba + semicírculo -->
-          <line x1="12" y1="58" x2="348" y2="58" stroke="rgba(255,255,255,0.14)" stroke-width="1.5" />
-          <circle cx="180" cy="58" r="42" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" />
-          <circle cx="180" cy="58" r="3" fill="rgba(255,255,255,0.22)" />
-          <!-- Área grande y área chica del arquero abajo -->
-          <rect x="76" y="334" width="208" height="96" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.5" />
-          <rect x="126" y="388" width="108" height="42" fill="none" stroke="rgba(255,255,255,0.16)" stroke-width="1.5" />
-          <path d="M 136 334 A 50 30 0 0 1 224 334" fill="none" stroke="rgba(255,255,255,0.14)" stroke-width="1.5" />
-        </svg>
+          <span class="text-center font-display text-[9px] leading-tight font-extrabold tracking-[0.15em] text-white/45 uppercase">Copa<br />Álvaro</span>
+        </div>
 
-        @if (rows().length === 0) {
-          <div class="relative z-10 py-10 text-center text-sm text-emerald-100/80">
-            No hay jugadores asignados a este equipo todavía.
-          </div>
+        @if (!halves().length) {
+          <div class="relative z-10 py-10 text-center text-sm text-emerald-100/80">Todavía no arman los equipos, causa. Paciencia.</div>
         } @else {
-          <div class="relative z-10 flex flex-col gap-3">
-            @for (row of rows(); track row.key) {
-              <div
-                class="grid items-start justify-items-center gap-2"
-                [class]="row.players.length === 1 ? 'grid-cols-1' : row.players.length === 2 ? 'grid-cols-2 px-3' : 'grid-cols-3'"
-              >
-                @for (p of row.players; track p.id) {
-                  @let picked = mk ? slip.has(mk.id, p.id) : false;
-                  @let isGk = row.key === 'GK';
-                  @let staked = mk ? ctx.staked(mk.id, p.id) : 0;
-                  <button
-                    type="button"
-                    class="group flex min-h-11 w-full max-w-[118px] flex-col items-center rounded-2xl px-1 py-0.5 text-center transition duration-150 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-55"
-                    [disabled]="!mk || !st.open"
-                    [attr.aria-pressed]="picked"
-                    [attr.aria-label]="p.name + (isGk ? ' (Arquero)' : '') + (mk ? ' · ' + shortLabel(mk.type) + ' · apostado ' + ctx.stakedText(mk.id, p.id) : '')"
-                    (click)="mk && pick(mk.id, p.id)"
-                  >
-                    @let kit = isGk ? gkKitColor() : activeTeamColor();
-                    @let av = avatars.urlFor(p);
-                    @if (av) {
-                      <!-- Avatar: círculo de 44 px con anillo del equipo, hombros pintados por la app y dorsal en badge -->
-                      <span
-                        class="relative inline-flex h-11 w-11 shrink-0 rounded-full border-2 bg-night-3 drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]"
-                        [style.border-color]="kit"
-                        [style.color]="kit"
-                      >
-                        <span class="absolute inset-0 overflow-hidden rounded-full">
-                          <svg class="absolute inset-0 h-full w-full" viewBox="0 0 512 512" aria-hidden="true">
-                            <path [attr.d]="shouldersPath" fill="currentColor" stroke="#1b1210" stroke-width="12" stroke-linejoin="round" />
-                          </svg>
-                          <img
-                            class="absolute inset-0 h-full w-full object-cover"
-                            [src]="av"
-                            alt=""
-                            width="44"
-                            height="44"
-                            loading="lazy"
-                            decoding="async"
-                            (error)="avatars.markBroken(av)"
-                          />
-                        </span>
-                        <span
-                          class="absolute -right-1.5 -bottom-1 grid h-4 min-w-4 place-items-center rounded-full border border-white/80 px-1 font-display text-[9.5px] font-extrabold text-white tabular-nums shadow"
-                          [style.background]="kit"
-                        >
-                          {{ p.shirt_number ?? '•' }}
-                        </span>
+          @for (h of halves(); track h.id; let top = $first) {
+            <div class="relative z-10 flex flex-col gap-2 py-1.5" [class.pb-12]="top" [class.pt-12]="!top" [attr.id]="anchorId(h.id)" [attr.aria-label]="h.name">
+              @if (!h.rows.length) {
+                <p class="py-6 text-center text-xs text-emerald-100/80">{{ h.name }} sin jugadores asignados todavía.</p>
+              }
+              @for (row of h.rows; track row.key) {
+                <div class="grid items-start justify-items-center gap-1" [class]="row.players.length === 1 ? 'grid-cols-1' : row.players.length === 2 ? 'grid-cols-2 px-8' : 'grid-cols-3'">
+                  @for (p of row.players; track p.id) {
+                    @let picked = mk ? slip.has(mk.id, p.id) : false;
+                    @let isGk = row.key === 'GK';
+                    @let staked = mk ? ctx.staked(mk.id, p.id) : 0;
+                    @let kit = isGk ? h.gkKit : h.kit;
+                    @let ring = isGk ? h.gkKit.primary : h.ring;
+                    @let badge = badges().get(p.id);
+                    <button
+                      type="button"
+                      class="group flex min-h-11 w-full max-w-[112px] flex-col items-center rounded-2xl px-0.5 py-0.5 text-center transition duration-150 active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-55"
+                      [disabled]="!mk || !st.open"
+                      [attr.aria-pressed]="picked"
+                      [attr.aria-label]="
+                        p.name + (isGk ? ' (Arquero)' : '') + (badge ? ' · ' + badgeMeta[badge].label : '') + (mk ? ' · ' + shortLabel(mk.type) + ' · apostado ' + ctx.stakedText(mk.id, p.id) : '')
+                      "
+                      (click)="mk && pick(mk.id, p.id)"
+                    >
+                      @let av = avatars.urlFor(p);
+                      <span class="relative inline-flex drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]">
+                        @if (av) {
+                          <!-- Avatar: círculo de 44 px, anillo del equipo y hombros con su camiseta -->
+                          <span class="relative block h-11 w-11 overflow-hidden rounded-full border-2 bg-night-3" [style.border-color]="ring">
+                            <app-kit class="absolute inset-0 h-full w-full" shape="shoulders" [kit]="kit" outline="#1b1210" />
+                            <img
+                              class="absolute inset-0 h-full w-full object-cover"
+                              [src]="av"
+                              alt=""
+                              width="44"
+                              height="44"
+                              loading="lazy"
+                              decoding="async"
+                              (error)="avatars.markBroken(av)"
+                            />
+                          </span>
+                          <span
+                            class="absolute -right-1.5 -bottom-1 grid h-4 min-w-4 place-items-center rounded-full border border-white/80 px-1 font-display text-[9.5px] font-extrabold text-white tabular-nums shadow"
+                            [style.background]="ring"
+                          >
+                            {{ p.shirt_number ?? '•' }}
+                          </span>
+                        } @else {
+                          <!-- Camiseta con dorsal (sin avatar o si el manifiesto no carga) -->
+                          <app-kit class="h-9 w-10" [kit]="kit" outline="rgba(255,255,255,0.9)" />
+                          <span
+                            class="pointer-events-none absolute inset-0 flex items-center justify-center pt-1 font-display text-[12px] font-extrabold text-white tabular-nums [text-shadow:0_1px_2px_rgb(0_0_0/0.9)]"
+                          >
+                            {{ p.shirt_number ?? '•' }}
+                          </span>
+                        }
                         @if (isGk) {
-                          <span class="absolute -top-1 -right-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-ink shadow">
-                            ARQ
+                          <span class="absolute -top-1 -right-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-ink shadow">ARQ</span>
+                        }
+                        @if (badge) {
+                          <span class="absolute -top-1 -left-2 grid h-5 w-5 place-items-center rounded-full bg-white text-[11px] shadow" [attr.title]="badgeMeta[badge].label">
+                            {{ badgeMeta[badge].emoji }}
                           </span>
                         }
                       </span>
-                    } @else {
-                      <!-- Camiseta SVG con dorsal (sin avatar o si el manifiesto no carga) -->
-                      <span class="relative inline-flex items-center justify-center drop-shadow-[0_4px_8px_rgba(0,0,0,0.45)]">
-                        <svg class="h-9 w-10" viewBox="0 0 48 44" aria-hidden="true">
-                          <path
-                            d="M15 4 L20 7 Q24 9 28 7 L33 4 L44 12 L39 21 L34 18 L34 40 L14 40 L14 18 L9 21 L4 12 Z"
-                            [attr.fill]="kit"
-                            stroke="rgba(255,255,255,0.9)"
-                            stroke-width="1.8"
-                            stroke-linejoin="round"
-                          />
-                          <path d="M19 6 Q24 11 29 6" fill="none" stroke="rgba(255,255,255,0.85)" stroke-width="1.6" />
-                        </svg>
-                        <span
-                          class="pointer-events-none absolute inset-0 flex items-center justify-center pt-1 font-display text-[12px] font-extrabold text-white tabular-nums drop-shadow-[0_1px_2px_rgba(0,0,0,0.75)]"
-                        >
-                          {{ p.shirt_number ?? '•' }}
-                        </span>
-                        @if (isGk) {
-                          <span class="absolute -top-1 -right-2 rounded-full bg-amber-300 px-1.5 py-0.5 text-[9px] font-extrabold tracking-wide text-ink shadow">
-                            ARQ
-                          </span>
-                        }
+
+                      <span class="mt-0.5 line-clamp-1 max-w-full rounded-full bg-black/40 px-1.5 py-0.5 text-[10.5px] leading-tight font-bold text-white">
+                        {{ p.name }}
                       </span>
-                    }
 
-                    <!-- Nombre del jugador -->
-                    <span class="mt-0.5 line-clamp-1 max-w-full rounded-full bg-black/35 px-2 py-0.5 text-[11px] leading-tight font-bold text-white">
-                      {{ p.name }}
-                    </span>
-
-                    <!-- Píldora de apuesta / multiplicador estimado -->
-                    @if (mk) {
-                      <span
-                        class="mt-1 flex min-h-8 w-full max-w-[90px] flex-col items-center justify-center rounded-xl border px-2 py-1 leading-none transition"
-                        [class]="
-                          picked
-                            ? 'border-white/50 bg-lime text-white shadow-[0_6px_16px_-4px_rgb(242_98_0/0.9)] anim-pop'
-                            : 'border-white/15 bg-[#1b2434]/95 text-amber-300'
-                        "
-                      >
-                        <span class="flex items-center gap-1 font-display text-[12.5px] font-extrabold tabular-nums">
-                          @if (picked) {
-                            <app-icon name="check" [size]="12" [stroke]="3" />
+                      <!-- Pago estimado -->
+                      @if (mk) {
+                        <span
+                          class="mt-0.5 flex min-h-7 w-full max-w-[84px] flex-col items-center justify-center rounded-xl border px-1.5 py-0.5 leading-none transition"
+                          [class]="picked ? 'border-white/50 bg-lime text-white shadow-[0_6px_16px_-4px_rgb(242_98_0/0.9)] anim-pop' : 'border-white/15 bg-[#1b2434]/95 text-amber-300'"
+                        >
+                          <span class="flex items-center gap-1 font-display text-[12px] font-extrabold tabular-nums">
+                            @if (picked) {
+                              <app-icon name="check" [size]="11" [stroke]="3" />
+                            }
+                            {{ ctx.oddText(mk.id, p.id) }}
+                          </span>
+                          @if (staked > 0) {
+                            <span class="mt-0.5 text-[9px] font-semibold tabular-nums" [class]="picked ? 'text-white/90' : 'text-slate-300'">
+                              {{ ctx.stakedText(mk.id, p.id) }}
+                            </span>
                           }
-                          {{ ctx.oddText(mk.id, p.id) }}
                         </span>
-                        @if (staked > 0) {
-                          <span class="mt-0.5 text-[9.5px] font-semibold tabular-nums" [class]="picked ? 'text-white/90' : 'text-slate-300'">
-                            {{ ctx.stakedText(mk.id, p.id) }}
-                          </span>
-                        }
-                      </span>
-                    }
-                  </button>
-                }
-              </div>
-            }
-          </div>
+                      }
+                    </button>
+                  }
+                </div>
+              }
+            </div>
+          }
         }
       </div>
 
@@ -291,45 +312,44 @@ export class GameFormationsComponent {
   protected readonly ctx = inject(MatchContext);
   protected readonly slip = inject(SlipService);
   protected readonly avatars = inject(AvatarService);
-  /** Silueta de hombros (hombros.svg del agente de arte, viewBox 512): los avatares ilustrados vienen sin torso. */
-  protected readonly shouldersPath = 'M40 512 C48 460 120 428 196 420 Q256 474 316 420 C392 428 464 460 472 512 Z';
+  protected readonly badgeMeta = BADGE_META;
+  protected readonly boardLines = BOARD_LINES;
+  private readonly uid = Math.random().toString(36).slice(2, 8);
 
-  private readonly selectedTeamOverride = signal<string | null>(null);
   private readonly selectedMarketId = signal<string | null>(null);
 
-  protected readonly sides = computed(() => {
+  /** Local y visitante, en ese orden (para las tarjetas de arriba). */
+  protected readonly halvesByRole = computed<Half[]>(() => {
     const g = this.game();
+    const mode = g.mode ?? 1;
     return [g.home, g.away].map((id, i) => {
       const t = this.ctx.teamById().get(id);
-      const name = t?.name ?? this.ctx.team(id);
+      const ring = this.ctx.teamColor(id);
+      const rows = this.rowsOf(this.ctx.teamPlayers(id, mode));
       return {
         id,
-        name,
-        color: this.ctx.teamColor(id),
+        name: t?.name ?? this.ctx.team(id),
         formation: t?.formation || '2-2-1',
-        badge: `E${t?.sort_order ?? i + 1}`,
+        kit: this.ctx.teamKit(id),
+        ring,
+        gkKit: gkKitFor(ring),
+        // Local (i = 0) ataca hacia arriba: delanteros arriba, arquero abajo. Visitante al revés.
+        rows: i === 0 ? rows : [...rows].reverse(),
       };
     });
   });
 
-  protected readonly selectedTeamId = computed(() => {
-    const g = this.game();
-    const chosen = this.selectedTeamOverride();
-    if (chosen === g.home || chosen === g.away) return chosen;
-    return g.home;
+  /** Mitades de la cancha de arriba hacia abajo: visitante, local. */
+  protected readonly halves = computed(() => {
+    const [home, away] = this.halvesByRole();
+    return home.rows.length || away.rows.length ? [away, home] : [];
   });
 
-  protected readonly activeTeamColor = computed(() => this.ctx.teamColor(this.selectedTeamId()));
+  protected readonly boards = computed(() => this.ctx.orderedTeams().slice(0, 3).map((t) => t.name.replace(/\s*FC$/i, '').toUpperCase()));
 
-  /** Color contrastante para el arquero (magenta vivo, salvo si la camiseta ya es muy similar). */
-  protected readonly gkKitColor = computed(() => {
-    const c = this.activeTeamColor().toLowerCase();
-    return c === '#d946ef' || c === '#c026d3' ? '#f59e0b' : '#c026d3';
-  });
+  protected readonly badges = computed(() => playerBadges(this.ctx.data()?.events ?? []));
 
-  protected readonly playerMarkets = computed(() =>
-    this.ctx.gameMarkets(this.game()).filter((m) => m.target === 'player'),
-  );
+  protected readonly playerMarkets = computed(() => this.ctx.gameMarkets(this.game()).filter((m) => m.target === 'player'));
 
   protected readonly activeMarket = computed<Market | null>(() => {
     const list = this.playerMarkets();
@@ -340,29 +360,37 @@ export class GameFormationsComponent {
 
   protected readonly ownGoalPlayer = computed(() => this.ctx.data()?.players.find((p) => p.is_own_goal) ?? null);
 
-  /** Distribuye los 6 jugadores del equipo (en el modo de este partido) en filas tácticas: FWD → MID → DEF → GK. */
-  protected readonly rows = computed<PitchRow[]>(() => {
-    const mode = this.game().mode ?? 1;
-    const teamPlayers = this.ctx.teamPlayers(this.selectedTeamId(), mode);
-    if (!teamPlayers.length) return [];
+  protected readonly whatsappComplaintUrl = computed(() => {
+    const raw = (this.ctx.data()?.match.pay_number ?? '').replace(/\D+/g, '');
+    const phone = raw.length === 9 ? `51${raw}` : raw;
+    const modeMeta = this.ctx.modeMeta(this.game().mode ?? 1);
+    const gks = this.halvesByRole()
+      .map((h) => {
+        const gk = h.rows.find((r) => r.key === 'GK')?.players[0]?.name;
+        return gk ? `${gk} en ${h.name}` : null;
+      })
+      .filter(Boolean);
+    const text = gks.length
+      ? `Oye, reclamo de la Copa Álvaro (${modeMeta.short}): pusieron de arquero a ${gks.join(' y a ')} y ya están llorando 😅🧤`
+      : `Oye, tengo un reclamo con mi posición en la Copa Álvaro (${modeMeta.short}) 😅🧤`;
+    const base = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
+    return `${base}?text=${encodeURIComponent(text)}`;
+  });
 
-    const hasExplicitPositions = teamPlayers.some((p) => !!p.position);
+  /** Filas tácticas de un equipo, de delanteros a arquero. */
+  private rowsOf(teamPlayers: Player[]): PitchRow[] {
+    if (!teamPlayers.length) return [];
     const byPos = new Map<PlayerPosition, Player[]>([
       ['FWD', []],
       ['MID', []],
       ['DEF', []],
       ['GK', []],
     ]);
-
-    if (hasExplicitPositions) {
-      const unassigned: Player[] = [];
+    if (teamPlayers.some((p) => !!p.position)) {
       for (const p of teamPlayers) {
         if (p.position && byPos.has(p.position)) byPos.get(p.position)!.push(p);
-        else unassigned.push(p);
-      }
-      // Ubica jugadores nuevos sin posición en la línea con menos gente
-      for (const p of unassigned) {
-        if (byPos.get('GK')!.length === 0) byPos.get('GK')!.push(p);
+        // Sin posición: a la línea con menos gente
+        else if (!byPos.get('GK')!.length) byPos.get('GK')!.push(p);
         else if (byPos.get('DEF')!.length < 2) byPos.get('DEF')!.push(p);
         else if (byPos.get('MID')!.length < 2) byPos.get('MID')!.push(p);
         else byPos.get('FWD')!.push(p);
@@ -376,50 +404,20 @@ export class GameFormationsComponent {
       while (list.length > 2) byPos.get('MID')!.push(list.pop()!);
       while (list.length) byPos.get('DEF')!.push(list.shift()!);
     }
-
-    const order: { key: PlayerPosition; label: string }[] = [
-      { key: 'FWD', label: 'Delantero' },
-      { key: 'MID', label: 'Mediocampo' },
-      { key: 'DEF', label: 'Defensa' },
-      { key: 'GK', label: 'Arquero' },
-    ];
-    return order
-      .map((r) => ({ key: r.key, label: r.label, players: byPos.get(r.key)! }))
-      .filter((r) => r.players.length > 0);
-  });
-
-  protected readonly whatsappComplaintUrl = computed(() => {
-    const raw = (this.ctx.data()?.match.pay_number ?? '').replace(/\D+/g, '');
-    const phone = raw.length === 9 ? `51${raw}` : raw;
-    const team = this.ctx.team(this.selectedTeamId());
-    const modeMeta = this.ctx.modeMeta(this.game().mode ?? 1);
-    const gk = this.rows().find((r) => r.key === 'GK')?.players[0]?.name;
-    const text = gk
-      ? `Oye, reclamo de la Copa Álvaro (${modeMeta.short}): pusieron a ${gk} de arquero en ${team} y ya están llorando 😅🧤`
-      : `Oye, tengo un reclamo con mi posición en ${team} (${modeMeta.short}) en la Copa Álvaro 😅🧤`;
-    const base = phone ? `https://wa.me/${phone}` : 'https://wa.me/';
-    return `${base}?text=${encodeURIComponent(text)}`;
-  });
-
-  constructor() {
-    effect(() => {
-      const g = this.game();
-      untracked(() => {
-        if (this.selectedTeamOverride() !== g.home && this.selectedTeamOverride() !== g.away) {
-          this.selectedTeamOverride.set(g.home);
-        }
-      });
-    });
+    return (['FWD', 'MID', 'DEF', 'GK'] as const).map((key) => ({ key, players: byPos.get(key)! })).filter((r) => r.players.length > 0);
   }
 
-  protected selectTeam(teamId: string) {
-    this.selectedTeamOverride.set(teamId);
+  protected anchorId(teamId: string) {
+    return `pitch-${this.uid}-${teamId}`;
+  }
+
+  protected scrollTo(teamId: string) {
+    document.getElementById(this.anchorId(teamId))?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }
 
   protected selectMarket(marketId: string, ev: Event) {
     this.selectedMarketId.set(marketId);
-    const el = ev.currentTarget as HTMLElement | null;
-    el?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    (ev.currentTarget as HTMLElement | null)?.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
   }
 
   protected pick(marketId: string, playerId: string) {

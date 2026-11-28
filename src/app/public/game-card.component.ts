@@ -4,11 +4,12 @@ import { formatSoles } from '../domain/settlement';
 import { MatchContext } from './match-context';
 import { MarketOptionsComponent } from './market-options.component';
 import { IconComponent } from '../ui/icon.component';
+import { KitComponent } from '../ui/kit.component';
 
 /** Tarjeta de un partido (estilo casa de apuestas): equipos, marcador y 1 / X / 2. */
 @Component({
   selector: 'app-game-card',
-  imports: [MarketOptionsComponent, IconComponent],
+  imports: [MarketOptionsComponent, IconComponent, KitComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @let g = game();
@@ -26,13 +27,13 @@ import { IconComponent } from '../ui/icon.component';
           </p>
           <div class="mt-1 space-y-0.5">
             <p class="flex items-center justify-between gap-2 leading-tight font-bold">
-              <span class="flex min-w-0 items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" [style.background]="ctx.teamColor(g.home)"></span><span class="truncate">{{ ctx.team(g.home) }}</span></span>
+              <span class="flex min-w-0 items-center gap-2"><app-kit class="h-4 w-4 shrink-0" [kit]="ctx.teamKit(g.home)" /><span class="truncate">{{ ctx.team(g.home) }}</span></span>
               @if (g.status !== 'pending') {
                 <span class="font-display text-base font-extrabold tabular-nums">{{ g.homeGoals }}</span>
               }
             </p>
             <p class="flex items-center justify-between gap-2 leading-tight font-bold">
-              <span class="flex min-w-0 items-center gap-2"><span class="h-2.5 w-2.5 shrink-0 rounded-full" [style.background]="ctx.teamColor(g.away)"></span><span class="truncate">{{ ctx.team(g.away) }}</span></span>
+              <span class="flex min-w-0 items-center gap-2"><app-kit class="h-4 w-4 shrink-0" [kit]="ctx.teamKit(g.away)" /><span class="truncate">{{ ctx.team(g.away) }}</span></span>
               @if (g.status !== 'pending') {
                 <span class="font-display text-base font-extrabold tabular-nums">{{ g.awayGoals }}</span>
               }

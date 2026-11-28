@@ -6,13 +6,15 @@ import { tableForMode } from '../domain/league';
 import { formatSoles, MarketResult, personKey, settle } from '../domain/settlement';
 import { CountUpComponent } from '../ui/count-up.component';
 import { IconComponent } from '../ui/icon.component';
+import { KitComponent } from '../ui/kit.component';
+import { kitOf } from '../core/kits';
 
 const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 text-white', 'from-gold to-[#ffc266] text-white', 'from-[#ffd9bd] to-[#ffeadb] text-ink'];
 
 /** Pantalla pública: cancha, tabla de equipos, estadísticas, botes en vivo y resultados. */
 @Component({
   selector: 'app-live-board',
-  imports: [CountUpComponent, IconComponent],
+  imports: [CountUpComponent, IconComponent, KitComponent],
   template: `
     @let d = data();
     @let finished = d.match.status === 'finished';
@@ -126,7 +128,7 @@ const TEAM_TONES = ['from-lime to-[#ff9a4d] text-white', 'from-ink to-ink/70 tex
             <tbody>
               @for (r of tb.rows; track r.teamId; let i = $index) {
                 <tr class="border-t border-ink/[0.06]" [class.bg-lime/10]="i === 0 && r.played > 0">
-                  <td class="py-2 font-bold"><span class="mr-1 text-faint">{{ i + 1 }}</span> {{ team(r.teamId) }}</td>
+                  <td class="py-2 font-bold"><span class="flex items-center gap-1.5"><span class="text-faint">{{ i + 1 }}</span><app-kit class="h-4 w-4 shrink-0" [kit]="kit(r.teamId)" />{{ team(r.teamId) }}</span></td>
                   <td class="py-2 text-center">{{ r.played }}</td>
                   <td class="py-2 text-center">{{ r.won }}</td>
                   <td class="py-2 text-center">{{ r.drawn }}</td>
@@ -295,6 +297,10 @@ export class LiveBoardComponent {
   protected readonly teamIds = computed(() => teamOrder(this.data().teams));
   private readonly players = computed(() => new Map(this.data().players.map((p) => [p.id, p.name])));
   private readonly teams = computed(() => new Map(this.data().teams.map((t) => [t.id, t.name])));
+  private readonly teamRows = computed(() => new Map(this.data().teams.map((t) => [t.id, t])));
+  protected kit(id: string) {
+    return kitOf(this.teamRows().get(id), '#a8968a');
+  }
   private readonly markets = computed(() => new Map(this.data().markets.map((m) => [m.id, m])));
   private readonly labeler = computed(() => makeSelectionLabel(this.data().players, this.data().teams, this.data().match.games ?? null));
   protected readonly currentGame = computed(() => this.result().league.games.find((g) => g.number === (this.data().match.current_game ?? 1)) ?? null);

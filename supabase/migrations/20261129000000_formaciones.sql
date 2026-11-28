@@ -1,7 +1,8 @@
 -- =============================================================================
 -- Formaciones 6v6, 3 modos y equipos dinámicos
 --
---   * Plantel canónico: los 18 alias de la app (mock) en 3 equipos de 6, con su
+--   * Plantel canónico: los 18 alias de la app (mock) en 3 equipos de 6 (Equipo 1,
+--     Equipo 2 e Equipo 3, con su camiseta en `kit_id`), con su
 --     lugar en Modo 1 y Modo 2. El 4º equipo (o más) se crea desde el admin.
 --   * `matches.games`: lista de partidos { number, home, away, mode }. Los 6 base
 --     (3 de Modo 1 + 3 de Modo 2) se crean con la jornada; el resto, con admin_add_game.
@@ -186,12 +187,13 @@ as $$
 declare
   v_t uuid[];
 begin
-  -- Mismos equipos y colores que el mock. El 4º se crea desde el admin.
+  -- Mismos equipos, kits y colores que el mock (DEFAULT_TEAM_KITS en src/app/core/kits.ts).
+  -- Los Camotito (kit 'u') y cualquier otro se crean desde el admin.
   with ins as (
-    insert into teams (match_id, name, sort_order, color, formation) values
-      (new.id, 'Equipo 1', 1, '#e11d48', '2-2-1'),
-      (new.id, 'Equipo 2', 2, '#2563eb', '2-2-1'),
-      (new.id, 'Equipo 3', 3, '#16a34a', '2-2-1')
+    insert into teams (match_id, name, sort_order, color, formation, kit_id) values
+      (new.id, 'Equipo 1', 1, '#004d98', '2-2-1', 'barca'),
+      (new.id, 'Equipo 2', 2, '#111827', '2-2-1', 'madrid'),
+      (new.id, 'Equipo 3', 3, '#1e3a8a', '2-2-1', 'alianza')
     returning id, sort_order
   )
   select array_agg(id order by sort_order) into v_t from ins;
@@ -296,7 +298,7 @@ revoke execute on function public.admin_add_game(uuid, uuid, uuid, boolean, int)
 grant execute on function public.admin_add_game(uuid, uuid, uuid, boolean, int) to authenticated;
 
 create or replace function public.admin_add_team(
-  p_match uuid, p_name text, p_color text default '#64748b'
+  p_match uuid, p_name text, p_color text default '#64748b', p_kit text default null
 ) returns uuid
 language plpgsql security definer set search_path = public as $$
 declare v_id uuid;
@@ -304,17 +306,18 @@ begin
   if not public.is_admin() then raise exception 'No autorizado'; end if;
   if btrim(coalesce(p_name, '')) = '' then raise exception 'El equipo necesita nombre'; end if;
   if not exists (select 1 from matches where id = p_match) then raise exception 'Jornada no encontrada'; end if;
+  if p_kit is not null and p_kit !~ '^[a-z0-9-]{1,30}$' then raise exception 'Camiseta inválida'; end if;
 
-  insert into teams (match_id, name, sort_order, color)
+  insert into teams (match_id, name, sort_order, color, kit_id)
   values (p_match, btrim(p_name),
           coalesce((select max(sort_order) from teams where match_id = p_match), 0) + 1,
-          coalesce(nullif(btrim(p_color), ''), '#64748b'))
+          coalesce(nullif(btrim(p_color), ''), '#64748b'), p_kit)
   returning id into v_id;
 
   return v_id;
 end $$;
-revoke execute on function public.admin_add_team(uuid, text, text) from public, anon;
-grant execute on function public.admin_add_team(uuid, text, text) to authenticated;
+revoke execute on function public.admin_add_team(uuid, text, text, text) from public, anon;
+grant execute on function public.admin_add_team(uuid, text, text, text) to authenticated;
 
 -- -----------------------------------------------------------------------------
 -- 5. Lo público: partidos, formación y lugar de cada jugador
@@ -380,3 +383,21 @@ as $$
   where m.access_code = upper(btrim(p_code));
 $$;
 grant execute on function public.get_public_match(text) to anon, authenticated;
+
+-- -----------------------------------------------------------------------------
+-- 6. Fotos de jugadores (con su permiso): las sube el organizador
+--    a `avatares/jugadores/<player_id>.webp`; `players.photo_id` guarda el player_id.
+-- -----------------------------------------------------------------------------
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('avatares', 'avatares', true, 102400, array['image/webp'])
+on conflict (id) do nothing;
+
+drop policy if exists avatares_admin_insert on storage.objects;
+drop policy if exists avatares_admin_update on storage.objects;
+drop policy if exists avatares_admin_delete on storage.objects;
+create policy avatares_admin_insert on storage.objects
+  for insert to authenticated with check (bucket_id = 'avatares' and public.is_admin());
+create policy avatares_admin_update on storage.objects
+  for update to authenticated using (bucket_id = 'avatares' and public.is_admin());
+create policy avatares_admin_delete on storage.objects
+  for delete to authenticated using (bucket_id = 'avatares' and public.is_admin());

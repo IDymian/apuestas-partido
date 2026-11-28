@@ -176,7 +176,7 @@ export function marketOpen(
   jornadaOpen: boolean,
 ): { open: boolean; reason: string | null } {
   if (m.settled) return { open: false, reason: 'Liquidado' };
-  if (!jornadaOpen) return { open: false, reason: 'Apuestas cerradas' };
+  if (!jornadaOpen) return { open: false, reason: 'Se murió el payaso' };
   const def = GAME_MARKET_BY_TYPE.get(m.type);
   if (def) {
     const g = l.games.find((x) => x.number === m.param);

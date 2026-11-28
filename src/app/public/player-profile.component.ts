@@ -1,13 +1,14 @@
 import { Component, computed, inject, input } from '@angular/core';
 import { betSelection } from '../core/models';
 import { formatSoles, personKey } from '../domain/settlement';
+import { BADGE_META, bettorBadges } from '../domain/badges';
 import { MatchContext } from './match-context';
 import { MARKET_ICON } from './market-utils';
 
 type BetState = 'won' | 'lost' | 'refund' | 'open';
 const STATE: Record<BetState, { label: string; tone: string }> = {
-  won: { label: '✓ Ganó', tone: 'bg-lime/15 text-lime' },
-  lost: { label: '✗ Perdió', tone: 'bg-candy/10 text-candy' },
+  won: { label: '✓ ¡Eso, tilín!', tone: 'bg-lime/15 text-lime' },
+  lost: { label: '🐢 Donatello', tone: 'bg-candy/10 text-candy' },
   refund: { label: '↩ Devuelto', tone: 'bg-ink/[0.06] text-mute' },
   open: { label: '⏳ En juego', tone: 'bg-gold/15 text-gold' },
 };
@@ -23,6 +24,17 @@ const STATE: Record<BetState, { label: string; tone: string }> = {
       <div class="glass p-3"><p class="eyebrow">Aciertos</p><p class="mt-1 font-display text-2xl font-extrabold">{{ s.won }}<span class="text-base text-faint">/{{ s.decided }}</span></p></div>
       <div class="glass p-3"><p class="eyebrow">{{ s.allFinal ? 'Ganó' : 'Cobra' }}</p><p class="mt-1 font-display text-2xl font-extrabold text-lime">{{ soles(s.collect) }}</p></div>
     </div>
+
+    <!-- Vitrina de insignias -->
+    @if (s.badges.length) {
+      <ul class="mt-3 flex flex-wrap gap-1.5" aria-label="Insignias">
+        @for (b of s.badges; track b) {
+          <li class="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1 text-xs font-extrabold ring-1 ring-ink/[0.08]">
+            <span aria-hidden="true">{{ badgeMeta[b].emoji }}</span>{{ badgeMeta[b].label }}
+          </li>
+        }
+      </ul>
+    }
 
     <h3 class="mt-5 mb-2 px-1 font-display text-lg font-extrabold">Apuestas</h3>
     @if (s.rows.length === 0) {
@@ -51,6 +63,7 @@ export class PlayerProfileComponent {
   private readonly ctx = inject(MatchContext);
   protected readonly soles = formatSoles;
   protected readonly state = STATE;
+  protected readonly badgeMeta = BADGE_META;
 
   protected readonly stats = computed(() => {
     const d = this.ctx.data();
@@ -98,6 +111,7 @@ export class PlayerProfileComponent {
       decided: rows.filter((r) => r.state === 'won' || r.state === 'lost').length,
       collect,
       allFinal: rows.length > 0 && rows.every((r) => r.final),
+      badges: bettorBadges(rows.filter((r) => r.final && (r.state === 'won' || r.state === 'lost')).map((r) => r.state as 'won' | 'lost')),
     };
   });
 }

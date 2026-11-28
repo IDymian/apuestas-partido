@@ -9,6 +9,7 @@ import { MarketOptionsComponent } from './market-options.component';
 import { LiveBoardComponent } from './live-board.component';
 import { MARKET_ICON } from './market-utils';
 import { IconComponent } from '../ui/icon.component';
+import { KitComponent } from '../ui/kit.component';
 import { Ball3dComponent } from '../ui/ball3d.component';
 import { sound } from '../ui/sound';
 import { formatSoles } from '../domain/settlement';
@@ -21,7 +22,7 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
 /** Inicio de la pichanga: 3 modos de juego, Makanakis de la jornada y tabla + Draft. */
 @Component({
   selector: 'app-lobby',
-  imports: [GameCardComponent, MarketOptionsComponent, LiveBoardComponent, IconComponent, Ball3dComponent],
+  imports: [GameCardComponent, MarketOptionsComponent, LiveBoardComponent, IconComponent, Ball3dComponent, KitComponent],
   template: `
     <!-- Banner compacto con pelota 3D -->
     <section class="relative overflow-hidden rounded-[24px] bg-gradient-to-br from-[#ff8a1f] via-lime to-[#d13f00] text-white shadow-[0_18px_38px_-18px_rgb(242_98_0/0.8)] anim-in">
@@ -29,6 +30,13 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
         <p class="text-[10px] font-extrabold tracking-[0.2em] text-white/80 uppercase">Copa Álvaro</p>
         <h2 class="mt-0.5 font-display text-[20px] leading-tight font-extrabold">La esférica no se mancha</h2>
         <p class="mt-1 text-xs text-white/90">{{ gameCount() }} partidos · {{ marketsCount() }} mercados · pozo total {{ totalPot() }}</p>
+        <ul class="mt-1.5 flex flex-wrap gap-1" aria-label="Equipos">
+          @for (t of ctx.orderedTeams(); track t.id) {
+            <li class="flex items-center gap-1 rounded-full bg-white/90 py-0.5 pr-2 pl-1 text-[10.5px] font-extrabold text-ink">
+              <app-kit class="h-4 w-4" [kit]="ctx.teamKit(t.id)" />{{ t.name }}
+            </li>
+          }
+        </ul>
         @if (!auth.user()) {
           <p class="mt-1.5 inline-flex rounded-full bg-white/20 px-2.5 py-0.5 text-[11px] font-bold">Entra para meter tus fichas</p>
         }
@@ -91,7 +99,7 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
                   class="text-xs font-bold text-lime-deep underline underline-offset-2"
                   (click)="toggleSquads(sec.meta.id)"
                 >
-                  {{ openSquadMode() === sec.meta.id ? 'Ocultar equipos' : 'Ver 3 equipos' }}
+                  {{ openSquadMode() === sec.meta.id ? 'Ocultar equipos' : 'Ver ' + ctx.orderedTeams().length + ' equipos' }}
                 </button>
               }
             </div>
@@ -101,7 +109,7 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
               <div class="mb-2.5 grid gap-1.5 anim-expand">
                 @for (t of ctx.orderedTeams(); track t.id) {
                   <div class="glass flex items-start gap-2.5 p-2.5">
-                    <span class="mt-1 h-2.5 w-2.5 shrink-0 rounded-full" [style.background]="ctx.teamColor(t.id)" aria-hidden="true"></span>
+                    <app-kit class="h-5 w-5 shrink-0" [kit]="ctx.teamKit(t.id)" />
                     <div class="min-w-0 flex-1">
                       <p class="text-xs font-extrabold">{{ t.name }}</p>
                       <p class="text-[11.5px] leading-snug text-mute">{{ teamPlayerNames(t.id, sec.meta.id) || 'Por definir' }}</p>
@@ -154,7 +162,7 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
         @if (ctx.restingTeams().length && modeFilter() !== 3) {
           @for (rt of ctx.restingTeams(); track rt.id) {
             <section class="glass mt-3 flex items-start gap-3 p-3.5 anim-in">
-              <span class="mt-0.5 h-3 w-3 shrink-0 rounded-full" [style.background]="ctx.teamColor(rt.id)" aria-hidden="true"></span>
+              <app-kit class="h-6 w-6 shrink-0" [kit]="ctx.teamKit(rt.id)" />
               <div class="min-w-0 flex-1">
                 <p class="text-xs font-extrabold tracking-wide text-mute uppercase">Calentando el asiento · espera al ganador</p>
                 <p class="font-display text-base font-extrabold leading-tight">{{ rt.name }}</p>

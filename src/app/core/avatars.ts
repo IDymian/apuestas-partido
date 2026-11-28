@@ -1,5 +1,6 @@
-import { Injectable, signal } from '@angular/core';
+import { inject, Injectable, signal } from '@angular/core';
 import { Player } from './models';
+import { PublicApi } from './public-api';
 
 export interface AvatarEntry {
   id: string;
@@ -8,11 +9,12 @@ export interface AvatarEntry {
 }
 
 /**
- * Catálogo de avatares (`/avatares/manifest.json`), cargado una vez.
+ * Catálogo de avatares (`/avatares/manifest.json`, cargado una vez) + fotos subidas desde el admin.
  * Si el manifiesto o una imagen fallan, no hay avatar y la cancha usa la camiseta.
  */
 @Injectable({ providedIn: 'root' })
 export class AvatarService {
+  private readonly api = inject(PublicApi);
   readonly list = signal<AvatarEntry[]>([]);
   private readonly broken = signal<ReadonlySet<string>>(new Set());
 
@@ -25,23 +27,31 @@ export class AvatarService {
       .catch(() => {});
   }
 
-  url(id: string | null | undefined): string | null {
-    const e = id ? this.list().find((x) => x.id === id) : undefined;
-    return e && !this.broken().has(e.id) ? `/avatares/${e.archivo}` : null;
+  /** Especiales que se pueden elegir como disfraz. */
+  costumes() {
+    return this.list().filter((e) => e.tipo === 'especial');
   }
 
-  /** Disfraz > foto > base determinístico por id de jugador. */
+  url(id: string | null | undefined): string | null {
+    const e = id ? this.list().find((x) => x.id === id) : undefined;
+    return e ? this.ok(`/avatares/${e.archivo}`) : null;
+  }
+
+  /** Disfraz > foto (del manifiesto o subida) > base determinístico por id de jugador. */
   urlFor(p: Pick<Player, 'id' | 'photo_id' | 'costume_id'>): string | null {
-    const own = this.url(p.costume_id) ?? this.url(p.photo_id);
+    const own = this.url(p.costume_id) ?? this.url(p.photo_id) ?? (p.photo_id ? this.ok(this.api.photoUrl(p.photo_id)) : null);
     if (own) return own;
-    const bases = this.list().filter((e) => e.tipo === 'base' && !this.broken().has(e.id));
+    const bases = this.list().filter((e) => e.tipo === 'base' && this.url(e.id));
     return bases.length ? this.url(bases[hash(p.id) % bases.length].id) : null;
   }
 
-  /** La imagen no cargó: se deja de usar (la cancha vuelve a la camiseta o a otra base). */
+  /** La imagen no cargó: se deja de usar (vuelve otra base o la camiseta). */
   markBroken(url: string) {
-    const e = this.list().find((x) => url.endsWith(`/avatares/${x.archivo}`));
-    if (e) this.broken.update((s) => new Set(s).add(e.id));
+    this.broken.update((s) => new Set(s).add(url));
+  }
+
+  private ok(url: string | null) {
+    return url && !this.broken().has(url) ? url : null;
   }
 }
 

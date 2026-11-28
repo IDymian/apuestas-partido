@@ -45,7 +45,7 @@ const DEPOSIT_STATUS: Record<TicketStatus, { label: string; icon: IconName; tone
               <div class="mx-auto grid h-16 w-16 place-items-center rounded-full bg-lime text-white"><app-icon name="check" [size]="30" [stroke]="3" /></div>
               <p class="mt-3 font-display text-2xl font-extrabold">¡Captura enviada!</p>
               <p class="mt-1 text-sm text-mute">S/ {{ done() }} se suman a tu saldo apenas el organizador revise su Plin. Te avisamos con sonido.</p>
-              <button type="button" class="btn mt-5 w-full" (click)="closed.emit()">Listo</button>
+              <button type="button" class="btn mt-5 w-full" (click)="closed.emit()">De una</button>
             </section>
           } @else {
             <p class="field-label">1. ¿Cuánto depositas?</p>

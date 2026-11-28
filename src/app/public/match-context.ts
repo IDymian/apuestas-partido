@@ -1,5 +1,6 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { GAME_MODES, GameModeId, Market, Player, PublicMatchData, Team } from '../core/models';
+import { Kit, kitAccent, kitOf } from '../core/kits';
 import { makeSelectionLabel, publicToSettleInput } from '../domain/adapt';
 import { LeagueGame } from '../domain/league';
 import { GAME_MARKETS, isGameMarket } from '../domain/game-markets';
@@ -113,10 +114,13 @@ export class MatchContext {
 
   /** Color del equipo (hex para puntos, escudos y camisetas). */
   teamColor(id: string): string {
-    const t = this.teamById().get(id);
-    if (t?.color) return t.color;
+    return kitAccent(this.teamKit(id));
+  }
+
+  /** Camiseta del equipo (la misma en avatar, chips, tarjetas y tabla). */
+  teamKit(id: string): Kit {
     const idx = Math.max(0, this.orderedTeams().findIndex((x) => x.id === id));
-    return FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+    return kitOf(this.teamById().get(id), FALLBACK_COLORS[idx % FALLBACK_COLORS.length]);
   }
 
   /**

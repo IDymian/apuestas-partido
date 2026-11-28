@@ -46,7 +46,7 @@ export abstract class AuthApi {
 /** Mensajes de Supabase Auth en español. */
 export function authError(e: unknown): string {
   const msg = (e as { message?: string })?.message ?? String(e);
-  if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'Sin conexión. Revisa tu internet e inténtalo otra vez.';
+  if (/Failed to fetch|NetworkError|network/i.test(msg)) return 'Se cayó la señal, causa. Revisa tu internet y dale otra vez.';
   if (/Invalid login credentials/i.test(msg)) return 'Correo o contraseña incorrectos.';
   if (/Email not confirmed/i.test(msg)) return 'Primero confirma tu correo: revisa tu bandeja (y la carpeta de spam).';
   if (/already registered|already been registered/i.test(msg)) return 'Ese correo ya tiene cuenta. Inicia sesión o recupera tu contraseña.';

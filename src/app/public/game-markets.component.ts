@@ -8,6 +8,7 @@ import { MatchContext } from './match-context';
 import { MarketOptionsComponent } from './market-options.component';
 import { GameFormationsComponent } from './game-formations.component';
 import { IconComponent } from '../ui/icon.component';
+import { KitComponent } from '../ui/kit.component';
 
 type MarketTab = 'popular' | 'formations' | 'players' | 'goles' | 'tarjetas' | 'show';
 type PlayerSubGroup = 'goles' | 'tarjetas' | 'show';
@@ -33,7 +34,7 @@ const PLAYER_SUBGROUPS: { id: PlayerSubGroup; label: string }[] = [
  */
 @Component({
   selector: 'app-game-markets',
-  imports: [MarketOptionsComponent, GameFormationsComponent, IconComponent],
+  imports: [MarketOptionsComponent, GameFormationsComponent, IconComponent, KitComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <!-- Pestañas horizontales del partido (una sola fila con scroll táctil y fade en bordes) -->
@@ -171,11 +172,14 @@ const PLAYER_SUBGROUPS: { id: PlayerSubGroup; label: string }[] = [
               </thead>
               <tbody>
                 @for (p of visiblePlayers(); track p.id) {
-                  @let teamColor = p.team_id ? ctx.teamColor(p.team_id) : '#a8968a';
                   <tr class="group">
                     <th scope="row" class="sticky left-0 z-10 border-b border-ink/[0.06] bg-white px-3 py-2 font-bold text-ink">
                       <span class="flex items-center gap-2">
-                        <span class="h-2.5 w-2.5 shrink-0 rounded-full" [style.background]="teamColor" aria-hidden="true"></span>
+                        @if (p.team_id) {
+                          <app-kit class="h-4 w-4 shrink-0" [kit]="ctx.teamKit(p.team_id)" />
+                        } @else {
+                          <span class="h-2.5 w-2.5 shrink-0 rounded-full bg-faint" aria-hidden="true"></span>
+                        }
                         <span class="min-w-0 flex-1 truncate">{{ p.name }}</span>
                         @if (p.position === 'GK') {
                           <span class="shrink-0 rounded bg-amber-100 px-1 py-0.5 text-[9px] font-extrabold text-amber-900">ARQ</span>

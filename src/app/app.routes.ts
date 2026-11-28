@@ -34,5 +34,5 @@ export const routes: Routes = [
     loadComponent: () => import('./admin/admin-match.page').then((m) => m.AdminMatchPage),
     title: 'Jornada · Copa Álvaro',
   },
-  { path: '**', redirectTo: '' },
+  { path: '**', loadComponent: () => import('./public/not-found.page').then((m) => m.NotFoundPage), title: 'ERRORR · Copa Álvaro' },
 ];

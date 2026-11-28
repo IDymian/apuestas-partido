@@ -81,6 +81,9 @@ test('cupón con apuestas desde Formaciones, Populares y Especiales; se ve en Mi
   await dialog.getByRole('tab', { name: 'Formaciones' }).click();
   await expect(dialog.getByText('Alineación al ojo')).toBeVisible();
   await expect(dialog.getByRole('link', { name: /Reclamar en WhatsApp/ })).toBeVisible();
+  // Los dos equipos en la misma cancha: 12 chips, sin scroll horizontal
+  await expect(dialog.getByRole('button', { name: / · Primer gol · apostado/ })).toHaveCount(12);
+  await expectNoHorizontalScroll(page);
   await dialog.getByRole('button', { name: /^Nicolas · Primer gol/ }).click();
   await shot(page, '02-formaciones');
 
@@ -157,7 +160,7 @@ test('registro con correo, depósito por Plin y el admin lo acredita', async ({ 
   // Sin saldo: el ticket pide depositar lo que falta
   await page.getByRole('button', { name: /^Empate · apostado/ }).first().click();
   await tab(page, /Ticket/).click();
-  await expect(page.getByText('Estás chihuán: te faltan S/ 1.00')).toBeVisible();
+  await expect(page.getByText('Estás misio: te faltan S/ 1.00')).toBeVisible();
   await page.getByRole('button', { name: /Recargar S\/ 1/ }).click();
   await expect(page.getByRole('heading', { name: 'Depositar por Plin' })).toBeVisible();
   await page.getByRole('button', { name: '20', exact: true }).click();
@@ -165,7 +168,7 @@ test('registro con correo, depósito por Plin y el admin lo acredita', async ({ 
   await shot(page, '06-deposito');
   await page.getByRole('button', { name: /Ya pliné S\/ 20/ }).click();
   await expect(page.getByText('¡Captura enviada!')).toBeVisible();
-  await page.getByRole('button', { name: 'Listo' }).click();
+  await page.getByRole('button', { name: 'De una' }).click();
 
   await adminLogin(page);
   await page.getByRole('link', { name: /Pagos/ }).click();
@@ -217,8 +220,8 @@ test('bote: en vivo, liquidar acredita la ganancia al saldo y el admin devuelve 
 
   await goInApp(page, '/p/COPA?tab=mine');
   await expect(page.getByTestId('balance')).toHaveText('S/ 50');
-  await expect(page.getByText(/Plata como cancha: te cayeron S\/ 5\.00/)).toBeVisible();
-  await expect(page.getByText('✓ Ganó').first()).toBeVisible();
+  await expect(page.getByText(/¡Eso, tilín! Te cayeron S\/ 5\.00/)).toBeVisible();
+  await expect(page.getByText('✓ ¡Eso, tilín!').first()).toBeVisible();
 
   // Al final, el organizador devuelve el saldo por Plin
   await goInApp(page, '/admin/pagos');
