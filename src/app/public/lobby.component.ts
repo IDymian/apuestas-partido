@@ -198,7 +198,7 @@ const DRAFT_MEDALS = ['🥇', '🥈', '🥉'] as const;
           <p class="mt-3 flex items-center gap-2 rounded-2xl bg-ink/[0.05] p-3 text-sm text-mute"><app-icon name="lock" [size]="16" /> Ya rodó el balón: los Makanakis de la jornada ya cerraron.</p>
         }
         @for (sec of sections(); track sec.id) {
-          <h3 class="mt-5 mb-2 px-1 font-display text-lg font-extrabold">{{ sec.icon }} {{ sec.label }} <span class="text-xs font-semibold text-faint">· {{ sec.blurb }}</span></h3>
+          <h3 class="mt-5 mb-2 px-1 font-display text-lg font-extrabold">{{ sec.icon }} {{ sec.label }} <span class="block text-xs font-semibold text-faint">{{ sec.blurb }}</span></h3>
           <div class="space-y-2">
             @for (m of sec.markets; track m.id) {
               @let isOpen = open() === m.id;

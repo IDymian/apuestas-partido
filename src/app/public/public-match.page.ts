@@ -254,9 +254,12 @@ export class PublicMatchPage implements OnDestroy {
   protected setTab(t: Tab) {
     if (t === this.tab()) return;
     const apply = () => this.tab.set(t);
-    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-    if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) doc.startViewTransition(apply);
-    else apply();
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => ViewTransition };
+    if (doc.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const vt = doc.startViewTransition(apply);
+      // Tocar otra pestaña rápido salta la transición anterior: es esperado, no un error.
+      for (const p of [vt.ready, vt.finished, vt.updateCallbackDone]) p.catch(() => {});
+    } else apply();
     this.router.navigate([], { queryParams: { tab: t === 'games' ? null : t }, queryParamsHandling: 'merge', replaceUrl: true });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }

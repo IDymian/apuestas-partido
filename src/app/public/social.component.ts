@@ -94,7 +94,8 @@ const tone = (name: string) => AVATAR_TONES[[...name].reduce((s, c) => s + c.cha
     <!-- Escribir -->
     <div class="fixed inset-x-0 bottom-0 z-30 bg-gradient-to-t from-night from-75% to-night/0 pt-5 pb-[calc(5.6rem+env(safe-area-inset-bottom))]">
     <div class="mx-auto max-w-md px-3 md:max-w-2xl" data-testid="composer">
-      <div class="no-scrollbar -mx-3 mb-2 flex gap-1.5 overflow-x-auto px-3">
+      <!-- Desvanecido en los bordes: se nota que la fila sigue y se desliza -->
+      <div class="no-scrollbar -mx-3 mb-1 flex gap-1.5 overflow-x-auto px-3 py-1 [mask-image:linear-gradient(to_right,transparent,#000_14px,#000_calc(100%-40px),transparent)]">
         @for (r of reactions; track r) {
           <button type="button" class="shrink-0 rounded-full border border-ink/10 bg-white/95 px-3 py-1.5 text-xs font-bold shadow-sm backdrop-blur-xl transition hover:border-lime/50 active:scale-95" [disabled]="sending()" (click)="send(r)">
             {{ r }}

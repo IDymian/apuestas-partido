@@ -40,7 +40,11 @@ export class App {
   protected readonly offline = signal(typeof navigator !== 'undefined' && navigator.onLine === false);
   protected readonly peek = signal<string | null>(null);
 
+  private readonly errorrFace = new Image();
+
   constructor() {
+    // Sin señal ya no se puede bajar la cara de ERRORR: se pide de entrada y se mantiene viva en memoria.
+    this.errorrFace.src = '/avatares/especiales/errorr.webp';
     addEventListener('online', () => this.offline.set(false));
     addEventListener('offline', () => this.offline.set(true));
     // El panel del organizador usa un tema claro; el resto, el tema noche.
